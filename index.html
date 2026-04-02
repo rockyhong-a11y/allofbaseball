@@ -1807,19 +1807,11 @@ function romanize(str){
    타자 컬럼: 연도 팀명 AVG G PA AB R H 2B 3B HR TB RBI SB CS BB HBP SO GDP SLG OBP E
    투수 컬럼: 연도 팀명 ERA G CG SHO W L SV HLD WPCT TBF IP H HR BB HBP SO R ER
 ══════════════════════════════════════════════════════ */
-const CF_PROXY    = 'https://kbo-proxy.rockyhong.workers.dev'; // Cloudflare Worker (선수 검색용)
-const LOCAL_PROXY = 'http://localhost:8080';                    // 로컬 폴백 (kbo_proxy.py 실행 시)
-const PROXY = 'https://api.allorigins.win/get?url=';            // 범용 프록시
+const CF_PROXY    = 'https://kbo-proxy.rockyhong.workers.dev'; // Cloudflare Worker (KBO 선수+일정)
+const LOCAL_PROXY = 'http://localhost:8080';                    // 로컬 폴백
+const PROXY       = 'https://api.allorigins.win/get?url=';     // 범용 프록시 (구)
+const CODETABS    = 'https://api.codetabs.com/v1/proxy/?quest='; // 범용 CORS 프록시 (NPB)
 
-/* ── Flashscore API 설정 (KBO/NPB 스케줄·순위) ── */
-const FS_SIGN    = 'SW9D1eZo';
-const FS_BASE    = 'https://global.flashscore.ninja/44/x/feed/';
-const FS_HEADERS = {'X-Fsign': FS_SIGN};
-// 2026 시즌 ID (시즌 변경 시 업데이트 필요)
-const FS_KBO_TOUR = 'vkjTfVEi';  // KBO 토너먼트 ID
-const FS_KBO_SEAS = 'rojGWW5k';  // KBO 2026 시즌 ID
-const FS_NPB_TOUR = 'x4v2dq4n';  // NPB 토너먼트 ID
-const FS_NPB_SEAS = 'dCrMScac';  // NPB 2026 시즌 ID
 
 /* KBO: CF Worker → 로컬 프록시 순으로 시도 */
 async function fetchKboData(query) {
@@ -2423,12 +2415,12 @@ let _lgDate = new Date(); // 현재 날짜
 
 const LG_CFG = {
   kbo: {badge:'KBO', badgeClass:'b-kbo', title:'🇰🇷 한국 프로야구',
-    extSch:'https://www.flashscore.com/baseball/south-korea/kbo/',
-    extStd:`https://www.flashscore.com/baseball/south-korea/kbo/#/${FS_KBO_SEAS}/standings/overall/`},
+    extSch:'https://www.koreabaseball.com/Schedule/Schedule.aspx',
+    extStd:'https://www.koreabaseball.com/Record/Standing/TeamRank/BasicRecordTeam.aspx'},
   mlb: {badge:'MLB', badgeClass:'b-mlb', title:'🇺🇸 메이저리그', extSch:'https://www.mlb.com/schedule', extStd:'https://www.mlb.com/standings'},
   npb: {badge:'NPB', badgeClass:'b-npb', title:'🇯🇵 일본 프로야구',
-    extSch:'https://www.flashscore.com/baseball/japan/npb/',
-    extStd:`https://www.flashscore.com/baseball/japan/npb/#/${FS_NPB_SEAS}/standings/overall/`},
+    extSch:'https://npb.jp/games/2026/',
+    extStd:'https://npb.jp/standings/2026/'},
 };
 
 function _lgDateStr(d) {
@@ -2517,131 +2509,77 @@ function loadLgData() {
   }
 }
 
-/* ══════════════════════════════════════════════════════
-   ★ Flashscore 피드 공통 파서
-══════════════════════════════════════════════════════ */
 
-/* 날짜 오프셋 계산 (0=오늘, -1=어제, 1=내일) */
-function _lgDayOffset(date) {
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const target = new Date(date);
-  target.setHours(0,0,0,0);
-  return Math.round((target - today) / 86400000);
-}
-
-/* Flashscore 경기 피드 파싱 — 지정 리그 필터링 */
-function _parseFlashscoreSchedule(text, leagueFilter) {
-  const allRecords = text.split('~');
-  let inLeague = false;
-  const games = [];
-
-  for (const rec of allRecords) {
-    if (rec.includes('ZA÷')) {
-      const m = rec.match(/ZA÷([^¬]+)/);
-      inLeague = !!(m && m[1] === leagueFilter);
-      continue;
-    }
-    if (!inLeague || !rec.includes('AA÷')) continue;
-
-    const f = {};
-    rec.split('¬').forEach(p => {
-      const i = p.indexOf('÷');
-      if (i > 0) f[p.slice(0,i)] = p.slice(i+1);
-    });
-
-    const ts  = parseInt(f.AD || 0) * 1000;
-    // KST/JST = UTC+9
-    const kst = new Date(ts + 9 * 3600000);
-    const timeStr = `${String(kst.getUTCHours()).padStart(2,'0')}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
-
-    const homeScore = f.WG || '';  // WG = 홈팀 점수
-    const awayScore = f.WF || '';  // WF = 원정팀 점수
-    const score = (homeScore !== '' && awayScore !== '') ? `${awayScore} - ${homeScore}` : '';
-
-    const ab = parseInt(f.AB || 1);
-    let status = timeStr;  // 기본: 시작 시간
-    if (ab === 2) status = '종료';
-    else if (ab === 3) status = '진행중';
-
-    games.push({
-      away: f.AF || '',
-      home: f.CX || f.AE || '',
-      score,
-      venue: '',
-      status
-    });
-  }
-  return games;
-}
-
-/* Flashscore 순위 피드 파싱 */
-function _parseFlashscoreStandings(text) {
-  const records = text.split('~').filter(rec => rec.includes('TN÷'));
-  if (!records.length) return [];
-
-  const teams = records.map(rec => {
-    const f = {};
-    rec.split('¬').forEach(p => {
-      const i = p.indexOf('÷');
-      if (i > 0) f[p.slice(0,i)] = p.slice(i+1);
-    });
-    return {
-      rank: parseInt(f.TR || 0),
-      team: f.TN || '',
-      g:    f.TM || '',
-      w:    f.TW || '',
-      l:    f.TL || '',
-      d:    f.TDR || '0',
-      pct:  f.PC  || '',
-      gb:   '-',
-      streak: ''
-    };
-  });
-
-  // GB(게임차) 계산
-  if (teams.length > 1) {
-    const top = teams[0];
-    const topDiff = parseInt(top.w||0) - parseInt(top.l||0);
-    teams.forEach(t => {
-      if (t.rank === 1) { t.gb = '-'; return; }
-      const diff = topDiff - (parseInt(t.w||0) - parseInt(t.l||0));
-      t.gb = (diff / 2).toFixed(1);
-    });
-  }
-  return teams;
-}
-
-/* ── KBO 스케줄 (Flashscore) ── */
+/* ── KBO 스케줄 (koreabaseball.com) ── */
 async function loadKboSchedule(el) {
+  const KBO_TEAM = {
+    'KIA':'KIA 타이거즈','LG':'LG 트윈스','키움':'키움 히어로즈',
+    'SSG':'SSG 랜더스','두산':'두산 베어스','삼성':'삼성 라이온즈',
+    '롯데':'롯데 자이언츠','NC':'NC 다이노스','KT':'KT 위즈','한화':'한화 이글스',
+  };
   try {
-    const offset = _lgDayOffset(_lgDate);
-    const r = await fetch(`${FS_BASE}f_6_${offset}_3_en_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
+    const yr = _lgDate.getFullYear();
+    const mm = String(_lgDate.getMonth()+1).padStart(2,'0');
+    const dd = _lgDate.getDate();
+    // CF Worker가 koreabaseball.com을 직접 프록시 → raw JSON 반환
+    const url = `${CF_PROXY}/ws/Schedule.asmx/GetScheduleList?leId=1&srIdList=0&seasonId=${yr}&gameMonth=${mm}&teamId=`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(15000)});
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const text = await r.text();
-    const games = _parseFlashscoreSchedule(text, 'SOUTH KOREA: KBO');
-    if (games.length > 0) { el.innerHTML = _renderScheduleTable(games, 'kbo'); return; }
+    const data = await r.json();
+    if (!data?.rows) throw new Error('No data');
+    const games = [];
+    let curMonth = 0, curDay = 0;
+    for (const {row} of (data.rows || [])) {
+      const dayCell = row.find(c => c.Class === 'day');
+      if (dayCell) {
+        const m = dayCell.Text.replace(/<[^>]+>/g,'').match(/(\d{2})\.(\d{2})/);
+        if (m) { curMonth = parseInt(m[1]); curDay = parseInt(m[2]); }
+      }
+      if (curMonth !== _lgDate.getMonth()+1 || curDay !== dd) continue;
+      const playCell   = row.find(c => c.Class === 'play');
+      const cancelCell = row.find(c => c.Class === 'cancel');
+      const timeCell   = row.find(c => c.Class === 'time');
+      // 구장: null-class 셀 중 한글 포함 첫 번째
+      const nullCells  = row.filter(c => c.Class === null && c.Text?.replace(/<[^>]+>/g,'').trim());
+      const venueCell  = nullCells.find(c => /[\uAC00-\uD7A3]/.test(c.Text));
+      if (!playCell && !cancelCell) continue;
+      const venue = venueCell ? venueCell.Text.replace(/<[^>]+>/g,'').trim() : '';
+      let away='', home='', score='';
+      let status = timeCell ? timeCell.Text.replace(/<[^>]+>/g,'').trim() : '예정';
+      if (cancelCell) {
+        status = '취소';
+        const m2 = cancelCell.Text.match(/<span[^>]*>([^<]+)<\/span>[^]*?<span[^>]*>([^<]+)<\/span>/);
+        if (m2) { away = m2[1]; home = m2[2]; }
+      } else {
+        const m2 = playCell.Text.match(/<span>(.+?)<\/span><em>([\s\S]*?)<\/em><span>(.+?)<\/span>/);
+        if (m2) {
+          away = m2[1].trim(); home = m2[3].trim();
+          const nums = m2[2].match(/\d+/g);
+          if (nums && nums.length >= 2) { score = `${nums[0]} - ${nums[1]}`; status = '종료'; }
+        }
+        if (row.find(c => c.Class === 'relay' && c.Text?.includes('gameDate'))) status = '진행중';
+      }
+      if (!away && !home) continue;
+      games.push({away: KBO_TEAM[away]||away, home: KBO_TEAM[home]||home, score, venue, status});
+    }
+    if (games.length) { el.innerHTML = _renderScheduleTable(games, 'kbo'); return; }
     el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} KBO 경기 없음</p>
-      <a href="${LG_CFG.kbo.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore KBO 일정</a></div>`;
+      <a href="${LG_CFG.kbo.extSch}" target="_blank" class="lg-ext-link">🔗 KBO 공식 일정</a></div>`;
   } catch(e) {
-    el.innerHTML = `<div class="lg-err">⚠️ KBO 스케줄 데이터를 불러오지 못했습니다.<br>
-      <a href="${LG_CFG.kbo.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore KBO 바로가기</a></div>`;
+    el.innerHTML = `<div class="lg-err">⚠️ KBO 스케줄을 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.kbo.extSch}" target="_blank" class="lg-ext-link">🔗 KBO 공식 일정 바로가기</a></div>`;
   }
 }
 
-/* ── KBO 순위 (Flashscore) ── */
+/* ── KBO 순위 (koreabaseball.com — 세션 필요로 직접 접근 불가) ── */
 async function loadKboStandings(el) {
-  try {
-    const r = await fetch(`${FS_BASE}to_${FS_KBO_TOUR}_${FS_KBO_SEAS}_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const text = await r.text();
-    const teams = _parseFlashscoreStandings(text);
-    if (teams.length > 0) { el.innerHTML = _renderStandingsTable(teams, 'kbo'); return; }
-    throw new Error('No data');
-  } catch(e) {
-    el.innerHTML = `<div class="lg-err">⚠️ KBO 순위 데이터를 불러오지 못했습니다.<br>
-      <a href="${LG_CFG.kbo.extStd}" target="_blank" class="lg-ext-link">🔗 Flashscore KBO 순위 바로가기</a></div>`;
-  }
+  el.innerHTML = `<div class="sbox" style="text-align:center;padding:20px 16px">
+    <p style="font-size:1rem;font-weight:600;margin-bottom:8px">🏆 KBO 순위</p>
+    <p style="font-size:.82rem;color:var(--mu);margin-bottom:14px">KBO 공식 사이트에서 최신 순위를 확인하세요</p>
+    <a href="${LG_CFG.kbo.extStd}" target="_blank" class="lg-ext-link" style="font-size:.9rem;padding:8px 16px;background:rgba(0,120,255,.15);border-radius:8px;display:inline-block">
+      🔗 koreabaseball.com 순위 바로가기
+    </a>
+  </div>`;
 }
 
 /* ── MLB 스케줄 ── */
@@ -2754,35 +2692,102 @@ async function loadMlbStandings(el) {
   }
 }
 
-/* ── NPB 스케줄 (Flashscore) ── */
+/* ── NPB 스케줄 (npb.jp HTML) ── */
 async function loadNpbSchedule(el) {
+  const NPB_TEAM = {
+    'ヤクルト':'야쿠르트','広島':'히로시마','巨人':'요미우리','中日':'주니치',
+    'DeNA':'DeNA 베이스타즈','阪神':'한신','ソフトバンク':'소프트뱅크',
+    '日本ハム':'닛폰햄','楽天':'라쿠텐','ロッテ':'롯데','ORIX':'ORIX','西武':'세이부',
+  };
   try {
-    const offset = _lgDayOffset(_lgDate);
-    const r = await fetch(`${FS_BASE}f_6_${offset}_3_en_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
+    const yr  = _lgDate.getFullYear();
+    const mm  = String(_lgDate.getMonth()+1).padStart(2,'0');
+    const dd  = String(_lgDate.getDate()).padStart(2,'0');
+    // CODETABS는 raw HTML 반환 (allorigins처럼 JSON 래핑 없음)
+    const pageUrl = `https://npb.jp/games/${yr}/schedule_${mm}_detail.html`;
+    const r = await fetch(`${CODETABS}${encodeURIComponent(pageUrl)}`, {signal: AbortSignal.timeout(15000)});
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const text = await r.text();
-    const games = _parseFlashscoreSchedule(text, 'JAPAN: NPB');
-    if (games.length > 0) { el.innerHTML = _renderScheduleTable(games, 'npb'); return; }
+    const html = await r.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const dateId = `date${mm}${dd}`;
+    const dateTr = doc.getElementById(dateId);
+    if (!dateTr) {
+      el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} NPB 경기 없음</p>
+        <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 NPB 공식 일정</a></div>`;
+      return;
+    }
+    const gameTrs = [dateTr];
+    let sib = dateTr.nextElementSibling;
+    while (sib && !sib.id) { gameTrs.push(sib); sib = sib.nextElementSibling; }
+    const games = [];
+    for (const tr of gameTrs) {
+      const matchTd = tr.querySelector('td');
+      if (!matchTd) continue;
+      const team1 = matchTd.querySelector('.team1')?.textContent?.trim() || '';
+      const team2 = matchTd.querySelector('.team2')?.textContent?.trim() || '';
+      if (!team1 || !team2) continue;
+      const infoTd  = tr.querySelectorAll('td')[1];
+      const venue   = infoTd?.querySelector('.place')?.textContent?.replace(/\s+/g,' ').trim() || '';
+      const timeStr = infoTd?.querySelector('.time')?.textContent?.trim() || '';
+      let score = '', status = timeStr || '예정';
+      if (matchTd.querySelector('.cancel')) {
+        status = '취소';
+      } else {
+        const s1 = matchTd.querySelector('.score1')?.textContent?.trim();
+        const s2 = matchTd.querySelector('.score2')?.textContent?.trim();
+        if (s1 && s2 && /^\d+$/.test(s1) && /^\d+$/.test(s2)) { score=`${s1} - ${s2}`; status='종료'; }
+      }
+      games.push({away: NPB_TEAM[team1]||team1, home: NPB_TEAM[team2]||team2, score, venue, status});
+    }
+    if (games.length) { el.innerHTML = _renderScheduleTable(games, 'npb'); return; }
     el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} NPB 경기 없음</p>
-      <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore NPB 일정</a></div>`;
+      <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 NPB 공식 일정</a></div>`;
   } catch(e) {
-    el.innerHTML = `<div class="lg-err">⚠️ NPB 스케줄 데이터를 불러오지 못했습니다.<br>
-      <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore NPB 바로가기</a></div>`;
+    el.innerHTML = `<div class="lg-err">⚠️ NPB 스케줄을 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 NPB 공식 일정 바로가기</a></div>`;
   }
 }
 
-/* ── NPB 순위 (Flashscore) ── */
+/* ── NPB 순위 (CODETABS → npb.jp/cl/ + npb.jp/pl/) ── */
 async function loadNpbStandings(el) {
+  const NPB_KO = {
+    'ヤクルト':'야쿠르트 스왈로즈','広島':'히로시마 카프','読売':'요미우리 자이언츠',
+    '中日':'주니치 드래곤즈','DeNA':'DeNA 베이스타즈','阪神':'한신 타이거스',
+    'ソフトバンク':'소프트뱅크 호크스','日本ハム':'닛폰햄 파이터즈','楽天':'라쿠텐 이글스',
+    'ロッテ':'롯데 마린즈','オリックス':'ORIX 버팔로즈','西武':'세이부 라이온즈',
+  };
+  const parseLeaguePage = (html) => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const tbl = [...doc.querySelectorAll('table')].find(t => {
+      const txt = t.textContent;
+      return Object.keys(NPB_KO).filter(k => txt.includes(k)).length >= 3;
+    });
+    if (!tbl) return [];
+    return [...tbl.querySelectorAll('tr')].filter(r => r.querySelector('td')).map((tr, i) => {
+      const cells = [...tr.querySelectorAll('td,th')].map(c => c.textContent.trim());
+      const koName = Object.keys(NPB_KO).find(k => (cells[0]||'').includes(k));
+      if (!koName) return null;
+      return {rank:i+1, team:NPB_KO[koName],
+              g:cells[1]||'0', w:cells[2]||'0', l:cells[3]||'0', d:cells[4]||'0',
+              pct:cells[5]||'', gb:i===0?'-':(cells[6]||'-'), streak:''};
+    }).filter(Boolean);
+  };
   try {
-    const r = await fetch(`${FS_BASE}to_${FS_NPB_TOUR}_${FS_NPB_SEAS}_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const text = await r.text();
-    const teams = _parseFlashscoreStandings(text);
-    if (teams.length > 0) { el.innerHTML = _renderStandingsTable(teams, 'npb'); return; }
+    const [rCl, rPl] = await Promise.all([
+      fetch(`${CODETABS}${encodeURIComponent('https://npb.jp/cl/')}`, {signal:AbortSignal.timeout(15000)}),
+      fetch(`${CODETABS}${encodeURIComponent('https://npb.jp/pl/')}`, {signal:AbortSignal.timeout(15000)}),
+    ]);
+    const [htmlCl, htmlPl] = await Promise.all([rCl.text(), rPl.text()]);
+    const se = parseLeaguePage(htmlCl);
+    const pa = parseLeaguePage(htmlPl);
+    const divData = [];
+    if (se.length) divData.push({section:'🔵 센트럴리그 (セ・リーグ)', teams:se});
+    if (pa.length) divData.push({section:'🔴 퍼시픽리그 (パ・リーグ)', teams:pa});
+    if (divData.length) { el.innerHTML = _renderStandingsTableWithDivisions(divData, 'npb'); return; }
     throw new Error('No data');
   } catch(e) {
-    el.innerHTML = `<div class="lg-err">⚠️ NPB 순위 데이터를 불러오지 못했습니다.<br>
-      <a href="${LG_CFG.npb.extStd}" target="_blank" class="lg-ext-link">🔗 Flashscore NPB 순위 바로가기</a></div>`;
+    el.innerHTML = `<div class="lg-err">⚠️ NPB 순위를 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.npb.extStd}" target="_blank" class="lg-ext-link">🔗 NPB 공식 순위 바로가기</a></div>`;
   }
 }
 
