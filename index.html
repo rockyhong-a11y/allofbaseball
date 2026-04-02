@@ -1947,60 +1947,579 @@ function parseKboPage(doc, playerId, isHitter, name, sourceUrl) {
 }
 
 /* ══════════════════════════════════════════════════════
-   NPB — npb.jp 외부 데이터 페치
-   CORS 프록시 → 선수 검색 → 기록 파싱
+   NPB 선수 인덱스: 한자명 → [선수ID, 타자/투수]
+   출처: 1point02.jp (2022 투수 Excel + 2026 리더스)
+══════════════════════════════════════════════════════ */
+const NPB_INDEX = {
+  'ケムナ誠':['201800033','pit'],
+  'サイスニード':['202100133','pit'],
+  'ボー・タカハシ':['202200150','pit'],
+  'マルク':['201800007','pit'],
+  '一岡竜司':['999900019','pit'],
+  '万波中正':['201900090','bat'],
+  '三上朋也':['201400015','pit'],
+  '三嶋一輝':['201300082','pit'],
+  '三浦銀二':['202200105','pit'],
+  '上原健太':['201600017','pit'],
+  '上沢直之':['999900495','pit'],
+  '上田洸太朗':['202100020','pit'],
+  '上茶谷大河':['201900029','pit'],
+  '中川圭太':['201900062','bat'],
+  '中川虎大':['201800066','pit'],
+  '中村亮太':['202100078','pit'],
+  '中村勝':['999900485','pit'],
+  '中村奨成':['201800069','bat'],
+  '中村稔弥':['201900065','pit'],
+  '中西聖輝':['202600011','pit'],
+  '中野拓夢':['202100075','bat'],
+  '中﨑翔太':['999900224','pit'],
+  '久保拓眞':['201900033','pit'],
+  '九里亜蓮':['201400031','pit'],
+  '二木康太':['201400064','pit'],
+  '井上温大':['202000012','pit'],
+  '井口和朋':['201600011','pit'],
+  '井納翔一':['201300081','pit'],
+  '京山将弥':['201700030','pit'],
+  '今井達也':['201700010','pit'],
+  '今村信貴':['999900028','pit'],
+  '今永昇太':['201600015','pit'],
+  '今野龍太':['201400051','pit'],
+  '伊勢大夢':['202000007','pit'],
+  '伊藤大海':['202100012','pit'],
+  '伊藤将司':['202100013','pit'],
+  '伊藤琉偉':['202400011','bat'],
+  '佐々木健':['202100055','pit'],
+  '佐々木千隼':['201700043','pit'],
+  '佐々木朗希':['202000051','pit'],
+  '佐々木泰':['202500029','bat'],
+  '佐藤優':['201600043','pit'],
+  '佐藤奨真':['202100056','pit'],
+  '佐藤輝明':['202100057','bat'],
+  '佐藤隼輔':['202200047','pit'],
+  '佐野恵太':['201700044','bat'],
+  '佐野泰雄':['201500033','pit'],
+  '入江大生':['202100017','pit'],
+  '八木彬':['202200116','pit'],
+  '公文克彦':['201300003','pit'],
+  '内海哲也':['999900008','pit'],
+  '内間拓馬':['202100023','pit'],
+  '則本昂大':['201300061','pit'],
+  '加治屋蓮':['201400073','pit'],
+  '加藤貴之':['201600027','pit'],
+  '勝田成':['202600027','bat'],
+  '勝野昌慶':['201900026','pit'],
+  '北山亘基':['202200032','pit'],
+  '北浦竜次':['201800025','pit'],
+  '十亀剣':['999900739','pit'],
+  '千賀滉大':['999900797','pit'],
+  '原樹理':['201600080','pit'],
+  '又吉克樹':['201400019','pit'],
+  '及川雅貴':['202000034','pit'],
+  '古川侑利':['201400046','pit'],
+  '古謝樹':['202400045','pit'],
+  '古賀優大':['201700035','bat'],
+  '吉川雄大':['202200126','pit'],
+  '吉村貢司郎':['202300123','pit'],
+  '吉田凌':['201600110','pit'],
+  '吉田大喜':['202000107','pit'],
+  '吉田輝星':['201900100','pit'],
+  '周東佑京':['201800046','bat'],
+  '和田毅':['999901003','pit'],
+  '唐川侑己':['999900410','pit'],
+  '嘉弥真新也':['999900558','pit'],
+  '国吉佑樹':['999900297','pit'],
+  '土肥星也':['201700071','pit'],
+  '坂倉将吾':['201700040','bat'],
+  '坂本光士郎':['201900037','pit'],
+  '坂本裕哉':['202000050','pit'],
+  '堀瑞輝':['201700093','pit'],
+  '堀田賢慎':['202000086','pit'],
+  '塹江敦哉':['201500067','pit'],
+  '増井浩俊':['999900474','pit'],
+  '増田達至':['201300076','pit'],
+  '大下佑馬':['201800015','pit'],
+  '大勢':['202200059','pit'],
+  '大山悠輔':['201700016','bat'],
+  '大曲錬':['202100026','pit'],
+  '大江竜聖':['201700013','pit'],
+  '大瀬良大地':['201400030','pit'],
+  '大竹耕太郎':['201800017','pit'],
+  '大西広樹':['202000027','pit'],
+  '大貫晋一':['201900015','pit'],
+  '大道温貴':['202100027','pit'],
+  '大野雄大':['999900076','pit'],
+  '大関友久':['202000025','pit'],
+  '太田椋':['201900014','bat'],
+  '奥川恭伸':['202000031','pit'],
+  '奥村政稔':['201900018','pit'],
+  '宇田川優希':['202100021','pit'],
+  '安樂智大':['201500003','pit'],
+  '宋家豪':['201500142','pit'],
+  '宗佑磨':['201500039','bat'],
+  '宮台康平':['201800093','pit'],
+  '宮國椋丞':['999900011','pit'],
+  '宮城大弥':['202000093','pit'],
+  '宮川哲':['202000092','pit'],
+  '宮森智志':['202200110','pit'],
+  '宮西尚生':['999900477','pit'],
+  '富山凌雅':['201900058','pit'],
+  '寺地隆成':['202400091','bat'],
+  '寺西成騎':['202500068','pit'],
+  '小園海斗':['201900035','bat'],
+  '小峯新陸':['202000049','pit'],
+  '小島和哉':['201900020','pit'],
+  '小島大河':['202600090','bat'],
+  '小川一平':['202000030','pit'],
+  '小川泰弘':['201300070','pit'],
+  '小川龍成':['202100030','bat'],
+  '小木田敦也':['202200040','pit'],
+  '小林慶祐':['201700036','pit'],
+  '小林樹斗':['202100048','pit'],
+  '小沼健太':['202100031','pit'],
+  '小澤怜史':['201600036','pit'],
+  '小笠原慎之介':['201600023','pit'],
+  '小野泰己':['201700019','pit'],
+  '小野郁':['201500020','pit'],
+  '尾仲祐哉':['201700018','pit'],
+  '尾形崇斗':['201800018','pit'],
+  '山下輝':['202200121','pit'],
+  '山口俊':['999900266','pit'],
+  '山岡泰輔':['201700109','pit'],
+  '山川穂高':['201400053','bat'],
+  '山本一輝':['202100120','pit'],
+  '山本大貴':['201800104','pit'],
+  '山本拓実':['201800105','pit'],
+  '山本由伸':['201700112','pit'],
+  '山本祐大':['201800106','bat'],
+  '山田修義':['999900621','pit'],
+  '山野太一':['202100118','pit'],
+  '山﨑伊織':['202100115','pit'],
+  '山﨑康晃':['201500074','pit'],
+  '山﨑福也':['201500075','pit'],
+  '山﨑颯一郎':['201700111','pit'],
+  '岡林勇希':['202000029','bat'],
+  '岡田俊哉':['999900075','pit'],
+  '岡野祐一郎':['202000028','pit'],
+  '岩下大輝':['201500013','pit'],
+  '岩崎優':['201400029','pit'],
+  '岩嵜翔':['999900551','pit'],
+  '岩田幸宏':['202200012','bat'],
+  '岩貞祐太':['201400024','pit'],
+  '岸孝之':['999900730','pit'],
+  '岸田行倫':['201800024','bat'],
+  '島内颯太郎':['201900041','pit'],
+  '島本浩也':['999900860','pit'],
+  '市川悠太':['201900006','pit'],
+  '平井克典':['201700084','pit'],
+  '平内龍太':['202100095','pit'],
+  '平川蓮':['202600029','bat'],
+  '平田真吾':['201400013','pit'],
+  '平良海馬':['201800051','pit'],
+  '平野佳寿':['999900603','pit'],
+  '床田寛樹':['201700070','pit'],
+  '度会隆輝':['202400159','bat'],
+  '廣岡大志':['201600086','bat'],
+  '廣畑敦也':['202200087','pit'],
+  '弓削隼人':['201900098','pit'],
+  '張奕':['201700067','pit'],
+  '徐若熙':['992200203','pit'],
+  '戸根千明':['201500052','pit'],
+  '戸田懐生':['202100072','pit'],
+  '戸郷翔征':['201900057','pit'],
+  '才木浩人':['201700037','pit'],
+  '早川隆久':['202100089','pit'],
+  '星知弥':['201700090','pit'],
+  '有原航平':['201500002','pit'],
+  '有吉優樹':['201700002','pit'],
+  '望月大希':['202000098','pit'],
+  '木村優人':['202400039','pit'],
+  '木澤尚文':['202100040','pit'],
+  '本前郁也':['202000100','pit'],
+  '本田仁海':['201800088','pit'],
+  '本田圭佑':['201600091','pit'],
+  '杉山一樹':['201900044','pit'],
+  '杉山晃基':['202000057','pit'],
+  '杉浦稔大':['201400006','pit'],
+  '村上頌樹':['202100110','pit'],
+  '村松開人':['202300107','bat'],
+  '村林一輝':['201600097','bat'],
+  '村西良太':['202000097','pit'],
+  '東克樹':['201800002','pit'],
+  '東妻勇輔':['201900001','pit'],
+  '東晃平':['201800003','pit'],
+  '東條大樹':['201600065','pit'],
+  '東浜巨':['201300044','pit'],
+  '松井友飛':['202200100','pit'],
+  '松井裕樹':['201400043','pit'],
+  '松本剛':['999900512','bat'],
+  '松本晴':['202300099','pit'],
+  '松本竜也':['202200103','pit'],
+  '松本航':['201900089','pit'],
+  '松本裕樹':['201500068','pit'],
+  '松浦慶斗':['202200101','pit'],
+  '松葉貴大':['201300052','pit'],
+  '板東湧梧':['201900076','pit'],
+  '林安可':['992200171','bat'],
+  '柳田悠岐':['999900594','bat'],
+  '柳町達':['202000103','bat'],
+  '柳裕也':['201700108','pit'],
+  '柴田大地':['202200049','pit'],
+  '柿木蓮':['201900023','pit'],
+  '栗原陵矢':['201500028','bat'],
+  '栗林良吏':['202100044','pit'],
+  '根尾昂':['201900069','pit'],
+  '根本悠楓':['202100085','pit'],
+  '桐敷拓馬':['202200035','pit'],
+  '桑原将志':['999900313','bat'],
+  '桜井俊貴':['201600041','pit'],
+  '梅野雄吾':['201700012','pit'],
+  '森下暢仁':['202000102','pit'],
+  '森下翔太':['202300108','bat'],
+  '森博人':['202100112','pit'],
+  '森原康平':['201700104','pit'],
+  '森友哉':['201400052','bat'],
+  '森唯斗':['201400074','pit'],
+  '森木大智':['202200115','pit'],
+  '森浦大輔':['202100113','pit'],
+  '森翔平':['202200114','pit'],
+  '森脇亮介':['201900093','pit'],
+  '森遼大朗':['201800098','pit'],
+  '椋木蓮':['202200111','pit'],
+  '椎野新':['201800042','pit'],
+  '横山陸人':['202000106','pit'],
+  '横川凱':['201900099','pit'],
+  '橋本侑樹':['202000076','pit'],
+  '櫻井頼之介':['202600012','pit'],
+  '武内夏暉':['202400078','pit'],
+  '武岡龍世':['202000063','bat'],
+  '武田翔太':['999900544','pit'],
+  '比嘉幹貴':['999900612','pit'],
+  '毛利海大':['202600031','pit'],
+  '水上由伸':['202100107','pit'],
+  '水谷瞬':['201900091','bat'],
+  '水野達稀':['202200108','bat'],
+  '池田隆英':['201700005','pit'],
+  '池谷蒼大':['202100006','pit'],
+  '河村説人':['202100039','pit'],
+  '河野竜生':['202000039','pit'],
+  '泉口友汰':['202400010','bat'],
+  '泉圭輔':['201900005','pit'],
+  '津森宥紀':['202000069','pit'],
+  '津留﨑大成':['202000070','pit'],
+  '浅村栄斗':['999900777','bat'],
+  '浜地真澄':['201700083','pit'],
+  '海野隆司':['202000019','bat'],
+  '涌井秀章':['999900736','pit'],
+  '清宮幸太郎':['201800027','bat'],
+  '清水昇':['201900042','pit'],
+  '清水達也':['201800045','pit'],
+  '渡邉勇太朗':['201900102','pit'],
+  '渡邉雄大':['201800114','pit'],
+  '渡邊佑樹':['201800113','pit'],
+  '渡部聖弥':['202500098','bat'],
+  '湯浅京己':['201900097','pit'],
+  '濵口遥大':['201700082','pit'],
+  '瀧中瞭太':['202000061','pit'],
+  '牧原大成':['999900809','bat'],
+  '牧秀悟':['202100099','bat'],
+  '玉井大翔':['201700064','pit'],
+  '玉村昇悟':['202000067','pit'],
+  '生田目翼':['201900067','pit'],
+  '田上奏大':['202100068','pit'],
+  '田中健二朗':['999900287','pit'],
+  '田中将大':['999900669','pit'],
+  '田中幹也':['202300057','bat'],
+  '田中晴也':['202300056','pit'],
+  '田中正義':['201700061','pit'],
+  '田中瑛斗':['201800058','pit'],
+  '田中靖洋':['999900759','pit'],
+  '田口麗斗':['201400003','pit'],
+  '田宮裕涼':['201900052','bat'],
+  '田島慎二':['999900089','pit'],
+  '田嶋大樹':['201800057','pit'],
+  '田村伊知郎':['201700065','pit'],
+  '田浦文丸':['201800052','pit'],
+  '甲斐野央':['201900022','pit'],
+  '畔柳亨丞':['202200038','pit'],
+  '畠世周':['201700081','pit'],
+  '益田直也':['999900431','pit'],
+  '直江大輔':['201900060','pit'],
+  '矢崎拓也':['201700023','pit'],
+  '石井大智':['202100007','pit'],
+  '石山泰稚':['201300069','pit'],
+  '石川柊太':['201400085','pit'],
+  '石川歩':['201400059','pit'],
+  '石川直也':['201500006','pit'],
+  '石川達也':['202100008','pit'],
+  '石川雅規':['999900340','pit'],
+  '石橋良太':['201600013','pit'],
+  '石田健大':['201500009','pit'],
+  '石田裕太郎':['202400008','pit'],
+  '砂田毅樹':['201400080','pit'],
+  '祖父江大輔':['201400022','pit'],
+  '福井優也':['999900201','pit'],
+  '福山博之':['999900286','pit'],
+  '福敬登':['201600087','pit'],
+  '福永裕基':['202300091','bat'],
+  '福田俊':['201900080','pit'],
+  '福谷浩司':['201300008','pit'],
+  '秋吉亮':['201400008','pit'],
+  '秋山拓巳':['999900145','pit'],
+  '種市篤暉':['201700063','pit'],
+  '立野和明':['202000064','pit'],
+  '竹丸和幸':['202600001','pit'],
+  '竹安大知':['201600055','pit'],
+  '竹山日向':['202200064','pit'],
+  '笠原祥太郎':['201700021','pit'],
+  '笠谷俊介':['201500022','pit'],
+  '紅林弘太郎':['202000044','bat'],
+  '細川成也':['201700091','bat'],
+  '細野晴希':['202400128','pit'],
+  '美馬学':['999900677','pit'],
+  '能見篤史':['999900135','pit'],
+  '與座海人':['201800108','pit'],
+  '若月健矢':['201400067','bat'],
+  '荘司康誠':['202300046','pit'],
+  '菅野智之':['201300001','pit'],
+  '菊地大稀':['202200031','pit'],
+  '菊池保則':['999900691','pit'],
+  '菊池涼介':['999900243','bat'],
+  '薮田和樹':['201500072','pit'],
+  '藤井皓哉':['201500065','pit'],
+  '藤井聖':['202100091','pit'],
+  '藤井黎來':['201800086','pit'],
+  '藤原恭大':['201900081','bat'],
+  '藤嶋健人':['201700086','pit'],
+  '藤平尚真':['201700088','pit'],
+  '藤浪晋太郎':['201300019','pit'],
+  '蝦名達夫':['202000022','bat'],
+  '西勇輝':['999900608','pit'],
+  '西口直人':['201700077','pit'],
+  '西垣雅矢':['202200078','pit'],
+  '西川史礁':['202500039','bat'],
+  '西川愛也':['201800072','bat'],
+  '西川龍馬':['201600072','bat'],
+  '西村天裕':['201800074','pit'],
+  '西純矢':['202000074','pit'],
+  '西野勇士':['999900837','pit'],
+  '谷元圭介':['999900491','pit'],
+  '谷川昌希':['201800061','pit'],
+  '赤星優志':['202200002','pit'],
+  '辛島航':['999900690','pit'],
+  '辰己涼介':['201900050','bat'],
+  '近本光司':['201900053','bat'],
+  '近藤健介':['999900502','bat'],
+  '近藤大亮':['201600039','pit'],
+  '達孝太':['202200065','pit'],
+  '遠藤淳志':['201800013','pit'],
+  '郡司裕也':['202000046','bat'],
+  '酒居知史':['201700038','pit'],
+  '野村祐輔':['999900207','pit'],
+  '金丸夢斗':['202500012','pit'],
+  '金久保優斗':['201800022','pit'],
+  '金子千尋':['999900606','pit'],
+  '釜田佳直':['999900671','pit'],
+  '鈴木健矢':['202000058','pit'],
+  '鈴木博志':['201800048','pit'],
+  '鈴木昭汰':['202100062','pit'],
+  '鈴木翔天':['201900045','pit'],
+  '鍬原拓也':['201800031','pit'],
+  '鍵谷陽平':['201300039','pit'],
+  '長岡秀樹':['202000072','bat'],
+  '長谷川信哉':['202100087','bat'],
+  '長谷川威展':['202200081','pit'],
+  '阪口皓亮':['201800039','pit'],
+  '阿部翔太':['202100005','pit'],
+  '隅田知一郎':['202200056','pit'],
+  '青柳晃洋':['201600003','pit'],
+  '馬場皐輔':['201800077','pit'],
+  '高木京介':['999900023','pit'],
+  '高梨裕稔':['201400038','pit'],
+  '高梨雄平':['201700054','pit'],
+  '高橋奎二':['201600051','pit'],
+  '高橋礼':['201800055','pit'],
+  '高田孝一':['202100063','pit'],
+  '髙橋優貴':['201900048','pit'],
+  '髙橋光成':['201500042','pit'],
+  '髙橋宏斗':['202100066','pit'],
+  '髙橋遥人':['201800054','pit'],
+  '髙田萌生':['201700053','pit'],
+  '髙部瑛斗':['202000060','bat'],
+  '黒原拓未':['202200037','pit'],
+  '黒川史陽':['202000045','bat'],
+  '黒木優太':['201700032','pit'],
+  '齋藤友貴哉':['201900036','pit'],
+  '齋藤綱記':['201500030','pit'],
+  'Ａ・ウィルカーソン':['202200134','pit'],
+  'Ａ・エスピノーザ':['202400165','pit'],
+  'Ａ・カナリオ':['202600153','bat'],
+  'Ａ・コックス':['202600160','pit'],
+  'Ａ・ジャクソン':['202400174','pit'],
+  'Ａ・スアレス':['202200148','pit'],
+  'Ａ・ブセニッツ':['201900116','pit'],
+  'Ａ・Ｊ・コール':['202200145','pit'],
+  'Ｂ・クリスキー':['202200142','pit'],
+  'Ｂ・スミス':['202200163','pit'],
+  'Ｂ・ダルベック':['202600133','bat'],
+  'Ｂ・ロドリゲス':['201800137','pit'],
+  'Ｃ・スチュワートジュニア':['201900132','pit'],
+  'Ｃ・バルガス':['202100160','pit'],
+  'Ｃ・ヒュンメル':['202600163','bat'],
+  'Ｃ・ポンセ':['202200158','pit'],
+  'Ｃ・マッカスカー':['202600149','bat'],
+  'Ｃ・メネズ':['202200173','pit'],
+  'Ｃ・レイ':['202100143','pit'],
+  'Ｃ・Ｃ・メルセデス':['201700141','pit'],
+  'Ｄ・アンダーソン':['202200132','pit'],
+  'Ｄ・エンス':['202200136','pit'],
+  'Ｄ・サンタナ':['202100134','bat'],
+  'Ｅ・エスコバー':['201700118','pit'],
+  'Ｅ・ロメロ':['201900126','pit'],
+  'Ｆ・ウィットリー':['202600131','pit'],
+  'Ｆ・ターノック':['202600139','pit'],
+  'Ｆ・レイエス':['202400188','bat'],
+  'Ｆ・ロメロ':['202100148','pit'],
+  'Ｇ・フランスア':['201800142','pit'],
+  'Ｇ・ポランコ':['202200157','bat'],
+  'Ｉ・クロール':['202200172','pit'],
+  'Ｊ・オスナ':['202100127','bat'],
+  'Ｊ・ガンケル':['202000114','pit'],
+  'Ｊ・デュプランティエ':['202500140','pit'],
+  'Ｊ・ビドル':['202200154','pit'],
+  'Ｊ・ワゲスパック':['202200162','pit'],
+  'Ｋ・ケラー':['202200143','pit'],
+  'Ｋ－鈴木':['201800032','pit'],
+  'Ｌ・ボイト':['202500172','bat'],
+  'Ｌ・モイネロ':['201700148','pit'],
+  'Ｍ・アンドリース':['202200133','pit'],
+  'Ｍ・サノー':['202600134','bat'],
+  'Ｍ・シューメーカー':['202200164','pit'],
+  'Ｍ・ピープルズ':['202000133','pit'],
+  'Ｎ・ソト':['201800125','bat'],
+  'Ｎ・ターリー':['202200149','pit'],
+  'Ｏ・カリステ':['202300134','bat'],
+  'Ｒ・アルカンタラ':['202100125','pit'],
+  'Ｒ・オスナ':['202200170','pit'],
+  'Ｒ・ガゼルマン':['202200174','pit'],
+  'Ｒ・コルニエル':['202000142','pit'],
+  'Ｒ・デラロサ':['201900134','pit'],
+  'Ｒ・マルティネス':['201700146','pit'],
+  'Ｓ・ハワード':['202500152','pit'],
+  'Ｓ・ファビアン':['202500147','bat'],
+  'Ｓ・マクガフ':['201900118','pit'],
+  'Ｔ・キャベッジ':['202500136','bat'],
+  'Ｔ・ゲレーロ':['202200144','pit'],
+  'Ｔ・ビエイラ':['202000134','pit'],
+  'Ｙ・タバーレス':['201800141','pit'],
+  'Ｙ・ロドリゲス':['202000141','pit'],
+};
+
+/* ══════════════════════════════════════════════════════
+   NPB — 1point02.jp 선수 기록 페치
+   NPB_INDEX(정적 룩업) → CODETABS → 개인 기록 파싱
 ══════════════════════════════════════════════════════ */
 async function fetchNpbData(query) {
   try {
-    // npb.jp 선수 검색 (영문 이름 검색 시도)
-    const enQ = KO_MAP[query.replace(/\s+/g,'')] || (isKorean(query) ? romanize(query) : query);
-    const searchUrl = `https://npb.jp/bis/eng/players/search?query=${encodeURIComponent(enQ)}`;
-    const sr = await fetch(PROXY + encodeURIComponent(searchUrl), {signal:AbortSignal.timeout(6000)});
-    if (!sr.ok) return null;
-    const sd = await sr.json();
-    const sHtml = sd.contents||'';
-    const sDoc = new DOMParser().parseFromString(sHtml, 'text/html');
-    // 선수 링크 파싱 (/bis/eng/players/XXXXXXXX.html)
-    const pLink = [...sDoc.querySelectorAll('a[href*="/bis/eng/players/"]')]
-      .find(a=>/\/bis\/eng\/players\/\d+\.html/.test(a.getAttribute('href')||''));
-    if (!pLink) return null;
-    const href = pLink.getAttribute('href');
-    const playerId = (href.match(/\/(\d+)\.html/)||[])[1];
-    if (!playerId) return null;
+    // 일본어(한자/가나/전각) 판별
+    const isJp = str => /[\u3000-\u9FFF\uF900-\uFAFF\uFF01-\uFF9F]/.test(str);
+    const norm = query.replace(/[\s\u3000]/g, '');
 
-    // 선수 기록 페이지
-    const statsUrl = `https://npb.jp/bis/eng/players/${playerId}.html`;
-    const pr = await fetch(PROXY + encodeURIComponent(statsUrl), {signal:AbortSignal.timeout(6000)});
-    if (!pr.ok) return null;
-    const pd = await pr.json();
-    const pHtml = pd.contents||'';
-    const pDoc = new DOMParser().parseFromString(pHtml, 'text/html');
-    return parseNpbPage(pDoc, playerId, statsUrl);
-  } catch(e) { return null; }
-}
+    // 1. 일본어 이름(한자) 결정
+    let jpName = '';
+    if (isJp(norm)) {
+      jpName = norm;
+    } else {
+      const qLow = norm.toLowerCase();
+      const dbMatch = LOCAL_DB.find(p => p.league === 'npb' && (
+        p.nameKo.replace(/\s+/g,'') === norm ||
+        p.nameEn.toLowerCase().replace(/\s+/g,'') === qLow ||
+        (p.aliases||[]).some(a => a.replace(/\s+/g,'').toLowerCase() === qLow ||
+                                   a.replace(/\s+/g,'') === norm)
+      ));
+      if (dbMatch) jpName = (dbMatch.aliases||[]).find(a => isJp(a)) || '';
+    }
+    if (!jpName) return null;
 
-function parseNpbPage(doc, playerId, sourceUrl) {
-  const nameEl = doc.querySelector('h1, .player-name, td.bb-playerDetail__title');
-  const name = nameEl?.textContent?.trim() || '';
-  const tables = [...doc.querySelectorAll('table')];
-  for (const tbl of tables) {
-    const ths = [...tbl.querySelectorAll('th')].map(t=>t.textContent.trim().replace(/\s+/g,' '));
-    if (!ths.length) continue;
-    const isBatter = ths.some(h=>h==='AVG'||h==='H'||h==='HR');
-    const isPitcher = ths.some(h=>h==='ERA'||h==='IP'||h==='SO'||h==='W');
-    if (!isBatter && !isPitcher) continue;
+    // 2. NPB_INDEX에서 player ID 탐색 (완전일치 → 부분일치)
+    let found = null;
+    if (NPB_INDEX[jpName]) {
+      const [id, type] = NPB_INDEX[jpName];
+      found = {id, type};
+    } else {
+      const matches = Object.entries(NPB_INDEX).filter(([name]) =>
+        name.includes(jpName) || jpName.includes(name)
+      );
+      if (matches.length) {
+        matches.sort((a, b) => Math.abs(a[0].length - jpName.length) - Math.abs(b[0].length - jpName.length));
+        const [, [id, type]] = matches[0];
+        found = {id, type};
+      }
+    }
+    if (!found) return null;
+
+    // 3. 1point02.jp 개인 기록 페이지 fetch
+    const statsPath = found.type === 'bat'
+      ? `player_stats_bs.aspx?pl=${found.id}`
+      : `player_stats_ps.aspx?pl=${found.id}`;
+    const statsUrl = `https://1point02.jp/op/gnav/player/stats/${statsPath}`;
+
+    const r = await fetch(`${CODETABS}${encodeURIComponent(statsUrl)}`, {signal: AbortSignal.timeout(15000)});
+    if (!r.ok) throw new Error('fetch fail');
+    const sHtml = await r.text();
+
+    const doc = new DOMParser().parseFromString(sHtml, 'text/html');
+    const isBatter = found.type === 'bat';
     const rows = [];
-    tbl.querySelectorAll('tbody tr').forEach(tr=>{
-      const tds = [...tr.querySelectorAll('td')].map(t=>t.textContent.trim());
-      if (tds.length < 4) return;
-      const obj = {};
-      ths.forEach((h,i)=>{ obj[h] = tds[i]||'-'; });
-      rows.push(obj);
-    });
-    if (!rows.length) continue;
-    return {name, isBatter, isPitcher, rows, ths, playerId, sourceUrl, src:'npb'};
-  }
-  return null;
+
+    // tbl[1] = 基本(기본) 기록 테이블
+    const tables = [...doc.querySelectorAll('table')];
+    const tbl = tables[1];
+    if (tbl) {
+      const ths = [...tbl.querySelectorAll('th')].map(t => t.textContent.trim());
+      tbl.querySelectorAll('tbody tr').forEach(tr => {
+        const tds = [...tr.querySelectorAll('td')].map(t => t.textContent.trim());
+        if (tds.length < 5) return;
+        const o = {};
+        ths.forEach((h,i) => { o[h] = tds[i] || '-'; });
+        if (isBatter) {
+          const ab  = parseInt(o['打数'])   || 0;
+          const h   = parseInt(o['安打'])   || 0;
+          const s1  = parseInt(o['単打'])   || 0;
+          const d2  = parseInt(o['二塁打']) || 0;
+          const t3  = parseInt(o['三塁打']) || 0;
+          const hr  = parseInt(o['本塁打']) || 0;
+          const bb  = parseInt(o['四球'])   || 0;
+          const hbp = parseInt(o['死球'])   || 0;
+          const sf  = parseInt(o['犠飛'])   || 0;
+          const tb  = s1 + 2*d2 + 3*t3 + 4*hr;
+          const slg = ab > 0 ? (tb/ab).toFixed(3) : '-';
+          const obpD = ab + bb + hbp + sf;
+          const obp  = obpD > 0 ? ((h+bb+hbp)/obpD).toFixed(3) : '-';
+          rows.push({'연도':o['年度']||'-','팀명':o['球団']||'-',
+            'G':o['試合']||'-','AVG':o['打率']||'-','H':String(h||0),
+            'HR':String(hr||0),'RBI':o['打点']||'-','SB':o['盗塁']||'0',
+            'SO':o['三振']||'-','BB':String(bb||0),'SLG':slg,'OBP':obp});
+        } else {
+          rows.push({'연도':o['年度']||'-','팀명':o['球団']||'-',
+            'G':o['登板']||'-','ERA':o['防御率']||'-','IP':o['投球回']||'-',
+            'SO':o['三振']||'-','BB':o['四球']||'-',
+            'W':o['勝']||'-','L':o['敗']||'-',
+            'HLD':o['ホールド']||'0','SV':o['セーブ']||'0'});
+        }
+      });
+    }
+
+    // 선수 이름: 페이지에서 추출 or 인덱스 이름 사용
+    const nameEl = doc.querySelector('h1, .bb-head01__title, .player-name');
+    const playerName = nameEl?.textContent?.trim().split(/[\s　]/)[0] || jpName;
+    const latestRow = rows.filter(r => r['연도'] !== '-').at(-1);
+    const teamName = latestRow?.['팀명'] || '';
+
+    // stats 없어도 선수를 찾았으면 링크 카드 반환 (CODETABS가 JS-테이블을 못 읽는 경우)
+    return {name: playerName, isBatter, isPitcher: !isBatter,
+      rows, playerId: found.id, sourceUrl: statsUrl, src:'1point02',
+      teamName, noStats: rows.length === 0};
+  } catch(e) { return null; }
 }
 
 /* koreabaseball.com / NPB 파싱 데이터 → 카드 HTML */
@@ -2018,18 +2537,18 @@ function buildExternalCard(data, league) {
       [lastRow['AVG']||'-',    '타율'],
       [lastRow['H']||'-',      '안타'],
       [lastRow['HR']||'-',     '홈런'],
-      [lastRow['SB']||'0',     '도루'],
       [lastRow['RBI']||'-',    '타점'],
-      [lastRow['SO']||'-',     '삼진'],
-      [lastRow['BB']||'-',     '볼넷'],
+      [lastRow['SB']||'0',     '도루'],
+      [lastRow['SLG']||'-',    '장타율'],
+      [lastRow['OBP']||'-',    '출루율'],
     ];
     statBoxes = sf.map(([v,l])=>`<div class="stat-box"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
   } else {
     const sf = [
       [lastRow['G']||'-',      '경기'],
-      [lastRow['ERA']||'-',    'ERA'],
-      [lastRow['SO']||'-',     '삼진'],
-      [lastRow['BB']||'-',     '볼넷'],
+      [lastRow['ERA']||'-',    '방어율'],
+      [lastRow['IP']||'-',     '이닝'],
+      [lastRow['SO']||'-',     '탈삼진'],
       [lastRow['W']||'-',      '승'],
       [lastRow['L']||'-',      '패'],
       [lastRow['HLD']||'0',    '홀드'],
@@ -2068,7 +2587,9 @@ function buildExternalCard(data, league) {
   const handInfo    = data.handInfo   || '';   // P_TYPE: "우투우타"/"좌투좌타"
   // 포지션 표시 우선순위: 투수역할 > 세부포지션 > 대분류 > 기본값
   const posType     = pitcherRole || detailPos || posName || (isBat ? '타자' : '투수');
-  const srcLabel  = data.src==='kbo' ? '📡 koreabaseball.com 공식' : '📡 npb.jp 공식';
+  const srcLabel  = data.src==='kbo' ? '📡 koreabaseball.com 공식'
+                  : data.src==='1point02' ? '📡 1point02.jp'
+                  : '📡 npb.jp 공식';
 
   /* ── KBO 선수 사진 URL (Naver CDN) ── */
   const yr        = new Date().getFullYear();
@@ -2412,6 +2933,7 @@ function renderHotColdZones(zones, isPitcher) {
 let _lgCur  = null;   // 현재 열린 리그 ('kbo'|'mlb'|'npb')
 let _lgTab  = 'schedule'; // 현재 탭
 let _lgDate = new Date(); // 현재 날짜
+let _liveTimer = null;    // 진행중 경기 실시간 갱신 타이머
 
 const LG_CFG = {
   kbo: {badge:'KBO', badgeClass:'b-kbo', title:'🇰🇷 한국 프로야구',
@@ -2456,6 +2978,7 @@ function toggleLeague(lg) {
 }
 
 function closeLeague() {
+  clearTimeout(_liveTimer);
   _lgCur = null;
   document.getElementById('lg-panel').style.display = 'none';
   document.getElementById('featured').style.display = 'block';
@@ -2495,7 +3018,18 @@ function goToday() {
   loadLgData();
 }
 
+/* 진행중 경기가 있을 때 60초 후 자동 갱신 */
+function _scheduleLiveRefresh(games) {
+  clearTimeout(_liveTimer);
+  if (games.some(g => g.status === '진행중')) {
+    _liveTimer = setTimeout(() => {
+      if (_lgTab === 'schedule') loadLgData();
+    }, 60000);
+  }
+}
+
 function loadLgData() {
+  clearTimeout(_liveTimer);
   const el = document.getElementById('lg-content');
   el.innerHTML = '<div class="sbox"><div class="spin"></div><p>데이터 로딩 중...</p></div>';
   if (_lgTab === 'schedule') {
@@ -2568,7 +3102,7 @@ async function loadKboSchedule(el) {
       if (!away && !home) continue;
       games.push({away: KBO_TEAM[away]||away, home: KBO_TEAM[home]||home, score, venue, status});
     }
-    if (games.length) { el.innerHTML = _renderScheduleTable(games, 'kbo'); return; }
+    if (games.length) { el.innerHTML = _renderScheduleTable(games, 'kbo'); _scheduleLiveRefresh(games); return; }
     el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} KBO 경기 없음</p>
       <a href="${LG_CFG.kbo.extSch}" target="_blank" class="lg-ext-link">🔗 KBO 공식 일정</a></div>`;
   } catch(e) {
@@ -2644,7 +3178,27 @@ async function loadMlbSchedule(el) {
       const aScore = g.teams?.away?.score != null ? g.teams.away.score : '';
       const hScore = g.teams?.home?.score != null ? g.teams.home.score : '';
       const score  = (aScore !== '' && hScore !== '') ? `${aScore} - ${hScore}` : '';
-      const venue  = g.venue?.name || '';
+      const venueRawMlb = g.venue?.name || '';
+      const MLB_VENUE = {
+        'Oriole Park at Camden Yards':'캠든 야즈','Fenway Park':'펜웨이 파크',
+        'Yankee Stadium':'양키 스타디움','Tropicana Field':'트로피카나 필드',
+        'Rogers Centre':'로저스 센터','Guaranteed Rate Field':'개런티드 레이트 필드',
+        'Progressive Field':'프로그레시브 필드','Comerica Park':'코메리카 파크',
+        'Kauffman Stadium':'코프먼 스타디움','Target Field':'타겟 필드',
+        'Minute Maid Park':'미닛 메이드 파크','Angel Stadium':'에인절 스타디움',
+        "Oakland Coliseum":'오클랜드 콜로시엄','Sutter Health Park':'서터 헬스 파크',
+        'T-Mobile Park':'T-모바일 파크','Globe Life Field':'글로브 라이프 필드',
+        'Truist Park':'트루이스트 파크','loanDepot park':'론디포 파크','loanDepot Park':'론디포 파크',
+        'Citi Field':'시티 필드','Citizens Bank Park':'시티즌스 뱅크 파크',
+        'Nationals Park':'내셔널스 파크','Wrigley Field':'리글리 필드',
+        'Great American Ball Park':'그레이트 아메리칸 볼파크',
+        'American Family Field':'아메리칸 패밀리 필드',
+        'PNC Park':'PNC 파크','Busch Stadium':'부시 스타디움',
+        'Chase Field':'체이스 필드','Coors Field':'쿠어스 필드',
+        'Dodger Stadium':'다저 스타디움','Petco Park':'펫코 파크',
+        'Oracle Park':'오라클 파크',
+      };
+      const venue = MLB_VENUE[venueRawMlb] || venueRawMlb;
       const rawStatus = g.status?.detailedState || g.status?.abstractGameState || '';
       let status = '예정';
       if (rawStatus === 'Final' || rawStatus === 'Game Over') status = '종료';
@@ -2674,6 +3228,7 @@ async function loadMlbSchedule(el) {
     });
 
     el.innerHTML = _renderScheduleTable(games, 'mlb');
+    _scheduleLiveRefresh(games);
   } catch(e) {
     el.innerHTML = `<div class="lg-err">⚠️ MLB 스케줄 데이터 로드 실패<br>
       <a href="${LG_CFG.mlb.extSch}" target="_blank" class="lg-ext-link">🔗 MLB 공식 일정 바로가기</a></div>`;
@@ -2751,7 +3306,7 @@ async function loadNpbSchedule(el) {
     '神宮':'진구구장','明治神宮':'진구구장',
     'バンテリンドーム':'반테린돔','バンテリン':'반테린돔',
     '京セラD大阪':'교세라돔 오사카','京セラドーム':'교세라돔 오사카',
-    'エスコンフィールド':'에스콘필드','エスコンF':'에스콘필드',
+    'エスコンフィールド':'에스콘 필드','エスコンF':'에스콘 필드','エスコンＦ':'에스콘 필드',
     '楽天モバイルパーク':'라쿠텐 모바일파크','楽天モバイル':'라쿠텐 모바일파크',
     'ベルーナドーム':'벨루나돔',
     'マツダスタジアム':'마쓰다 스타디움','マツダZoom':'마쓰다 스타디움','マツダ':'마쓰다 스타디움',
@@ -2804,7 +3359,7 @@ async function loadNpbSchedule(el) {
       }
       games.push({away: NPB_TEAM[team1]||team1, home: NPB_TEAM[team2]||team2, score, venue, status});
     }
-    if (games.length) { el.innerHTML = _renderScheduleTable(games, 'npb'); return; }
+    if (games.length) { el.innerHTML = _renderScheduleTable(games, 'npb'); _scheduleLiveRefresh(games); return; }
     el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} NPB 경기 없음</p>
       <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 NPB 공식 일정</a></div>`;
   } catch(e) {
