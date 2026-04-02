@@ -2529,6 +2529,11 @@ async function loadKboSchedule(el) {
     if (!data?.rows) throw new Error('No data');
     const games = [];
     let curMonth = 0, curDay = 0;
+    // 실제 오늘 날짜 (과거 날짜 탐색 시 LIVE 배지 표시 방지)
+    const _now = new Date();
+    const _isViewingToday = (_lgDate.getFullYear() === _now.getFullYear() &&
+                             _lgDate.getMonth()     === _now.getMonth()    &&
+                             _lgDate.getDate()      === _now.getDate());
     for (const {row} of (data.rows || [])) {
       const dayCell = row.find(c => c.Class === 'day');
       if (dayCell) {
@@ -2557,7 +2562,8 @@ async function loadKboSchedule(el) {
           const nums = m2[2].match(/\d+/g);
           if (nums && nums.length >= 2) { score = `${nums[0]} - ${nums[1]}`; status = '종료'; }
         }
-        if (row.find(c => c.Class === 'relay' && c.Text?.includes('gameDate'))) status = '진행중';
+        // relay 셀 = 현재 진행중 → 오늘 날짜일 때만 LIVE 표시 (과거 경기에는 미적용)
+        if (_isViewingToday && row.find(c => c.Class === 'relay')) status = '진행중';
       }
       if (!away && !home) continue;
       games.push({away: KBO_TEAM[away]||away, home: KBO_TEAM[home]||home, score, venue, status});
@@ -2571,15 +2577,48 @@ async function loadKboSchedule(el) {
   }
 }
 
-/* ── KBO 순위 (koreabaseball.com — 세션 필요로 직접 접근 불가) ── */
+/* ── KBO 순위 (koreabaseball.com /ws/Main.asmx/GetTeamRank) ── */
 async function loadKboStandings(el) {
-  el.innerHTML = `<div class="sbox" style="text-align:center;padding:20px 16px">
-    <p style="font-size:1rem;font-weight:600;margin-bottom:8px">🏆 KBO 순위</p>
-    <p style="font-size:.82rem;color:var(--mu);margin-bottom:14px">KBO 공식 사이트에서 최신 순위를 확인하세요</p>
-    <a href="${LG_CFG.kbo.extStd}" target="_blank" class="lg-ext-link" style="font-size:.9rem;padding:8px 16px;background:rgba(0,120,255,.15);border-radius:8px;display:inline-block">
-      🔗 koreabaseball.com 순위 바로가기
-    </a>
-  </div>`;
+  const KBO_TEAM = {
+    'KIA':'KIA 타이거즈','LG':'LG 트윈스','키움':'키움 히어로즈',
+    'SSG':'SSG 랜더스','두산':'두산 베어스','삼성':'삼성 라이온즈',
+    '롯데':'롯데 자이언츠','NC':'NC 다이노스','KT':'KT 위즈','한화':'한화 이글스',
+  };
+  try {
+    const yr = _lgDate.getFullYear();
+    const url = `${CF_PROXY}/ws/Main.asmx/GetTeamRank?leId=1&srId=0&seasonId=${yr}`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(15000)});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    if (!data?.rows?.length) throw new Error('No data');
+    const teams = data.rows.map((rec, i) => {
+      const row = rec.row;
+      const nameRaw = row[1]?.Text || '';
+      const nameMatch = nameRaw.match(/>([^<]+)</);
+      const shortName = nameMatch ? nameMatch[1].trim() : nameRaw.replace(/<[^>]+>/g,'').trim();
+      return {
+        rank:   i + 1,
+        team:   KBO_TEAM[shortName] || shortName,
+        g:      row[2]?.Text || '0',
+        w:      row[3]?.Text || '0',
+        l:      row[4]?.Text || '0',
+        d:      row[5]?.Text || '0',
+        pct:    row[6]?.Text || '',
+        gb:     row[7]?.Text || '-',
+        streak: row[8]?.Text || '',
+      };
+    });
+    if (teams.length) { el.innerHTML = _renderStandingsTable(teams, 'kbo'); return; }
+    throw new Error('No teams');
+  } catch(e) {
+    el.innerHTML = `<div class="sbox" style="text-align:center;padding:20px 16px">
+      <p style="font-size:1rem;font-weight:600;margin-bottom:8px">🏆 KBO 순위</p>
+      <p style="font-size:.82rem;color:var(--mu);margin-bottom:14px">KBO 공식 사이트에서 최신 순위를 확인하세요</p>
+      <a href="${LG_CFG.kbo.extStd}" target="_blank" class="lg-ext-link" style="font-size:.9rem;padding:8px 16px;background:rgba(0,120,255,.15);border-radius:8px;display:inline-block">
+        🔗 koreabaseball.com 순위 바로가기
+      </a>
+    </div>`;
+  }
 }
 
 /* ── MLB 스케줄 ── */
@@ -2645,7 +2684,7 @@ async function loadMlbSchedule(el) {
 async function loadMlbStandings(el) {
   try {
     const yr = _lgDate.getFullYear();
-    const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${yr}&standingsTypes=regularSeason&hydrate=team`;
+    const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${yr}&standingsTypes=regularSeason&hydrate=team,league,division`;
     const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -2663,13 +2702,21 @@ async function loadMlbStandings(el) {
       'Arizona Diamondbacks':'애리조나 다이아몬드백스','Colorado Rockies':'콜로라도 로키스',
       'Los Angeles Dodgers':'LA 다저스','San Diego Padres':'샌디에이고 파드리스','San Francisco Giants':'샌프란시스코 자이언츠',
     };
+    const DIV_KO = {
+      'American League East':    '🔵 아메리칸리그 동부 (AL East)',
+      'American League Central': '🔵 아메리칸리그 중부 (AL Central)',
+      'American League West':    '🔵 아메리칸리그 서부 (AL West)',
+      'National League East':    '🔴 내셔널리그 동부 (NL East)',
+      'National League Central': '🔴 내셔널리그 중부 (NL Central)',
+      'National League West':    '🔴 내셔널리그 서부 (NL West)',
+    };
 
     // 지구별로 데이터 정리
     const divData = [];
     for (const rec of (data.records || [])) {
       const divName = rec.division?.name || '';
       const lgName  = rec.league?.name  || '';
-      const section = `${lgName} — ${divName}`;
+      const section = DIV_KO[divName] || `${lgName} — ${divName}`;
       const teams = (rec.teamRecords||[]).map((tr,i) => ({
         rank: i+1,
         team: ML_TEAM_KO[tr.team?.name]||tr.team?.name||'',
@@ -2697,7 +2744,23 @@ async function loadNpbSchedule(el) {
   const NPB_TEAM = {
     'ヤクルト':'야쿠르트','広島':'히로시마','巨人':'요미우리','中日':'주니치',
     'DeNA':'DeNA 베이스타즈','阪神':'한신','ソフトバンク':'소프트뱅크',
-    '日本ハム':'닛폰햄','楽天':'라쿠텐','ロッテ':'롯데','ORIX':'ORIX','西武':'세이부',
+    '日本ハム':'닛폰햄','楽天':'라쿠텐','ロッテ':'롯데',
+    'ORIX':'오릭스','オリックス':'오릭스','西武':'세이부',
+  };
+  const NPB_VENUE = {
+    '神宮':'진구구장','明治神宮':'진구구장',
+    'バンテリンドーム':'반테린돔','バンテリン':'반테린돔',
+    '京セラD大阪':'교세라돔 오사카','京セラドーム':'교세라돔 오사카',
+    'エスコンフィールド':'에스콘필드','エスコンF':'에스콘필드',
+    '楽天モバイルパーク':'라쿠텐 모바일파크','楽天モバイル':'라쿠텐 모바일파크',
+    'ベルーナドーム':'벨루나돔',
+    'マツダスタジアム':'마쓰다 스타디움','マツダZoom':'마쓰다 스타디움','マツダ':'마쓰다 스타디움',
+    'ZoZoマリン':'조조마린 스타디움','ZOZOマリン':'조조마린 스타디움',
+    '横浜スタジアム':'요코하마 스타디움','ハマスタ':'요코하마 스타디움',
+    '阪神甲子園':'고시엔구장','甲子園':'고시엔구장',
+    'ペイペイドーム':'페이페이돔','PayPayドーム':'페이페이돔','みずほPayPay':'페이페이돔',
+    '東京ドーム':'도쿄돔',
+    'バンクペインターズ':'방크 페인터스파크',
   };
   try {
     const yr  = _lgDate.getFullYear();
@@ -2710,15 +2773,13 @@ async function loadNpbSchedule(el) {
     const html = await r.text();
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const dateId = `date${mm}${dd}`;
-    const dateTr = doc.getElementById(dateId);
-    if (!dateTr) {
+    // npb.jp는 같은 날짜의 모든 경기 tr에 동일한 id를 부여함
+    const gameTrs = [...doc.querySelectorAll(`[id="${dateId}"]`)];
+    if (!gameTrs.length) {
       el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} NPB 경기 없음</p>
         <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 NPB 공식 일정</a></div>`;
       return;
     }
-    const gameTrs = [dateTr];
-    let sib = dateTr.nextElementSibling;
-    while (sib && !sib.id) { gameTrs.push(sib); sib = sib.nextElementSibling; }
     const games = [];
     for (const tr of gameTrs) {
       const matchTd = tr.querySelector('td');
@@ -2727,7 +2788,11 @@ async function loadNpbSchedule(el) {
       const team2 = matchTd.querySelector('.team2')?.textContent?.trim() || '';
       if (!team1 || !team2) continue;
       const infoTd  = tr.querySelectorAll('td')[1];
-      const venue   = infoTd?.querySelector('.place')?.textContent?.replace(/\s+/g,' ').trim() || '';
+      const venueRaw = infoTd?.querySelector('.place')?.textContent?.replace(/\s+/g,'').trim() || '';
+      let venue = venueRaw;
+      for (const [jp, ko] of Object.entries(NPB_VENUE)) {
+        if (venueRaw.includes(jp)) { venue = ko; break; }
+      }
       const timeStr = infoTd?.querySelector('.time')?.textContent?.trim() || '';
       let score = '', status = timeStr || '예정';
       if (matchTd.querySelector('.cancel')) {
