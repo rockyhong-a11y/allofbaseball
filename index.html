@@ -1,0 +1,2873 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚾ 야구 선수 기록 검색기 — KBO · MLB · NPB</title>
+  <style>
+    :root {
+      --bg:#070c18;--c1:#0e1525;--c2:#131d30;--c3:#1a2a40;
+      --bd:#1c2b45;--bd2:#253650;
+      --tx:#dde4f0;--mu:#5a6e8c;--mu2:#8496b0;
+      --ac:#3b9eff;--gn:#2ec87a;--yw:#f5c542;--rd:#f05050;
+      --kbo:#4f8ef7;--mlb:#e8352a;--npb:#e83060;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;}
+
+    .hdr{background:linear-gradient(180deg,#0c1525,#070c18);border-bottom:1px solid var(--bd);padding:22px 16px 16px;text-align:center;}
+    .hdr h1{font-size:1.85rem;font-weight:800;letter-spacing:-.4px;background:linear-gradient(90deg,#3b9eff,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .hdr p{margin-top:5px;color:var(--mu);font-size:.8rem;}
+
+    
+
+    .srch-wrap{max-width:900px;margin:28px auto 0;padding:0 20px;}
+.srch-row{display:flex;background:var(--c1);border:2px solid var(--bd2);border-radius:16px;overflow:hidden;transition:border-color .2s,box-shadow .2s;}
+.srch-row:focus-within{border-color:var(--ac);box-shadow:0 0 0 4px rgba(59,158,255,.13);}
+#si{flex:1;background:transparent;border:none;outline:none;padding:19px 24px;color:var(--tx);font-size:1.08rem;}
+#si::placeholder{color:var(--mu);}
+.srch-btn{padding:16px 30px;background:var(--ac);border:none;color:#fff;font-size:.95rem;font-weight:700;cursor:pointer;transition:background .15s;white-space:nowrap;}
+.srch-btn:hover{background:#2584e0;}
+.srch-sub{text-align:center;margin-top:9px;color:var(--mu);font-size:.76rem;line-height:1.5;}
+/* ── 주요 선수 빠른 선택 ── */
+.featured-wrap{max-width:900px;margin:16px auto 0;padding:0 20px;}
+.feat-section{background:var(--c1);border:1px solid var(--bd);border-radius:14px;padding:14px 18px;margin-bottom:10px;}
+.feat-section:last-child{margin-bottom:0;}
+.feat-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.feat-lg-badge{font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:10px;}
+.feat-lg-name{font-size:.75rem;font-weight:700;color:var(--mu2);}
+.feat-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.feat-chip{padding:5px 13px;background:var(--c2);border:1px solid var(--bd2);border-radius:8px;font-size:.8rem;cursor:pointer;color:var(--mu2);transition:all .15s;}
+.feat-chip:hover{background:var(--c3);border-color:var(--ac);color:var(--ac);}
+
+    /* ── 자동완성 드롭다운 ── */
+    .ac-wrap{position:relative;}
+    .ac-drop{position:absolute;top:calc(100% + 5px);left:0;right:0;background:var(--c1);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 10px 36px rgba(0,0,0,.45);z-index:200;overflow:hidden;display:none;}
+    .ac-drop.show{display:block;}
+    .ac-item{display:flex;align-items:center;gap:9px;padding:9px 14px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--bd);}
+    .ac-item:last-child{border-bottom:none;}
+    .ac-item:hover,.ac-item.on{background:var(--c3);}
+    .ac-badge{font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:9px;flex-shrink:0;}
+    .ac-name{font-size:.88rem;font-weight:700;color:var(--tx);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ac-name em{color:var(--ac);font-style:normal;}
+    .ac-sub{font-size:.72rem;color:var(--mu2);white-space:nowrap;flex-shrink:0;}
+    .ac-team{font-size:.7rem;color:var(--mu);white-space:nowrap;flex-shrink:0;margin-left:auto;padding-left:6px;}
+
+    .main{max-width:1060px;margin:22px auto 64px;padding:0 16px;}
+
+    .welcome{background:var(--c1);border:1px solid var(--bd);border-radius:14px;padding:22px 20px;}
+    .welcome h2{font-size:.85rem;color:var(--ac);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;}
+    .ex-grid{display:flex;flex-wrap:wrap;gap:6px;}
+    .ex{background:var(--c2);border:1px solid var(--bd2);border-radius:7px;padding:5px 13px;font-size:.8rem;cursor:pointer;color:var(--mu2);transition:all .15s;}
+    .ex:hover{background:var(--c3);border-color:var(--ac);color:var(--ac);}
+    .api-note{margin-top:13px;padding:9px 13px;background:rgba(59,158,255,.07);border:1px solid rgba(59,158,255,.18);border-radius:8px;font-size:.75rem;color:var(--mu2);line-height:1.6;}
+
+    .sbox{text-align:center;padding:50px 20px;color:var(--mu);}
+    .sbox .ico{font-size:2.2rem;margin-bottom:10px;}
+    .sbox p{font-size:.9rem;}
+    .sbox small{font-size:.76rem;display:block;margin-top:5px;}
+    .spin{width:38px;height:38px;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    .rhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:7px;}
+    .rhead h3{font-size:.92rem;font-weight:700;color:var(--mu2);}
+    .rhead span{font-size:.76rem;color:var(--mu);}
+
+    /* ── PLAYER CARD ── */
+    .pcard{background:var(--c1);border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin-bottom:14px;}
+
+    .prof{display:flex;gap:16px;padding:18px 20px 14px;align-items:flex-start;border-bottom:1px solid var(--bd);}
+    .photo{width:88px;height:88px;border-radius:12px;flex-shrink:0;overflow:hidden;background:linear-gradient(135deg,#1e3a5f,#2d2060);border:2px solid var(--bd2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:rgba(255,255,255,.45);position:relative;}
+    .photo img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;}
+    .pinfo{flex:1;min-width:0;}
+    .pname{font-size:1.15rem;font-weight:800;margin-bottom:6px;}
+    .pname-sub{font-size:.8rem;font-weight:400;color:var(--mu2);margin-left:6px;}
+    .brow{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px;}
+    .badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap;}
+    .b-kbo{background:rgba(79,142,247,.15);color:var(--kbo);}
+    .b-mlb{background:rgba(232,53,42,.15);color:#ff6b5e;}
+    .b-npb{background:rgba(232,48,96,.15);color:var(--npb);}
+    .b-pos{background:rgba(59,158,255,.12);color:var(--ac);}
+    .b-tm{background:rgba(255,255,255,.07);color:var(--tx);}
+    .b-inf{background:rgba(46,200,122,.1);color:var(--gn);}
+    .b-yr{background:rgba(245,197,66,.1);color:var(--yw);}
+    .kstrip{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;}
+    .kst{font-size:.77rem;color:var(--mu2);}
+    .kst strong{color:var(--ac);font-weight:700;}
+
+    .src-tag{font-size:.68rem;padding:3px 10px;border-radius:20px;display:inline-block;margin:10px 20px 0;}
+    .src-api{background:rgba(46,200,122,.1);color:var(--gn);}
+    .src-db{background:rgba(245,197,66,.1);color:var(--yw);}
+
+    .bio-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:7px;padding:12px 20px 14px;}
+    .bc{background:var(--c2);border:1px solid var(--bd);border-radius:8px;padding:9px 11px;}
+    .bl{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--mu);margin-bottom:3px;}
+    .bv{font-size:.84rem;font-weight:600;line-height:1.3;}
+
+    .pdesc{font-size:.8rem;color:var(--mu2);line-height:1.7;padding:0 20px 12px;}
+
+    .stog-row{display:flex;gap:6px;flex-wrap:wrap;padding:10px 20px 8px;}
+    .stog{padding:5px 14px;border:1px solid var(--bd2);background:transparent;color:var(--mu2);border-radius:7px;cursor:pointer;font-size:.78rem;font-weight:700;transition:all .15s;}
+    .stog.on{background:var(--ac);border-color:var(--ac);color:#fff;}
+    .spanel{display:none;}
+    .spanel.on{display:block;}
+
+    /* ── UNIFIED TABLE ── */
+    .tbl-wrap{overflow-x:auto;}
+    table{width:100%;border-collapse:collapse;font-size:.76rem;white-space:nowrap;}
+    thead th{background:rgba(255,255,255,.04);padding:8px 10px;text-align:center;color:var(--mu);font-weight:700;font-size:.69rem;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--bd);}
+    tbody td{padding:7px 10px;text-align:center;border-top:1px solid var(--bd);}
+    tbody tr:hover td{background:rgba(255,255,255,.025);}
+
+    .lgtag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:.68rem;font-weight:800;letter-spacing:.2px;}
+    .lk{background:rgba(79,142,247,.2);color:var(--kbo);}
+    .lm{background:rgba(232,53,42,.2);color:#ff7060;}
+    .ln{background:rgba(232,48,96,.2);color:var(--npb);}
+    .lx{background:rgba(90,110,140,.18);color:var(--mu2);}
+
+    .hy{color:var(--ac);font-weight:700;}
+    .hg{color:var(--gn);font-weight:700;}
+    .hw{color:var(--yw);font-weight:700;}
+    .td-yr{font-weight:700;}
+    .td-tm{color:var(--mu2);font-size:.73rem;}
+    .crw td{font-weight:700;background:rgba(59,158,255,.07)!important;color:var(--ac);}
+    .tbl-note{font-size:.7rem;color:var(--mu);padding:5px 20px 10px;}
+
+    /* transfer highlight row */
+    tbody tr.xfer td{background:rgba(79,142,247,.04);}
+
+    .lg-section-label{font-size:.72rem;font-weight:700;color:var(--mu2);padding:10px 20px 3px;letter-spacing:.5px;border-top:1px solid var(--bd);}
+    .lg-section-label:first-child{border-top:none;}
+
+    /* ── STAT GRID (게임카드 형식 요약 박스) ── */
+    .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 20px;border-bottom:1px solid var(--bd);}
+    .stat-box{background:var(--c2);border:1px solid var(--bd);border-radius:8px;padding:10px 6px;text-align:center;}
+    .stat-val{font-size:1.1rem;font-weight:800;color:var(--ac);line-height:1.1;margin-bottom:3px;}
+    .stat-lbl{font-size:.65rem;color:var(--mu);font-weight:600;letter-spacing:.3px;}
+
+    /* ── PITCH ARSENAL (구종 막대) ── */
+    .pit-wrap{padding:14px 20px 8px;border-top:1px solid var(--bd);}
+    .pit-title{font-size:.7rem;font-weight:700;color:var(--mu2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;}
+    .pit-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+    .pit-name{font-size:.73rem;color:var(--tx);flex:0 0 108px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .pit-bar-wrap{flex:1;height:20px;background:var(--c3);border-radius:4px;overflow:hidden;}
+    .pit-bar{height:100%;border-radius:4px;display:flex;align-items:center;padding-right:6px;justify-content:flex-end;min-width:28px;}
+    .pit-pct{font-size:.67rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);}
+    .pit-spd{font-size:.7rem;color:var(--mu2);flex:0 0 54px;text-align:right;}
+
+    /* ── HOT·COLD ZONE (핫콜드존) ── */
+    .zone-wrap{padding:14px 20px 12px;border-top:1px solid var(--bd);display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
+    .zone-title{font-size:.7rem;font-weight:700;color:var(--mu2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;}
+    .zone-grid{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,44px);gap:3px;}
+    .zone-cell{display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:.78rem;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+    .zone-meta{font-size:.72rem;color:var(--mu2);line-height:1.8;}
+    .zone-meta strong{color:var(--tx);}
+    .zone-legend{display:flex;flex-direction:column;gap:4px;margin-top:4px;}
+    .zone-leg-item{display:flex;align-items:center;gap:5px;font-size:.65rem;color:var(--mu);}
+    .zone-leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+
+    /* ── STATCAST 발사각 ── */
+    .sc-title{font-size:.7rem;font-weight:700;color:var(--mu2);text-transform:uppercase;letter-spacing:.6px;padding:10px 20px 0;border-top:1px solid var(--bd);}
+    .sc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:8px 20px 14px;}
+    .sc-box{background:var(--c2);border:1px solid var(--bd);border-radius:8px;padding:9px 6px;text-align:center;}
+    .sc-val{font-size:1.05rem;font-weight:800;line-height:1.1;margin-bottom:4px;}
+    .sc-lbl{font-size:.63rem;color:var(--mu);font-weight:600;letter-spacing:.2px;line-height:1.35;}
+    .sc-hot{color:var(--rd);}.sc-warm{color:var(--yw);}.sc-avg{color:var(--ac);}.sc-ok{color:var(--gn);}
+
+    @media(max-width:600px){
+      .hdr h1{font-size:1.4rem;}
+      .tab{padding:8px 13px;font-size:.82rem;}
+      .photo{width:64px;height:64px;font-size:1rem;}
+      .pname{font-size:1rem;}
+      .stat-grid{grid-template-columns:repeat(4,1fr);gap:5px;padding:10px 12px;}
+      .stat-val{font-size:.95rem;}
+      .stat-lbl{font-size:.6rem;}
+      .pit-name{flex:0 0 80px;font-size:.68rem;}
+      .zone-grid{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,38px);}
+      .zone-cell{font-size:.7rem;}
+    }
+
+/* ── 리그 네비게이션 버튼 ── */
+.lg-nav-btn{padding:7px 15px;border:1.5px solid var(--bd2);background:var(--c1);color:var(--mu2);border-radius:9px;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;}
+.lg-nav-btn:hover{border-color:var(--ac);color:var(--tx);background:var(--c2);}
+.lg-nav-btn.on.kbo-btn{background:var(--kbo);border-color:var(--kbo);color:#fff;}
+.lg-nav-btn.on.mlb-btn{background:#e8352a;border-color:#e8352a;color:#fff;}
+.lg-nav-btn.on.npb-btn{background:var(--npb);border-color:var(--npb);color:#fff;}
+
+/* ── 리그 패널 ── */
+.lg-panel-inner{background:var(--c1);border:1px solid var(--bd);border-radius:14px;overflow:hidden;}
+.lg-panel-hdr{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap;}
+.lg-panel-title{flex:1;font-size:.88rem;font-weight:700;color:var(--tx);}
+.lg-tabs{display:flex;gap:4px;}
+.lg-tab{padding:6px 15px;border:1px solid var(--bd2);background:transparent;color:var(--mu2);border-radius:7px;cursor:pointer;font-size:.78rem;font-weight:700;transition:all .15s;}
+.lg-tab.on{background:var(--ac);border-color:var(--ac);color:#fff;}
+.lg-close{padding:5px 12px;border:1px solid var(--bd2);background:transparent;color:var(--mu);border-radius:6px;cursor:pointer;font-size:.78rem;transition:all .15s;}
+.lg-close:hover{background:var(--c3);color:var(--tx);}
+.lg-date-nav{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--bd);}
+.lg-date-btn{width:28px;height:28px;border:1px solid var(--bd2);background:transparent;color:var(--mu2);border-radius:6px;cursor:pointer;font-size:1rem;line-height:1;transition:all .15s;}
+.lg-date-btn:hover{border-color:var(--ac);color:var(--ac);}
+.lg-date-str{font-size:.85rem;font-weight:700;color:var(--tx);min-width:90px;text-align:center;}
+.lg-today-btn{padding:4px 11px;border:1px solid var(--bd2);background:transparent;color:var(--mu2);border-radius:6px;cursor:pointer;font-size:.72rem;transition:all .15s;}
+.lg-today-btn:hover{border-color:var(--ac);color:var(--ac);}
+/* Schedule / Standings 공용 테이블 */
+.lg-tbl-wrap{overflow-x:auto;padding:0 0 4px;}
+.lg-tbl{width:100%;border-collapse:collapse;font-size:.79rem;white-space:nowrap;}
+.lg-tbl th{background:rgba(255,255,255,.04);padding:8px 12px;text-align:center;color:var(--mu);font-size:.68rem;font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--bd);}
+.lg-tbl td{padding:9px 12px;text-align:center;border-top:1px solid var(--bd);vertical-align:middle;}
+.lg-tbl tr:hover td{background:rgba(255,255,255,.02);}
+.lg-tbl .tm-name{text-align:left;font-weight:700;font-size:.83rem;color:var(--tx);padding-left:14px;}
+.lg-tbl .rank-cell{font-weight:800;font-size:.88rem;color:var(--ac);}
+.lg-tbl .score-cell{font-size:.95rem;font-weight:800;color:var(--ac);letter-spacing:1px;}
+.lg-tbl .team-away,.lg-tbl .team-home{font-weight:700;font-size:.83rem;}
+.st-final{background:rgba(46,200,122,.12);color:var(--gn);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
+.st-live{background:rgba(245,197,66,.15);color:var(--yw);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
+.st-sched{background:rgba(90,110,140,.15);color:var(--mu2);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
+.st-cancel{background:rgba(240,80,80,.12);color:var(--rd);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
+.lg-div-row td{background:rgba(59,158,255,.05)!important;color:var(--ac);font-size:.7rem;font-weight:700;text-align:left;padding:5px 14px;}
+.lg-ext-link{display:inline-block;margin:12px 16px;padding:7px 15px;border:1px solid var(--bd2);border-radius:8px;font-size:.78rem;color:var(--ac);text-decoration:none;transition:all .15s;}
+.lg-ext-link:hover{background:var(--c2);border-color:var(--ac);}
+.lg-err{padding:20px 18px;color:var(--mu2);font-size:.82rem;line-height:1.8;}
+  </style>
+</head>
+<body>
+<div class="hdr">
+  <h1>⚾ 야구 선수 기록 검색기</h1>
+  <p>KBO · MLB · NPB 전현직 선수 — 사진 · 바이오 · 시즌별 기록 통합 조회</p>
+</div>
+
+<div class="srch-wrap">
+  <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px;">
+    <button class="lg-nav-btn kbo-btn" data-league="kbo" onclick="toggleLeague('kbo')">🇰🇷 KBO 리그</button>
+    <button class="lg-nav-btn mlb-btn" data-league="mlb" onclick="toggleLeague('mlb')">🇺🇸 MLB 리그</button>
+    <button class="lg-nav-btn npb-btn" data-league="npb" onclick="toggleLeague('npb')">🇯🇵 NPB 리그</button>
+  </div>
+  <div class="ac-wrap">
+    <div class="srch-row">
+      <input id="si" type="text" placeholder="선수 이름 (한글 · 일본어 · 영문)…" autocomplete="off" spellcheck="false" autofocus>
+      <button class="srch-btn" onclick="doSearch()">🔍 검색</button>
+    </div>
+    <div class="ac-drop" id="acdrop"></div>
+  </div>
+  <p class="srch-sub" id="sub">🇰🇷 KBO · 🇺🇸 MLB · 🇯🇵 NPB 전리그 통합 검색 — 김도영, 오타니, 무라카미, Judge, Yamamoto 모두 검색 가능</p>
+</div>
+
+<div id="featured" class="featured-wrap">
+  <div class="feat-section">
+    <div class="feat-header">
+      <span class="badge b-kbo feat-lg-badge">KBO</span>
+      <span class="feat-lg-name">🇰🇷 한국 프로야구</span>
+    </div>
+    <div class="feat-chips">
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">김도영</div>
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">안우진</div>
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">원태인</div>
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">류현진</div>
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">노시환</div>
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">이승엽</div>
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">선동열</div>
+      <div class="feat-chip" data-league="kbo" onmousedown="fillChip(this)">추신수</div>
+    </div>
+  </div>
+  <div class="feat-section">
+    <div class="feat-header">
+      <span class="badge b-mlb feat-lg-badge">MLB</span>
+      <span class="feat-lg-name">🇺🇸 메이저리그</span>
+    </div>
+    <div class="feat-chips">
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">오타니</div>
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">트라웃</div>
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">저지</div>
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">베이브루스</div>
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">데릭지터</div>
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">커쇼</div>
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">푸홀스</div>
+      <div class="feat-chip" data-league="mlb" onmousedown="fillChip(this)">게릿콜</div>
+    </div>
+  </div>
+  <div class="feat-section">
+    <div class="feat-header">
+      <span class="badge b-npb feat-lg-badge">NPB</span>
+      <span class="feat-lg-name">🇯🇵 일본 프로야구</span>
+    </div>
+    <div class="feat-chips">
+      <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">무라카미 무네타카</div>
+      <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">야마모토</div>
+      <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">사사키</div>
+      <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">이마나가</div>
+      <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">오 사다하루</div>
+      <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">나가시마</div>
+    </div>
+  </div>
+</div>
+
+<div id="lg-panel" style="display:none;max-width:1060px;margin:14px auto 0;padding:0 16px;">
+  <div class="lg-panel-inner">
+    <div class="lg-panel-hdr">
+      <span class="badge b-kbo" id="lg-badge">KBO</span>
+      <span class="lg-panel-title" id="lg-title">한국 프로야구</span>
+      <div class="lg-tabs">
+        <button class="lg-tab on" data-tab="schedule" onclick="switchLgTab('schedule')">📅 스케줄</button>
+        <button class="lg-tab" data-tab="standings" onclick="switchLgTab('standings')">🏆 순위</button>
+      </div>
+      <button class="lg-close" onclick="closeLeague()">✕ 닫기</button>
+    </div>
+    <div class="lg-date-nav" id="lg-date-nav">
+      <button class="lg-date-btn" onclick="changeDate(-1)">‹</button>
+      <span class="lg-date-str" id="lg-date-str"></span>
+      <button class="lg-date-btn" onclick="changeDate(1)">›</button>
+      <button class="lg-today-btn" onclick="goToday()">오늘</button>
+    </div>
+    <div id="lg-content" style="min-height:120px;"></div>
+  </div>
+</div>
+
+<div class="main" id="main"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   ★ MLB 구종 코드·영문명 → 한글명 매핑
+══════════════════════════════════════════════════════ */
+const PITCH_KO = {
+  /* 코드 기준 (우선) */
+  FF:'포심 패스트볼', FA:'포심 패스트볼',
+  FT:'투심 패스트볼', SI:'싱커',
+  FC:'커터',
+  SL:'슬라이더',     ST:'스위퍼',
+  CU:'커브',         KC:'너클커브',     CS:'슬로우 커브',  SV:'스위퍼',
+  CH:'체인지업',     SC:'스크루볼',
+  FS:'스플리터',     SP:'스플리터',     FO:'포크볼',
+  KN:'너클볼',       EP:'이퍼스',
+  /* 영문 설명 기준 (fallback) */
+  '4-Seam Fastball':'포심 패스트볼',
+  '2-Seam Fastball':'투심 패스트볼',
+  'Fastball':'패스트볼',
+  'Sinker':'싱커',
+  'Cutter':'커터',
+  'Slider':'슬라이더',
+  'Sweeper':'스위퍼',
+  'Curveball':'커브',
+  'Knuckle Curve':'너클커브',
+  'Slow Curve':'슬로우 커브',
+  'Changeup':'체인지업',
+  'Screwball':'스크루볼',
+  'Split-Finger':'스플리터',
+  'Splitter':'스플리터',
+  'Forkball':'포크볼',
+  'Knuckleball':'너클볼',
+  'Eephus':'이퍼스',
+};
+
+/* ══════════════════════════════════════════════════════
+   ★ KBO 투수 역할 추론 (선발/중계/마무리)
+      parsed.rows 데이터 기반 — 마지막 정규시즌 행 사용
+══════════════════════════════════════════════════════ */
+function inferPitcherRole(rows) {
+  if (!rows?.length) return null;
+  const last = rows.filter(r => r['연도'] && r['연도'] !== '통산').at(-1);
+  if (!last) return null;
+  const g   = parseInt(last['G']   || 0) || 0;
+  const sv  = parseInt(last['SV']  || 0) || 0;
+  const hld = parseInt(last['HLD'] || 0) || 0;
+  const ip  = parseFloat((last['IP'] || '0').replace(/[^\d.]/g,'')) || 0;
+  if (g === 0) return null;
+  // 마무리: 세이브가 많거나 세이브/경기 비율 높음
+  if (sv >= 5 || (g >= 10 && sv / g >= 0.25)) return '마무리';
+  // 선발: 이닝/경기 >= 4.5 (평균 5이닝 이상)
+  if (ip > 0 && ip / g >= 4.5) return '선발';
+  // 중계: 홀드가 있거나 단이닝 패턴
+  if (hld >= 3 || (ip > 0 && ip / g < 3.0)) return '중계';
+  return '선발';
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ KBO 타자 세부 포지션 추출 (선수 상세 페이지 파싱)
+══════════════════════════════════════════════════════ */
+function extractKboPosFromDoc(doc) {
+  if (!doc) return '';
+  const FIELD_POS = ['1루수','2루수','3루수','유격수','좌익수','중견수','우익수','포수','지명타자','DH'];
+  // 방법 1: th-td 쌍에서 "포지션" 또는 "수비위치" 레이블 뒤 값
+  const ths = [...doc.querySelectorAll('th, dt')];
+  for (const th of ths) {
+    const txt = th.textContent.trim();
+    if (txt.includes('포지션') || txt.includes('수비위치') || txt.includes('Position')) {
+      const next = th.nextElementSibling || th.parentElement?.nextElementSibling?.querySelector('td');
+      if (next) { const v = next.textContent.trim(); if (v) return v; }
+    }
+  }
+  // 방법 2: td 안에 포지션명이 단독으로 있는 경우
+  for (const td of doc.querySelectorAll('td')) {
+    const txt = td.textContent.trim();
+    if (FIELD_POS.includes(txt)) return txt;
+  }
+  // 방법 3: 페이지 텍스트에서 패턴 탐색
+  const body = doc.body?.textContent || '';
+  const m = body.match(/포지션\s*[:：]\s*([가-힣]+)/);
+  if (m) return m[1];
+  return '';
+}
+
+/* ══════════════════════════════════════════════════════
+   ① 한글·일본어 → 영문 이름 매핑 (MLB Stats API 검색용)
+══════════════════════════════════════════════════════ */
+const KO_MAP = {
+  /* KBO → MLB 진출 선수 */
+  '류현진':'Hyun-Jin Ryu','현진류':'Hyun-Jin Ryu',
+  '추신수':'Shin-Soo Choo',
+  '박찬호':'Chan-Ho Park',
+  '오승환':'Seung-Hwan Oh',
+  '강정호':'Jung-Ho Kang',
+  '이대호':'Dae-Ho Lee',
+  '박병호':'Byung-Ho Park',
+  '최지만':'Ji-Man Choi',
+  '김광현':'Kwang-Hyun Kim',
+  '김하성':'Ha-Seong Kim',
+  '이정후':'Jung Hoo Lee',
+  '배지환':'Ji-Hwan Bae',
+  '김현수':'Hyun-Soo Kim',
+  '황재균':'Jae-Gyun Hwang',
+  '강백호':'Baek-ho Kang',
+  '고우석':'Woo-Suk Ko',
+  '양현종':'Hyeon-Jong Yang',
+  '임창용':'Chang-Yong Lim',
+  '봉중근':'Jungkeun Bong',
+  '최희섭':'Hee-Seop Choi',
+  /* NPB → MLB 진출 선수 */
+  '이치로':'Ichiro Suzuki','이치로스즈키':'Ichiro Suzuki',
+  '오타니':'Shohei Ohtani','오타니쇼헤이':'Shohei Ohtani','쇼헤이오타니':'Shohei Ohtani',
+  '다르빗슈':'Yu Darvish','다르빗슈유':'Yu Darvish',
+  '타나카':'Masahiro Tanaka','타나카마사히로':'Masahiro Tanaka',
+  '마에다':'Kenta Maeda','마에다켄타':'Kenta Maeda',
+  '야마모토':'Yoshinobu Yamamoto','야마모토요시노부':'Yoshinobu Yamamoto',
+  '사사키':'Roki Sasaki','사사키로키':'Roki Sasaki',
+  '마츠자카':'Daisuke Matsuzaka','마츠자카다이스케':'Daisuke Matsuzaka',
+  '쿠로다':'Hiroki Kuroda','쿠로다히로키':'Hiroki Kuroda',
+  '후지나미':'Shintaro Fujinami','후지나미신타로':'Shintaro Fujinami',
+  '이마나가':'Shota Imanaga','이마나가쇼타':'Shota Imanaga',
+  '요시다':'Masataka Yoshida','요시다마사타카':'Masataka Yoshida',
+  '스즈키세이야':'Seiya Suzuki','세이야스즈키':'Seiya Suzuki',
+  '이와쿠마':'Hisashi Iwakuma',
+  '니시오카':'Tsuyoshi Nishioka',
+  '콘노마사히로':'Masahiro Kono',
+  /* 공통 약칭 */
+  '오타니쇼헤이':'Shohei Ohtani',
+  /* MLB 현역 타자 */
+  '마이크트라웃':'Mike Trout','트라웃':'Mike Trout',
+  '에런저지':'Aaron Judge','저지':'Aaron Judge',
+  '무키베츠':'Mookie Betts','베츠':'Mookie Betts',
+  '프레디프리먼':'Freddie Freeman','프리먼':'Freddie Freeman',
+  '후안소토':'Juan Soto','소토':'Juan Soto',
+  '요르단알바레스':'Yordan Alvarez','알바레스':'Yordan Alvarez',
+  '블라디미르게레로주니어':'Vladimir Guerrero Jr.','게레로주니어':'Vladimir Guerrero Jr.',
+  '카일터커':'Kyle Tucker','터커':'Kyle Tucker',
+  '훌리오로드리게스':'Julio Rodriguez','줄리오로드리게스':'Julio Rodriguez',
+  '바비윗주니어':'Bobby Witt Jr.','바비윗':'Bobby Witt Jr.',
+  '건너헨더슨':'Gunnar Henderson','헨더슨':'Gunnar Henderson',
+  '잭슨할리데이':'Jackson Holliday',
+  '코리시거':'Corey Seager','시거':'Corey Seager',
+  '마커스세미엔':'Marcus Semien','세미엔':'Marcus Semien',
+  '매니마차도':'Manny Machado','마차도':'Manny Machado',
+  '브라이스하퍼':'Bryce Harper','하퍼':'Bryce Harper',
+  '놀란아레나도':'Nolan Arenado','아레나도':'Nolan Arenado',
+  '폴골드슈미트':'Paul Goldschmidt','골드슈미트':'Paul Goldschmidt',
+  '피트알론소':'Pete Alonso','알론소':'Pete Alonso',
+  '맷올슨':'Matt Olson','올슨':'Matt Olson',
+  '프란시스코린도어':'Francisco Lindor','린도어':'Francisco Lindor',
+  '트레아터너':'Trea Turner','터너':'Trea Turner',
+  '잰더보거츠':'Xander Bogaerts','보거츠':'Xander Bogaerts',
+  '댄스비스완슨':'Dansby Swanson','스완슨':'Dansby Swanson',
+  '닉카스텔라노스':'Nick Castellanos','카스텔라노스':'Nick Castellanos',
+  '호세아브레우':'Jose Abreu','아브레우':'Jose Abreu',
+  '제레미페냐':'Jeremy Peña','페냐':'Jeremy Peña',
+  '스펜서스트라이더':'Spencer Strider','스트라이더':'Spencer Strider',
+  /* MLB 현역 투수 */
+  '게릿콜':'Gerrit Cole','콜':'Gerrit Cole',
+  '잭휠러':'Zack Wheeler','휠러':'Zack Wheeler',
+  '맥스프리드':'Max Fried','프리드':'Max Fried',
+  '코빈번스':'Corbin Burnes','번스':'Corbin Burnes',
+  '블레이크스넬':'Blake Snell','스넬':'Blake Snell',
+  '딜런시스':'Dylan Cease','시스':'Dylan Cease',
+  '로건웹':'Logan Webb','웹':'Logan Webb',
+  '파블로로페스':'Pablo Lopez','로페스':'Pablo Lopez',
+  '프램버발데스':'Framber Valdez','발데스':'Framber Valdez',
+  '조던몽고메리':'Jordan Montgomery','몽고메리':'Jordan Montgomery',
+  '폴스킨스':'Paul Skenes','스킨스':'Paul Skenes',
+  '네스터코르테스':'Nestor Cortes','코르테스':'Nestor Cortes',
+  '잭갤런':'Zac Gallen','갤런':'Zac Gallen',
+  '조시헤이더':'Josh Hader','헤이더':'Josh Hader',
+  '에드윈디아스':'Edwin Diaz','디아스':'Edwin Diaz',
+  '에마누엘클라세':'Emmanuel Clase','클라세':'Emmanuel Clase',
+  '라이언헬슬리':'Ryan Helsley','헬슬리':'Ryan Helsley',
+  '켄리얀센':'Kenley Jansen','얀센':'Kenley Jansen',
+  /* MLB 레전드 */
+  '베이브루스':'Babe Ruth','루스':'Babe Ruth',
+  '루게릭':'Lou Gehrig','게릭':'Lou Gehrig',
+  '테드윌리엄스':'Ted Williams','윌리엄스':'Ted Williams',
+  '윌리메이스':'Willie Mays','메이스':'Willie Mays',
+  '행크애런':'Hank Aaron','애런':'Hank Aaron',
+  '미키맨틀':'Mickey Mantle','맨틀':'Mickey Mantle',
+  '조디마지오':'Joe DiMaggio','디마지오':'Joe DiMaggio',
+  '샌디코팩스':'Sandy Koufax','코팩스':'Sandy Koufax',
+  '로저클레멘스':'Roger Clemens','클레멘스':'Roger Clemens',
+  '그렉매덕스':'Greg Maddux','매덕스':'Greg Maddux',
+  '페드로마르티네즈':'Pedro Martinez','마르티네즈':'Pedro Martinez',
+  '랜디존슨':'Randy Johnson',
+  '놀란라이언':'Nolan Ryan','라이언':'Nolan Ryan',
+  '클레이튼커쇼':'Clayton Kershaw','커쇼':'Clayton Kershaw',
+  '맥스셔저':'Max Scherzer','셔저':'Max Scherzer',
+  '저스틴벌랜더':'Justin Verlander','벌랜더':'Justin Verlander',
+  '제이콥더그롬':'Jacob deGrom','더그롬':'Jacob deGrom',
+  '배리본즈':'Barry Bonds','본즈':'Barry Bonds',
+  '리키헨더슨':'Rickey Henderson',
+  '칼립켄주니어':'Cal Ripken Jr.','립켄':'Cal Ripken Jr.',
+  '토니과인':'Tony Gwynn','과인':'Tony Gwynn',
+  '데릭지터':'Derek Jeter','지터':'Derek Jeter',
+  '알렉스로드리게즈':'Alex Rodriguez','에이로드':'Alex Rodriguez',
+  '켄그리피주니어':'Ken Griffey Jr.','그리피':'Ken Griffey Jr.',
+  '마이크피아자':'Mike Piazza','피아자':'Mike Piazza',
+  '짐토미':'Jim Thome','토미':'Jim Thome',
+  '알버트푸홀스':'Albert Pujols','푸홀스':'Albert Pujols',
+  '치퍼존스':'Chipper Jones','치퍼':'Chipper Jones',
+  '데이비드오티스':'David Ortiz','오티스':'David Ortiz','빅파피':'David Ortiz',
+  '마리아노리베라':'Mariano Rivera','리베라':'Mariano Rivera',
+  '프랭크토마스':'Frank Thomas','빅허트':'Frank Thomas',
+  '피트로즈':'Pete Rose','로즈':'Pete Rose',
+  '로베르토클레멘테':'Roberto Clemente','클레멘테':'Roberto Clemente',
+  '로저마리스':'Roger Maris','마리스':'Roger Maris',
+  '마이크슈미트':'Mike Schmidt','슈미트':'Mike Schmidt',
+  '조니벤치':'Johnny Bench','벤치':'Johnny Bench',
+  '칼야스트렘스키':'Carl Yastrzemski','야즈':'Carl Yastrzemski',
+  '어니뱅크스':'Ernie Banks','뱅크스':'Ernie Banks',
+  '로빈슨카노':'Robinson Cano','카노':'Robinson Cano',
+  '이치로스즈키':'Ichiro Suzuki',
+
+};
+
+/* ══════════════════════════════════════════════════════
+   ② 로컬 선수 DB  (KBO/NPB 자체 기록)
+   seasons 배열: league 필드로 KBO/MLB/NPB 구분 → 통합 1개 테이블
+══════════════════════════════════════════════════════ */
+const LOCAL_DB = [
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   KBO — 현역 타자
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+{src:'db',league:'kbo',nameKo:'김도영',nameEn:'Kim Do-young',
+ aliases:['kim doyoung','do young kim','doyoung kim','도영','도영김'],
+ team:'KIA 타이거즈',pos:'유격수 (SS)',bDate:'2004-10-21',age:20,backNo:'7',
+ born:'광주광역시, 대한민국',height:'183cm',weight:'80kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2022 (KBO)',nation:'🇰🇷',
+ bio:'2024 KBO 정규시즌 MVP. 역대 최연소(20세) 30홈런 달성. 40홈런-40도루 동시 달성. KIA 타이거즈 한국시리즈 우승(2024) 핵심. 타격·수비·주루 삼박자를 갖춘 리그 최고 유망주.',
+ isBatter:true,
+ careerHit:{g:375,pa:1450,hr:63,rbi:198,sb:63,avg:'.310',ops:'.910'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'KIA',g:144,pa:599,ab:500,h:173,d:26,t:4,hr:38,rbi:109,avg:'.346',obp:'.413',slg:'.598',ops:'1.011',sb:40,so:102,bb:75},
+   {yr:'2023',league:'KBO',team:'KIA',g:125,pa:498,ab:419,h:126,d:22,t:2,hr:16,rbi:64,avg:'.301',obp:'.381',slg:'.484',ops:'.865',sb:23,so:90,bb:59},
+   {yr:'2022',league:'KBO',team:'KIA',g:106,pa:353,ab:310,h:77,d:13,t:1,hr:9,rbi:25,avg:'.248',obp:'.317',slg:'.400',ops:'.717',sb:0,so:73,bb:34},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'노시환',nameEn:'Noh Si-hwan',
+ aliases:['noh sihwan','no si hwan','노시환'],
+ team:'한화 이글스',pos:'3루수 (3B)',bDate:'2001-01-04',age:23,backNo:'17',
+ born:'서울특별시, 대한민국',height:'185cm',weight:'95kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2019 (KBO)',nation:'🇰🇷',
+ bio:'한화 이글스의 프랜차이즈 슈퍼스타. 2023 KBO 홈런왕·타점왕 동시 석권. 강력한 장타력이 특기. 최연소 30홈런 기록을 다수 경신 중. KBO 차세대 4번타자.',
+ isBatter:true,
+ careerHit:{g:600,pa:2400,hr:140,rbi:400,avg:'.280',ops:'.870'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'한화',g:141,pa:571,ab:476,h:132,d:21,t:1,hr:27,rbi:93,avg:'.277',obp:'.371',slg:'.494',ops:'.865',sb:3,so:130,bb:80},
+   {yr:'2023',league:'KBO',team:'한화',g:144,pa:581,ab:484,h:152,d:22,t:2,hr:36,rbi:113,avg:'.314',obp:'.406',slg:'.596',ops:'1.002',sb:4,so:121,bb:79},
+   {yr:'2022',league:'KBO',team:'한화',g:143,pa:567,ab:474,h:132,d:21,t:1,hr:31,rbi:101,avg:'.278',obp:'.366',slg:'.509',ops:'.875',sb:2,so:116,bb:72},
+   {yr:'2021',league:'KBO',team:'한화',g:126,pa:490,ab:416,h:109,d:16,t:0,hr:22,rbi:72,avg:'.262',obp:'.340',slg:'.462',ops:'.802',sb:2,so:103,bb:55},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'최정',nameEn:'Choi Jeong',
+ aliases:['choi jeong','choi jung','최정'],
+ team:'SSG 랜더스',pos:'3루수 (3B)',bDate:'1987-01-05',age:38,backNo:'9',
+ born:'서울특별시, 대한민국',height:'180cm',weight:'96kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2005 (KBO)',nation:'🇰🇷',
+ bio:'KBO 역대 최다 홈런 기록 보유자(467개 이상). SSG 랜더스 프랜차이즈 최장수 선수. 한국시리즈 우승 다수. 골든글러브 다수 수상. 2025년 현재도 현역 활동 중.',
+ isBatter:true,
+ careerHit:{g:2201,pa:9121,ab:7696,h:2082,hr:467,rbi:1552,sb:61,avg:'.271',obp:'.371',slg:'.493',ops:'.864'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'SSG',g:126,pa:491,ab:421,h:104,d:19,t:1,hr:26,rbi:90,avg:'.247',obp:'.349',slg:'.467',ops:'.816',sb:2,so:96,bb:63},
+   {yr:'2023',league:'KBO',team:'SSG',g:133,pa:530,ab:453,h:122,d:23,t:0,hr:35,rbi:107,avg:'.269',obp:'.359',slg:'.519',ops:'.878',sb:3,so:101,bb:66},
+   {yr:'2022',league:'KBO',team:'SSG',g:141,pa:556,ab:473,h:126,d:23,t:1,hr:33,rbi:104,avg:'.266',obp:'.367',slg:'.494',ops:'.861',sb:4,so:104,bb:71},
+   {yr:'2021',league:'KBO',team:'SK',g:136,pa:524,ab:444,h:119,d:20,t:1,hr:29,rbi:95,avg:'.268',obp:'.358',slg:'.477',ops:'.835',sb:2,so:97,bb:68},
+   {yr:'2018',league:'KBO',team:'SK',g:140,pa:564,ab:468,h:137,d:19,t:1,hr:38,rbi:113,avg:'.293',obp:'.394',slg:'.556',ops:'.950',sb:3,so:103,bb:82},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'홍창기',nameEn:'Hong Chang-ki',
+ aliases:['hong changki','changki hong','홍창기'],
+ team:'LG 트윈스',pos:'외야수 (OF)',bDate:'1993-10-19',age:31,backNo:'37',
+ born:'광주광역시, 대한민국',height:'178cm',weight:'83kg',
+ bats:'좌타 (L)',throws:'좌투 (L)',debut:'2015 (KBO)',nation:'🇰🇷',
+ bio:'LG 트윈스 핵심 리드오프. KBO 최고 출루율 선수 중 하나. 2023 한국시리즈 우승의 주역. 빠른 발과 높은 출루율이 특기.',
+ isBatter:true,
+ careerHit:{g:1100,pa:4300,hr:65,rbi:310,sb:90,avg:'.295',obp:'.400',ops:'.790'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'LG',g:131,pa:522,ab:435,h:128,d:18,t:4,hr:8,rbi:50,avg:'.294',obp:'.397',slg:'.420',ops:'.817',sb:13,so:67,bb:77},
+   {yr:'2023',league:'KBO',team:'LG',g:138,pa:548,ab:455,h:135,d:17,t:5,hr:9,rbi:60,avg:'.297',obp:'.404',slg:'.431',ops:'.835',sb:14,so:69,bb:81},
+   {yr:'2022',league:'KBO',team:'LG',g:141,pa:562,ab:463,h:144,d:17,t:3,hr:7,rbi:50,avg:'.311',obp:'.421',slg:'.420',ops:'.841',sb:15,so:66,bb:87},
+   {yr:'2021',league:'KBO',team:'LG',g:136,pa:540,ab:440,h:131,d:20,t:2,hr:8,rbi:53,avg:'.298',obp:'.405',slg:'.425',ops:'.830',sb:11,so:65,bb:85},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'나성범',nameEn:'Na Sung-bum',
+ aliases:['na sungbum','na sung bum','나성범'],
+ team:'NC 다이노스',pos:'외야수 (OF)',bDate:'1989-10-03',age:35,backNo:'23',
+ born:'부산광역시, 대한민국',height:'184cm',weight:'98kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2012 (KBO)',nation:'🇰🇷',
+ bio:'NC 다이노스 프랜차이즈 스타. 2020 KBO 정규시즌 MVP. 강한 장타력과 외야 수비가 특기. 한국시리즈 우승(2020) 주역.',
+ isBatter:true,
+ careerHit:{g:1450,pa:5900,hr:225,rbi:815,sb:70,avg:'.283',ops:'.875'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'NC',g:131,pa:510,ab:430,h:118,d:19,t:1,hr:28,rbi:89,avg:'.274',obp:'.367',slg:'.505',ops:'.872',sb:5,so:109,bb:65},
+   {yr:'2023',league:'KBO',team:'NC',g:128,pa:495,ab:418,h:116,d:18,t:2,hr:26,rbi:84,avg:'.278',obp:'.372',slg:'.498',ops:'.870',sb:4,so:104,bb:62},
+   {yr:'2020',league:'KBO',team:'NC',g:140,pa:576,ab:476,h:148,d:26,t:3,hr:34,rbi:112,avg:'.311',obp:'.417',slg:'.588',ops:'1.005',sb:9,so:104,bb:85},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'양의지',nameEn:'Yang Eui-ji',
+ aliases:['yang euiji','yang eui ji','양의지'],
+ team:'두산 베어스',pos:'포수 (C)',bDate:'1987-06-05',age:37,backNo:'24',
+ born:'인천광역시, 대한민국',height:'180cm',weight:'95kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2006 (KBO)',nation:'🇰🇷',
+ bio:'KBO 역대 최고 포수. 두산 황금기 주역. 2018 한국시리즈 MVP. 2023년 두산 복귀. 골든글러브 다수.',
+ isBatter:true,
+ careerHit:{g:1850,pa:7200,hr:185,rbi:950,avg:'.279',ops:'.808'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'두산',g:130,pa:508,ab:438,h:128,d:20,t:0,hr:18,rbi:77,avg:'.292',obp:'.378',slg:'.449',ops:'.827',sb:2,so:79,bb:56},
+   {yr:'2023',league:'KBO',team:'두산',g:135,pa:521,ab:444,h:127,d:22,t:0,hr:20,rbi:81,avg:'.286',obp:'.372',slg:'.459',ops:'.831',sb:1,so:84,bb:62},
+   {yr:'2018',league:'KBO',team:'두산',g:133,pa:521,ab:439,h:139,d:24,t:0,hr:23,rbi:94,avg:'.317',obp:'.408',slg:'.503',ops:'.911',sb:2,so:72,bb:67},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'구자욱',nameEn:'Koo Ja-wook',
+ aliases:['koo jawook','goo ja wook','구자욱'],
+ team:'삼성 라이온즈',pos:'외야수 (OF)',bDate:'1993-02-12',age:31,backNo:'7',
+ born:'광주광역시, 대한민국',height:'182cm',weight:'88kg',
+ bats:'좌타 (L)',throws:'우투 (R)',debut:'2012 (KBO)',nation:'🇰🇷',
+ bio:'삼성 라이온즈 핵심 타자. 안정적인 타격과 빠른 발이 특기. 골든글러브 수상. KBO를 대표하는 외야수.',
+ isBatter:true,
+ careerHit:{g:1380,pa:5600,hr:145,rbi:670,sb:120,avg:'.283',ops:'.821'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'삼성',g:140,pa:573,ab:490,h:146,d:24,t:3,hr:22,rbi:80,avg:'.298',obp:'.384',slg:'.476',ops:'.860',sb:15,so:95,bb:66},
+   {yr:'2023',league:'KBO',team:'삼성',g:141,pa:574,ab:491,h:143,d:21,t:4,hr:23,rbi:83,avg:'.291',obp:'.375',slg:'.481',ops:'.856',sb:18,so:96,bb:67},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'오지환',nameEn:'Oh Ji-hwan',
+ aliases:['oh jihwan','ji hwan oh','오지환'],
+ team:'LG 트윈스',pos:'유격수 (SS)',bDate:'1990-06-12',age:34,backNo:'7',
+ born:'부산광역시, 대한민국',height:'181cm',weight:'82kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2009 (KBO)',nation:'🇰🇷',
+ bio:'LG 트윈스 프랜차이즈 유격수. 화려한 수비와 통산 200홈런 이상. 2023 한국시리즈 우승 주역. 골든글러브 다수.',
+ isBatter:true,
+ careerHit:{g:1700,pa:6800,hr:210,rbi:810,avg:'.260',ops:'.790'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'LG',g:130,pa:500,ab:431,h:116,d:20,t:2,hr:18,rbi:72,avg:'.269',obp:'.348',slg:'.434',ops:'.782',sb:5,so:103,bb:56},
+   {yr:'2023',league:'KBO',team:'LG',g:139,pa:537,ab:457,h:125,d:18,t:3,hr:22,rbi:78,avg:'.274',obp:'.361',slg:'.453',ops:'.814',sb:6,so:109,bb:62},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'손아섭',nameEn:'Son A-seop',
+ aliases:['son aseop','a seop son','손아섭'],
+ team:'롯데 자이언츠',pos:'외야수 (OF)',bDate:'1988-03-21',age:36,backNo:'9',
+ born:'부산광역시, 대한민국',height:'175cm',weight:'80kg',
+ bats:'좌타 (L)',throws:'좌투 (L)',debut:'2007 (KBO)',nation:'🇰🇷',
+ bio:'롯데 자이언츠 레전드. 통산 2000안타 달성. 정교한 타격이 특기. 수년간 KBO를 대표하는 좌타 외야수로 활약. 골든글러브 다수.',
+ isBatter:true,
+ careerHit:{g:1900,pa:7600,hr:175,rbi:850,sb:90,avg:'.300',ops:'.820'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'롯데',g:136,pa:534,ab:457,h:138,d:24,t:2,hr:15,rbi:68,avg:'.302',obp:'.384',slg:'.445',ops:'.829',sb:7,so:75,bb:64},
+   {yr:'2023',league:'KBO',team:'롯데',g:139,pa:545,ab:464,h:143,d:22,t:3,hr:16,rbi:75,avg:'.308',obp:'.388',slg:'.449',ops:'.837',sb:6,so:72,bb:68},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'김재환',nameEn:'Kim Jae-hwan',
+ aliases:['kim jaehwan','jae hwan kim','김재환'],
+ team:'두산 베어스',pos:'외야수/지명타자 (OF/DH)',bDate:'1989-05-11',age:35,backNo:'25',
+ born:'광주광역시, 대한민국',height:'184cm',weight:'100kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2010 (KBO)',nation:'🇰🇷',
+ bio:'두산 베어스 강타자. 통산 200홈런 이상. 2018 최다 홈런(44개). 2015~2019 두산 황금기 주전 타자.',
+ isBatter:true,
+ careerHit:{g:1500,pa:6000,hr:230,rbi:800,avg:'.283',ops:'.880'},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'두산',g:128,pa:495,ab:418,h:115,d:20,t:1,hr:22,rbi:80,avg:'.275',obp:'.361',slg:'.478',ops:'.839',sb:2,so:110,bb:62},
+   {yr:'2023',league:'KBO',team:'두산',g:136,pa:522,ab:440,h:123,d:18,t:1,hr:26,rbi:88,avg:'.280',obp:'.366',slg:'.500',ops:'.866',sb:1,so:116,bb:65},
+   {yr:'2018',league:'KBO',team:'두산',g:144,pa:583,ab:481,h:151,d:25,t:2,hr:44,rbi:133,avg:'.314',obp:'.408',slg:'.626',ops:'1.034',sb:3,so:121,bb:85},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'이승엽',nameEn:'Lee Seung-yeop',
+ aliases:['lee seungyeop','seung yeop lee','이승엽'],
+ team:'은퇴 (삼성 라이온즈)',pos:'1루수 (1B)',bDate:'1976-01-20',age:49,backNo:'36',
+ born:'대구광역시, 대한민국',height:'183cm',weight:'88kg',
+ bats:'좌타 (L)',throws:'우투 (R)',debut:'1995 (KBO)',nation:'🇰🇷',
+ bio:'KBO+NPB 통산 626홈런. KBO 역대 홈런왕. "국민타자". 일본 요미우리/지바롯데/오릭스/도호쿠 활약. 2017년 은퇴.',
+ isBatter:true,note:'KBO+NPB 통산 합산',
+ careerHit:{g:2925,pa:11558,hr:626,rbi:2083,avg:'.293',ops:'.927'},
+ seasons:[
+   {yr:'2017',league:'KBO',team:'삼성',g:93,pa:358,ab:304,h:74,d:14,t:0,hr:18,rbi:57,avg:'.243',obp:'.331',slg:'.434',ops:'.765',sb:1,so:70,bb:44},
+   {yr:'2016',league:'KBO',team:'삼성',g:128,pa:495,ab:422,h:111,d:14,t:1,hr:25,rbi:84,avg:'.263',obp:'.354',slg:'.449',ops:'.803',sb:2,so:87,bb:58},
+   {yr:'2011',league:'NPB',team:'도호쿠',g:123,pa:481,ab:412,h:107,d:16,t:1,hr:25,rbi:77,avg:'.260',obp:'.338',slg:'.448',ops:'.786',sb:2,so:86,bb:51},
+   {yr:'2006',league:'NPB',team:'요미우리',g:125,pa:488,ab:421,h:118,d:16,t:1,hr:41,rbi:108,avg:'.280',obp:'.358',slg:'.556',ops:'.914',sb:3,so:96,bb:56},
+   {yr:'2003',league:'KBO',team:'삼성',g:132,pa:514,ab:436,h:144,d:25,t:4,hr:56,rbi:144,avg:'.330',obp:'.426',slg:'.726',ops:'1.152',sb:9,so:89,bb:69},
+   {yr:'1999',league:'KBO',team:'삼성',g:136,pa:556,ab:457,h:153,d:24,t:5,hr:54,rbi:123,avg:'.335',obp:'.432',slg:'.719',ops:'1.151',sb:14,so:75,bb:77},
+ ]},
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   KBO — 현역 투수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+{src:'db',league:'kbo',nameKo:'원태인',nameEn:'Won Tae-in',
+ aliases:['won taein','tae in won','원태인'],
+ team:'삼성 라이온즈',pos:'투수 (SP)',bDate:'2000-08-29',age:24,backNo:'17',
+ born:'경상북도, 대한민국',height:'188cm',weight:'98kg',
+ bats:'우타',throws:'우투 (R)',debut:'2019 (KBO)',nation:'🇰🇷',
+ bio:'KBO 현역 최고 우완 선발투수. 강력한 직구(최고 157km/h)와 날카로운 슬라이더가 주무기. 삼성 라이온즈 에이스. 국가대표 상비군. MLB 진출 유력 후보.',
+ isBatter:false,
+ careerPit:{g:140,gs:120,w:55,l:38,sv:0,ip:'756.1',era:'3.24',whip:'1.15',so:700,bb:230},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'삼성',g:30,gs:30,wl:'15-7',sv:0,ip:'188.2',era:'2.98',whip:'1.10',so:188,bb:52,h:165},
+   {yr:'2023',league:'KBO',team:'삼성',g:30,gs:30,wl:'14-9',sv:0,ip:'183.0',era:'3.26',whip:'1.14',so:175,bb:55,h:168},
+   {yr:'2022',league:'KBO',team:'삼성',g:30,gs:30,wl:'13-8',sv:0,ip:'175.0',era:'3.37',whip:'1.18',so:160,bb:60,h:162},
+   {yr:'2021',league:'KBO',team:'삼성',g:29,gs:28,wl:'10-9',sv:0,ip:'158.1',era:'3.81',whip:'1.21',so:140,bb:58,h:155},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'안우진',nameEn:'Ahn Woo-jin',
+ aliases:['ahn woojin','woo jin ahn','안우진'],
+ team:'키움 히어로즈',pos:'투수 (SP)',bDate:'2000-11-20',age:24,backNo:'51',
+ born:'충청남도, 대한민국',height:'190cm',weight:'97kg',
+ bats:'우타',throws:'우투 (R)',debut:'2019 (KBO)',nation:'🇰🇷',
+ bio:'KBO 현역 가장 빠른 직구(최고 160km/h). 키움 히어로즈 에이스. 삼진 능력 탁월. 2023 ERA 타이틀 수상. MLB 스카우트 주목.',
+ isBatter:false,
+ careerPit:{g:130,gs:115,w:50,l:40,sv:0,ip:'680.0',era:'3.10',whip:'1.12',so:710,bb:215},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'키움',g:29,gs:29,wl:'12-10',sv:0,ip:'174.0',era:'3.21',whip:'1.13',so:192,bb:58,h:158},
+   {yr:'2023',league:'KBO',team:'키움',g:30,gs:30,wl:'14-8',sv:0,ip:'182.1',era:'2.88',whip:'1.08',so:205,bb:55,h:154},
+   {yr:'2022',league:'KBO',team:'키움',g:28,gs:27,wl:'11-9',sv:0,ip:'163.2',era:'3.35',whip:'1.14',so:178,bb:54,h:152},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'양현종',nameEn:'Yang Hyeon-jong',
+ aliases:['yang hyeonjong','hyeonjong yang','양현종'],
+ team:'KIA 타이거즈',pos:'투수 (SP)',bDate:'1988-03-01',age:36,backNo:'54',
+ born:'광주광역시, 대한민국',height:'185cm',weight:'93kg',
+ bats:'우타',throws:'좌투 (L)',debut:'2007 (KBO)',nation:'🇰🇷',mlbSearch:'Hyeon-Jong Yang',
+ bio:'KIA 타이거즈 레전드 에이스. 2017 한국시리즈 MVP. 2021년 텍사스 레인저스 MLB 진출(6경기). KBO 통산 175승. 정교한 제구와 변화구가 특기. 2024 KIA 한국시리즈 우승 기여.',
+ isBatter:false,
+ careerPit:{g:390,gs:340,w:177,l:115,sv:0,ip:'2193.0',era:'3.52',whip:'1.21',so:1820,bb:618},
+ seasons:[
+   {yr:'2024',league:'KBO',team:'KIA',g:30,gs:30,wl:'15-6',sv:0,ip:'183.0',era:'2.95',whip:'1.12',so:158,bb:48,h:162},
+   {yr:'2023',league:'KBO',team:'KIA',g:30,gs:30,wl:'14-7',sv:0,ip:'179.2',era:'3.18',whip:'1.18',so:152,bb:52,h:165},
+   {yr:'2021',league:'MLB',team:'TEX',g:6,gs:5,wl:'0-3',sv:0,ip:'24.2',era:'9.12',whip:'1.71',so:18,bb:13,h:32},
+   {yr:'2020',league:'KBO',team:'KIA',g:27,gs:27,wl:'10-5',sv:0,ip:'161.1',era:'3.46',whip:'1.21',so:137,bb:54,h:158},
+   {yr:'2017',league:'KBO',team:'KIA',g:31,gs:31,wl:'20-6',sv:0,ip:'193.0',era:'3.44',whip:'1.16',so:192,bb:57,h:178},
+   {yr:'2011',league:'KBO',team:'KIA',g:30,gs:30,wl:'16-5',sv:0,ip:'199.1',era:'2.80',whip:'1.09',so:181,bb:56,h:161},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'선동열',nameEn:'Seon Dong-yeol',
+ aliases:['seon dongyeol','sun dong yol','선동열'],
+ team:'은퇴 (해태 타이거즈)',pos:'투수 (SP)',bDate:'1963-01-10',age:62,backNo:'11',
+ born:'광주광역시, 대한민국',height:'180cm',weight:'80kg',
+ bats:'우타',throws:'우투 (R)',debut:'1985 (KBO)',nation:'🇰🇷',
+ bio:'KBO 역대 최저 평균자책점(1.20). "KBO 투수의 신". 해태 에이스→주니치 드래곤즈(NPB). 통산 146승 40패 132세이브.',
+ isBatter:false,
+ careerPit:{g:474,gs:299,w:146,l:40,sv:132,ip:'2142.2',era:'1.20',whip:'0.97',so:1698,bb:512},
+ seasons:[
+   {yr:'1993',league:'KBO',team:'해태',g:31,gs:31,wl:'17-5',sv:0,ip:'233.1',era:'1.45',whip:'0.92',so:194,bb:46,h:152},
+   {yr:'1996',league:'NPB',team:'주니치',g:30,gs:22,wl:'6-9',sv:2,ip:'152.0',era:'3.37',whip:'1.22',so:100,bb:43,h:128},
+   {yr:'1991',league:'KBO',team:'해태',g:35,gs:33,wl:'18-5',sv:2,ip:'247.0',era:'1.56',whip:'0.98',so:191,bb:51,h:151},
+   {yr:'1987',league:'KBO',team:'해태',g:29,gs:28,wl:'16-2',sv:0,ip:'218.0',era:'0.99',whip:'0.85',so:175,bb:41,h:134},
+   {yr:'1986',league:'KBO',team:'해태',g:26,gs:25,wl:'24-6',sv:0,ip:'233.0',era:'1.32',whip:'0.96',so:189,bb:55,h:153},
+ ]},
+
+{src:'db',league:'kbo',nameKo:'최동원',nameEn:'Choi Dong-won',
+ aliases:['choi dongwon','최동원'],
+ team:'은퇴 (롯데 자이언츠)',pos:'투수 (SP)',bDate:'1958-06-10',age:66,backNo:'11',
+ born:'부산광역시, 대한민국',height:'183cm',weight:'82kg',
+ bats:'우타',throws:'우투 (R)',debut:'1983 (KBO)',nation:'🇰🇷',
+ bio:'KBO 최고 레전드 투수. 1984 한국시리즈 5차전 1인 4연투 전설. 통산 103승. 2011년 별세.',
+ isBatter:false,
+ careerPit:{g:268,gs:218,w:103,l:75,sv:8,ip:'1688.1',era:'2.46',whip:'1.20',so:1053,bb:594},
+ seasons:[
+   {yr:'1984',league:'KBO',team:'롯데',g:42,gs:31,wl:'27-13',sv:7,ip:'279.2',era:'2.40',whip:'1.22',so:193,bb:110,h:218},
+   {yr:'1983',league:'KBO',team:'롯데',g:32,gs:23,wl:'18-10',sv:2,ip:'212.0',era:'2.50',whip:'1.19',so:155,bb:89,h:163},
+ ]},
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NPB — 현역 타자
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+{src:'db',league:'npb',nameKo:'무라카미 무네타카',nameEn:'Munetaka Murakami',
+ aliases:['murakami munetaka','munetaka murakami','무라카미','村上宗隆'],
+ team:'도쿄 야쿠르트 스왈로즈',pos:'1루수/3루수 (1B/3B)',bDate:'2000-06-02',age:24,backNo:'55',
+ born:'구마모토현, 일본',height:'188cm',weight:'97kg',
+ bats:'좌타 (L)',throws:'우투 (R)',debut:'2018 (NPB)',nation:'🇯🇵',
+ bio:'현역 NPB 최강 타자. 2022년 역대 타이기 기록 56홈런 달성. 최연소 50홈런. 야쿠르트 2021·2022 일본시리즈 연속 우승 주역. 2023 WBC 일본 대표팀 핵심.',
+ isBatter:true,
+ careerHit:{g:900,pa:3500,hr:215,rbi:640,avg:'.283',ops:'.936'},
+ seasons:[
+   {yr:'2024',league:'NPB',team:'야쿠르트',g:143,pa:577,ab:468,h:138,d:22,t:0,hr:40,rbi:107,avg:'.295',obp:'.398',slg:'.573',ops:'.971',sb:2,so:102,bb:96},
+   {yr:'2023',league:'NPB',team:'야쿠르트',g:143,pa:562,ab:459,h:133,d:18,t:0,hr:31,rbi:100,avg:'.290',obp:'.385',slg:'.514',ops:'.899',sb:1,so:115,bb:88},
+   {yr:'2022',league:'NPB',team:'야쿠르트',g:143,pa:573,ab:456,h:145,d:20,t:1,hr:56,rbi:134,avg:'.318',obp:'.458',slg:'.711',ops:'1.169',sb:3,so:97,bb:108},
+   {yr:'2021',league:'NPB',team:'야쿠르트',g:143,pa:580,ab:474,h:136,d:24,t:1,hr:39,rbi:112,avg:'.287',obp:'.382',slg:'.553',ops:'.935',sb:1,so:110,bb:91},
+   {yr:'2020',league:'NPB',team:'야쿠르트',g:120,pa:465,ab:382,h:99,d:16,t:0,hr:28,rbi:86,avg:'.259',obp:'.370',slg:'.494',ops:'.864',sb:1,so:89,bb:72},
+ ]},
+
+{src:'db',league:'npb',nameKo:'사토 테루아키',nameEn:'Teruaki Sato',
+ aliases:['sato teruaki','teruaki sato','사토','佐藤輝明'],
+ team:'한신 타이거스',pos:'3루수/외야수 (3B/OF)',bDate:'2000-04-08',age:24,backNo:'8',
+ born:'효고현, 일본',height:'187cm',weight:'98kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2021 (NPB)',nation:'🇯🇵',
+ bio:'한신 타이거스 프랜차이즈 슈퍼스타. 2023 일본시리즈 우승 주역. 루키 시즌(2021)부터 24홈런. 강력한 장타력과 수비력을 겸비. NPB 차세대 최고 타자.',
+ isBatter:true,
+ careerHit:{g:580,pa:2280,hr:115,rbi:370,avg:'.256',ops:'.820'},
+ seasons:[
+   {yr:'2024',league:'NPB',team:'한신',g:143,pa:566,ab:474,h:127,d:22,t:2,hr:31,rbi:87,avg:'.268',obp:'.347',slg:'.484',ops:'.831',sb:8,so:145,bb:72},
+   {yr:'2023',league:'NPB',team:'한신',g:143,pa:564,ab:463,h:124,d:20,t:3,hr:24,rbi:78,avg:'.268',obp:'.360',slg:'.460',ops:'.820',sb:9,so:138,bb:82},
+   {yr:'2022',league:'NPB',team:'한신',g:133,pa:505,ab:418,h:104,d:19,t:2,hr:20,rbi:69,avg:'.249',obp:'.333',slg:'.434',ops:'.767',sb:6,so:125,bb:68},
+   {yr:'2021',league:'NPB',team:'한신',g:143,pa:546,ab:456,h:111,d:21,t:1,hr:24,rbi:82,avg:'.243',obp:'.322',slg:'.430',ops:'.752',sb:5,so:145,bb:62},
+ ]},
+
+{src:'db',league:'npb',nameKo:'야마다 테츠토',nameEn:'Tetsuto Yamada',
+ aliases:['yamada tetsuto','tetsuto yamada','야마다','山田哲人'],
+ team:'도쿄 야쿠르트 스왈로즈',pos:'2루수 (2B)',bDate:'1992-07-16',age:32,backNo:'1',
+ born:'효고현, 일본',height:'177cm',weight:'80kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'2010 (NPB)',nation:'🇯🇵',
+ bio:'현역 NPB 최고 2루수. 트리플 스리(타율 3할·30홈런·30도루) 역대 최다 3회 달성. 야쿠르트 V2(2021·2022) 주역.',
+ isBatter:true,
+ careerHit:{g:1750,pa:7100,hr:345,rbi:1050,sb:230,avg:'.285',ops:'.905'},
+ seasons:[
+   {yr:'2024',league:'NPB',team:'야쿠르트',g:130,pa:520,ab:437,h:122,d:20,t:1,hr:28,rbi:86,avg:'.279',obp:'.385',slg:'.501',ops:'.886',sb:15,so:100,bb:70},
+   {yr:'2023',league:'NPB',team:'야쿠르트',g:138,pa:555,ab:462,h:136,d:21,t:1,hr:28,rbi:84,avg:'.295',obp:'.395',slg:'.516',ops:'.911',sb:18,so:103,bb:75},
+   {yr:'2021',league:'NPB',team:'야쿠르트',g:143,pa:580,ab:473,h:147,d:22,t:3,hr:39,rbi:112,avg:'.311',obp:'.411',slg:'.578',ops:'.989',sb:30,so:105,bb:85},
+   {yr:'2015',league:'NPB',team:'야쿠르트',g:143,pa:601,ab:501,h:165,d:34,t:3,hr:38,rbi:100,avg:'.329',obp:'.432',slg:'.602',ops:'1.034',sb:38,so:100,bb:88},
+ ]},
+
+{src:'db',league:'npb',nameKo:'오 사다하루',nameEn:'Sadaharu Oh',
+ aliases:['oh sadaharu','sadaharu oh','왕정치','王貞治'],
+ team:'은퇴 (요미우리 자이언츠)',pos:'1루수 (1B)',bDate:'1940-05-20',age:84,
+ born:'도쿄도, 일본',height:'179cm',weight:'78kg',
+ bats:'좌타 (L)',throws:'좌투 (L)',debut:'1959 (NPB)',nation:'🇯🇵',
+ bio:'세계 프로야구 역대 최다 홈런 868개. 요미우리 자이언츠 22년. ON포(오·나가시마). V9 달성. 현재 소프트뱅크 회장.',
+ backNo:'1',
+ isBatter:true,
+ careerHit:{g:2831,pa:11866,ab:9250,h:2786,hr:868,rbi:2170,sb:84,avg:'.301',obp:'.445',slg:'.634',ops:'1.080'},
+ seasons:[
+   {yr:'1977',league:'NPB',team:'요미우리',g:130,pa:553,ab:408,h:124,d:18,t:2,hr:50,rbi:124,avg:'.304',obp:'.469',slg:'.651',ops:'1.120',sb:0,so:42,bb:136},
+   {yr:'1974',league:'NPB',team:'요미우리',g:130,pa:547,ab:421,h:133,d:22,t:2,hr:49,rbi:107,avg:'.316',obp:'.469',slg:'.657',ops:'1.126',sb:0,so:40,bb:118},
+   {yr:'1964',league:'NPB',team:'요미우리',g:140,pa:589,ab:476,h:140,d:22,t:4,hr:55,rbi:119,avg:'.294',obp:'.438',slg:'.610',ops:'1.048',sb:3,so:54,bb:106},
+ ]},
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NPB — 현역 투수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+{src:'db',league:'npb',nameKo:'모리시타 마사토',nameEn:'Masato Morishita',
+ aliases:['morishita masato','masato morishita','모리시타','森下暢仁'],
+ team:'히로시마 도요 카프',pos:'투수 (SP)',bDate:'1998-08-29',age:26,
+ born:'오이타현, 일본',height:'181cm',weight:'85kg',
+ bats:'우타',throws:'우투 (R)',debut:'2020 (NPB)',nation:'🇯🇵',
+ bio:'히로시마 카프 에이스. 2023 WBC 일본 대표팀 선발. 정교한 제구와 다양한 변화구. NPB 차세대 선발 에이스.',
+ backNo:'18',
+ isBatter:false,
+ careerPit:{g:135,gs:125,w:65,l:40,sv:0,ip:'805.0',era:'2.68',whip:'1.10',so:740,bb:215},
+ seasons:[
+   {yr:'2024',league:'NPB',team:'히로시마',g:26,gs:26,wl:'11-9',sv:0,ip:'156.0',era:'2.65',whip:'1.09',so:141,bb:45,h:133},
+   {yr:'2023',league:'NPB',team:'히로시마',g:26,gs:26,wl:'10-7',sv:0,ip:'161.2',era:'2.67',whip:'1.08',so:152,bb:47,h:132},
+   {yr:'2022',league:'NPB',team:'히로시마',g:27,gs:27,wl:'14-5',sv:0,ip:'172.1',era:'2.35',whip:'1.04',so:163,bb:52,h:131},
+   {yr:'2020',league:'NPB',team:'히로시마',g:21,gs:21,wl:'11-6',sv:0,ip:'129.0',era:'2.58',whip:'1.12',so:121,bb:44,h:110},
+ ]},
+
+{src:'db',league:'npb',nameKo:'나가시마 시게오',nameEn:'Shigeo Nagashima',
+ aliases:['nagashima shigeo','shigeo nagashima','나가시마','長嶋茂雄'],
+ team:'은퇴 (요미우리 자이언츠)',pos:'3루수 (3B)',bDate:'1936-02-20',age:89,
+ born:'치바현, 일본',height:'178cm',weight:'78kg',
+ bats:'우타 (R)',throws:'우투 (R)',debut:'1958 (NPB)',nation:'🇯🇵',
+ bio:'오 사다하루와 ON포. 요미우리 V9 주역. 통산 444홈런. "미스터 자이언츠". 일본 야구 최고 레전드 중 하나.',
+ backNo:'3',
+ isBatter:true,
+ careerHit:{g:2186,pa:8887,ab:8094,h:2471,hr:444,rbi:1522,sb:214,avg:'.305',ops:'.879'},
+ seasons:[
+   {yr:'1961',league:'NPB',team:'요미우리',g:130,pa:565,ab:496,h:169,d:24,t:8,hr:28,rbi:106,avg:'.341',obp:'.419',slg:'.556',ops:'.975',sb:23,so:53,bb:63},
+   {yr:'1963',league:'NPB',team:'요미우리',g:130,pa:553,ab:490,h:153,d:18,t:5,hr:31,rbi:90,avg:'.312',obp:'.390',slg:'.527',ops:'.917',sb:18,so:48,bb:55},
+ ]},
+]; // END LOCAL_DB
+
+/* ══════════════════════════════════════════════════════
+   자동완성 후보 목록 (LOCAL_DB + KO_MAP)
+══════════════════════════════════════════════════════ */
+const AC_CANDIDATES = (() => {
+  const list = [];
+  LOCAL_DB.forEach(p => {
+    const primary = p.nameKo || p.nameEn || '';
+    const secondary = (p.nameKo && p.nameEn) ? p.nameEn : '';
+    const keys = [p.nameKo, p.nameEn, ...(p.aliases||[])].filter(Boolean)
+      .map(s => s.toLowerCase().replace(/\s+/g,''));
+    const shortTeam = (p.team||'').split(' ')[0] || '';
+    list.push({ display: primary, sub: secondary, keys, league: p.league, team: shortTeam });
+  });
+  // KO_MAP의 MLB 선수 중 아직 없는 것만 추가
+  Object.entries(KO_MAP).forEach(([ko, en]) => {
+    const kl = ko.toLowerCase().replace(/\s+/g,'');
+    if (!list.some(c => c.keys.includes(kl))) {
+      list.push({ display: ko, sub: en, keys: [kl, en.toLowerCase().replace(/\s+/g,'')], league: 'mlb', team: '' });
+    }
+  });
+  return list;
+})();
+
+/* ══════════════════════════════════════════════════════
+   영문명 → 한글명 역방향 맵
+══════════════════════════════════════════════════════ */
+const EN_TO_KO = {};
+Object.entries(KO_MAP).forEach(([ko, en]) => {
+  const k = en.toLowerCase().replace(/\s+/g,'');
+  if (!EN_TO_KO[k]) EN_TO_KO[k] = ko;
+});
+
+/* ══════════════════════════════════════════════════════
+   MLB 전체 현역 선수 캐시 (비동기 사전 로딩)
+══════════════════════════════════════════════════════ */
+let mlbPlayerCache = null;
+let mlbCacheState  = 'idle'; // idle | loading | done | error
+
+async function ensureMlbCache() {
+  if (mlbCacheState === 'done') return mlbPlayerCache;
+  if (mlbCacheState === 'loading') {
+    // 로딩 완료까지 대기 (최대 5초)
+    const t0 = Date.now();
+    while (mlbCacheState === 'loading' && Date.now()-t0 < 5000) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return mlbPlayerCache;
+  }
+  mlbCacheState = 'loading';
+  try {
+    const szn = new Date().getFullYear();
+    const resp = await fetch(`https://statsapi.mlb.com/api/v1/sports/1/players?season=${szn}&gameType=R`,
+      { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) throw new Error();
+    const data = await resp.json();
+    mlbPlayerCache = (data.people||[]).map(p => {
+      const fnNorm = (p.fullName||'').toLowerCase().replace(/\s+/g,'');
+      const lnNorm = (p.lastName||'').toLowerCase();
+      const koName = EN_TO_KO[fnNorm] || '';
+      const shortTeam = (p.currentTeam?.name||'').split(' ').pop()||'';
+      return {
+        id: p.id,
+        display: p.fullName||'',
+        koName,
+        sub: koName,
+        keys: [fnNorm, lnNorm, ...(koName ? [koName.toLowerCase().replace(/\s+/g,'')] : [])].filter(Boolean),
+        league: 'mlb',
+        team: shortTeam
+      };
+    });
+    mlbCacheState = 'done';
+  } catch(_) { mlbCacheState = 'error'; }
+  return mlbPlayerCache;
+}
+
+/* ══════════════════════════════════════════════════════
+   KBO 실시간 자동완성 (프록시 API 직접 호출)
+══════════════════════════════════════════════════════ */
+const KBO_PROXY = 'https://kbo-proxy.rockyhong.workers.dev';
+
+async function kboAcSearch(q, signal) {
+  try {
+    const resp = await fetch(`${KBO_PROXY}/ws/Controls.asmx/GetSearchPlayer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `name=${encodeURIComponent(q)}`,
+      signal: signal || AbortSignal.timeout(3000)
+    });
+    if (!resp.ok) return [];
+    const json = await resp.json();
+    if (json.code !== '100') return [];
+    return [...(json.now||[]), ...(json.retire||[])]
+      .slice(0, 10)
+      .map(pl => ({
+        display: pl.P_NM || '',
+        sub: pl.T_NM || '',
+        retire: !(json.now||[]).includes(pl),
+        keys: [(pl.P_NM||'').toLowerCase().replace(/\s+/g,'')],
+        league: 'kbo',
+        team: (pl.T_NM||'').split(' ')[0] || ''
+      }));
+  } catch(_) { return []; }
+}
+
+/* ══════════════════════════════════════════════════════
+   MLB 자동완성 (캐시 + 로컬 AC_CANDIDATES 병합)
+══════════════════════════════════════════════════════ */
+async function mlbAcSearch(q) {
+  const qn = q.toLowerCase().replace(/\s+/g,'');
+  // 로컬 즉시 결과 (AC_CANDIDATES MLB 항목)
+  const local = AC_CANDIDATES.filter(c => c.league==='mlb' && c.keys.some(k=>k.includes(qn)));
+  // 캐시 결과
+  const cache = await ensureMlbCache();
+  if (cache) {
+    const seen = new Set(local.map(x=>x.display.toLowerCase()));
+    for (const it of cache) {
+      if (it.keys.some(k=>k.includes(qn)) && !seen.has(it.display.toLowerCase())) {
+        local.push(it); seen.add(it.display.toLowerCase());
+      }
+    }
+  }
+  local.sort((a,b)=>{
+    const as=a.keys.some(k=>k.startsWith(qn))?0:1;
+    const bs=b.keys.some(k=>k.startsWith(qn))?0:1;
+    return as-bs;
+  });
+  return local.slice(0,10);
+}
+
+
+/* ══════════════════════════════════════════════════════
+   ③ 스포츠 리그 ID 맵 (MLB Stats API)
+══════════════════════════════════════════════════════ */
+const SPORT_INFO = {
+  1:{label:'MLB',cls:'lm'},51:{label:'KBO',cls:'lk'},52:{label:'NPB',cls:'ln'},
+  11:{label:'AAA',cls:'lx'},12:{label:'AA',cls:'lx'},13:{label:'A+',cls:'lx'},
+  14:{label:'A',cls:'lx'},16:{label:'R',cls:'lx'},
+};
+const LG_CLS = {KBO:'lk',MLB:'lm',NPB:'ln'};
+const LG_BADGE = {KBO:'b-kbo',MLB:'b-mlb',NPB:'b-npb'};
+
+// 리그 자동 감지 함수
+let _selectedLeague = null; // 자동완성/빠른선택으로 선택된 리그
+
+function detectLeague(q) {
+  if (_selectedLeague) { const l = _selectedLeague; _selectedLeague = null; return l; }
+  const qn = q.replace(/\s+/g,'');
+  // KO_MAP 에 있으면 MLB
+  if (KO_MAP[qn] || KO_MAP[q]) return 'mlb';
+  // AC_CANDIDATES 첫 번째 일치 리그
+  const qk = qn.toLowerCase();
+  const match = AC_CANDIDATES.find(c => c.keys.some(k => k === qk || k.startsWith(qk)));
+  if (match) return match.league;
+  // 일본어 포함 → NPB
+  if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(q)) return 'npb';
+  // 한글 포함 → KBO
+  if (/[가-힣]/.test(q)) return 'kbo';
+  // 영문 → MLB
+  return 'mlb';
+}
+
+/* ══════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('si').focus();
+});
+
+function setLeague(l) {
+  _selectedLeague = l;
+}
+
+function renderWelcome() {
+  // 통합 검색 모드 — 탭 없음
+}
+
+
+function fill(n, lg) {
+  if (lg) _selectedLeague = lg;
+  document.getElementById('si').value = n;
+  hideAcDrop();
+  document.getElementById('featured')?.style && (document.getElementById('featured').style.display='none');
+  doSearch();
+}
+
+function fillChip(el) {
+  const n  = el.textContent.trim();
+  const lg = el.dataset.league || null;
+  fill(n, lg);
+}
+
+function doSearch() {
+  const raw = document.getElementById('si').value.trim();
+  if (!raw) return;
+  hideAcDrop();
+  document.getElementById('featured').style.display = 'none';
+  const lg = detectLeague(raw);
+  if (lg === 'mlb') runMLB(raw);
+  else runKboNpb(raw, lg);
+}
+
+/* ══════════════════════════════════════════════════════
+   자동완성 로직
+══════════════════════════════════════════════════════ */
+let acIdx = -1;
+
+function acFilter(q) {
+  const qn = q.toLowerCase().replace(/\s+/g,'');
+  if (!qn) return [];
+  const res = AC_CANDIDATES.filter(c => c.keys.some(k => k.includes(qn)));
+  // 앞글자 일치를 우선 정렬
+  res.sort((a, b) => {
+    const as = a.keys.some(k => k.startsWith(qn)) ? 0 : 1;
+    const bs = b.keys.some(k => k.startsWith(qn)) ? 0 : 1;
+    return as - bs;
+  });
+  return res.slice(0, 8);
+}
+
+function acHighlight(text, q) {
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return escH(text);
+  return escH(text.slice(0,i)) + '<em>' + escH(text.slice(i, i+q.length)) + '</em>' + escH(text.slice(i+q.length));
+}
+
+function renderAcItems(items, q) {
+  const drop = document.getElementById('acdrop');
+  acIdx = -1;
+  if (!items.length) { drop.classList.remove('show'); return; }
+  const lgMap = { kbo:['b-kbo','KBO'], mlb:['b-mlb','MLB'], npb:['b-npb','NPB'] };
+  drop.innerHTML = items.map(it => {
+    const [bc, lb] = lgMap[it.league] || ['',''];
+    // 표시 이름: MLB에서 한글 검색 시 한글명 우선
+    const qn = q.toLowerCase().replace(/\s+/g,'');
+    const isKoSearch = /[가-힣]/.test(q);
+    const displayName = (isKoSearch && it.koName) ? it.koName : it.display;
+    const subName = (isKoSearch && it.koName) ? it.display : (it.sub||'');
+    const hl = acHighlight(displayName, q);
+    const retireTag = it.retire ? `<span style="font-size:.6rem;color:var(--mu);margin-left:3px">(은퇴)</span>` : '';
+    return `<div class="ac-item" data-v="${escH(it.display)}" data-league="${it.league||''}" onmousedown="acSelect(this)">
+      <span class="badge ${bc} ac-badge">${lb}</span>
+      <span class="ac-name">${hl}${retireTag}</span>
+      ${subName ? `<span class="ac-sub">${escH(subName)}</span>` : ''}
+      ${it.team ? `<span class="ac-team">${escH(it.team)}</span>` : ''}
+    </div>`;
+  }).join('');
+  drop.classList.add('show');
+}
+
+function showAcDrop(q) {
+  const items = acFilter(q);
+  renderAcItems(items, q);
+}
+
+function hideAcDrop() {
+  document.getElementById('acdrop').classList.remove('show');
+  acIdx = -1;
+}
+
+function acSelect(el) {
+  const v  = el?.dataset?.v;
+  const lg = el?.dataset?.league;
+  if (!v) return;
+  if (lg) _selectedLeague = lg;
+  document.getElementById('si').value = v;
+  hideAcDrop();
+  doSearch();
+}
+
+function acMove(dir) {
+  const items = document.querySelectorAll('#acdrop .ac-item');
+  if (!items.length) return;
+  if (acIdx >= 0) items[acIdx].classList.remove('on');
+  acIdx = Math.max(-1, Math.min(items.length - 1, acIdx + dir));
+  if (acIdx >= 0) items[acIdx].classList.add('on');
+}
+
+// 입력 감지 → 비동기 자동완성 (디바운스 300ms)
+const _siEl = document.getElementById('si');
+let _acTimer = null;
+let _acAbort = null;
+
+_siEl.addEventListener('input', () => {
+  const q = _siEl.value.trim();
+  if (!q) { hideAcDrop(); return; }
+
+  // 로컬 후보 즉시 표시 (모든 리그)
+  const localItems = acFilter(q);
+  if (localItems.length) renderAcItems(localItems, q);
+
+  // 디바운스 전 리그 라이브 검색
+  clearTimeout(_acTimer);
+  if (_acAbort) _acAbort.abort();
+
+  _acTimer = setTimeout(async () => {
+    _acAbort = new AbortController();
+    try {
+      const [kboItems, mlbItems] = await Promise.all([
+        kboAcSearch(q, _acAbort.signal),
+        mlbAcSearch(q)
+      ]);
+      const npbItems = acFilter(q).filter(c => c.league === 'npb');
+      const seen = new Set();
+      const merged = [];
+      for (const it of [...kboItems, ...mlbItems, ...npbItems]) {
+        const k = it.display.toLowerCase();
+        if (!seen.has(k)) { merged.push(it); seen.add(k); }
+      }
+      const qn = q.toLowerCase().replace(/\s+/g,'');
+      merged.sort((a,b) => {
+        const as = a.keys.some(k=>k.startsWith(qn)) ? 0 : 1;
+        const bs = b.keys.some(k=>k.startsWith(qn)) ? 0 : 1;
+        return as - bs;
+      });
+      const final = merged.slice(0, 12);
+      if (final.length) renderAcItems(final, q);
+      else if (!localItems.length) hideAcDrop();
+    } catch(_) {}
+  }, 300);
+});
+
+
+// 키보드 네비게이션
+_siEl.addEventListener('keydown', e => {
+  const drop = document.getElementById('acdrop');
+  const isOpen = drop.classList.contains('show');
+  if (isOpen) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); acMove(1);  return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); acMove(-1); return; }
+    if (e.key === 'Escape')    { hideAcDrop(); return; }
+    if (e.key === 'Enter') {
+      const on = drop.querySelector('.ac-item.on');
+      if (on) { e.preventDefault(); acSelect(on); return; }
+    }
+  }
+  if (e.key === 'Enter') doSearch();
+});
+
+// 외부 클릭 시 드롭다운 닫기
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ac-wrap')) hideAcDrop();
+});
+
+// 페이지 로드 후 MLB 캐시 자동 로딩 (탭 없음)
+window.addEventListener('load', () => setTimeout(ensureMlbCache, 800));
+
+/* ══════════════════════════════════════════════════════
+   KBO / NPB 검색
+══════════════════════════════════════════════════════ */
+async function runKboNpb(query, league) {
+  setLoading(query);
+  const results = [];
+  const seen = new Set();
+  const q = query.toLowerCase().replace(/\s+/g,'');
+
+  // ① 신뢰 외부 사이트 우선: KBO=koreabaseball.com(공식) / NPB=npb.jp (CORS 프록시)
+  const extFetch = league==='kbo' ? fetchKboData(query) : fetchNpbData(query);
+
+  // ② MLB Stats API 병렬 조회
+  const normQ = query.replace(/\s+/g,'');
+  let enQ = KO_MAP[query] || KO_MAP[normQ] || (isKorean(query) ? romanize(query) : query);
+  const apiFetch = (async()=>{
+    try {
+      const sp = league==='kbo' ? '51,1' : '52,1';
+      let ppl = await mlbFetch(enQ, sp);
+      if (!ppl.length) ppl = await mlbFetch(enQ, '');
+      return ppl;
+    } catch(_){ return []; }
+  })();
+
+  // 병렬 실행
+  const [extData, apiPpl] = await Promise.all([extFetch, apiFetch]);
+
+  // ③ KBO 공식 데이터(koreabaseball.com) 우선 표시, 있으면 자체DB 완전 차단
+  if (extData) {
+    results.push({type:'external', data:extData, league:league.toUpperCase()});
+  } else if (league === 'kbo') {
+    // 프록시 미실행 안내 카드 삽입
+    results.push({type:'kbo_proxy_error'});
+  }
+
+  // ④ MLB API 결과 (KBO/NPB 선수가 MLB에 등록된 경우)
+  apiPpl.forEach(p=>{
+    if (!seen.has(p.fullName)) { seen.add(p.fullName); results.push({type:'api',data:p}); }
+  });
+
+  // ⑤ 자체DB — KBO는 절대 사용하지 않음 (NPB 전용)
+  if (league !== 'kbo') {
+    LOCAL_DB.filter(p=>p.league===league).forEach(p=>{
+      const match =
+        p.nameKo.replace(/\s+/g,'').includes(query.replace(/\s+/g,'')) ||
+        p.nameEn.toLowerCase().replace(/\s+/g,'').includes(q) ||
+        (p.aliases||[]).some(a=>a.replace(/\s+/g,'').toLowerCase().includes(q));
+      if (match && !seen.has(p.nameEn) && !seen.has(p.nameKo)) {
+        seen.add(p.nameEn);
+        results.push({type:'local',data:p});
+      }
+    });
+  }
+
+  renderAll(results, query);
+}
+
+/* MLB 검색 */
+async function runMLB(query) {
+  setLoading(query);
+  const enQ = isKorean(query) ? (KO_MAP[query.replace(/\s+/g,'')] || romanize(query)) : query;
+  try {
+    const ppl = await mlbFetch(enQ, '1');
+    if (!ppl.length) { document.getElementById('main').innerHTML = noResult(query); return; }
+    renderAll(ppl.map(p=>({type:'api',data:p})), query);
+  } catch(e) {
+    document.getElementById('main').innerHTML = `<div class="sbox"><div class="ico">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+async function mlbFetch(q, sportIds) {
+  const sp = sportIds ? `&sportIds=${sportIds}` : '';
+  const r = await fetch(`https://statsapi.mlb.com/api/v1/people/search?names=${encodeURIComponent(q)}${sp}`);
+  const d = await r.json();
+  return (d.people||[]).slice(0,8);
+}
+
+/* ══════════════════════════════════════════════════════
+   렌더링
+══════════════════════════════════════════════════════ */
+function setLoading(q){
+  document.getElementById('main').innerHTML =
+    `<div class="sbox"><div class="spin"></div><p>검색 중…</p><small>${escH(q)}</small></div>`;
+}
+function noResult(q){
+  return `<div class="sbox"><div class="ico">🔍</div><p><strong>"${escH(q)}"</strong> 검색 결과 없음</p><small>다른 이름이나 영문으로 검색해보세요</small></div>`;
+}
+
+async function renderAll(results, query) {
+  if (!results.length) { document.getElementById('main').innerHTML = noResult(query); return; }
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="rhead">
+      <h3>🔍 "${escH(query)}" — ${results.length}건</h3>
+      <span>전 리그 통합 테이블 · 사진·바이오 즉시 표시</span>
+    </div><div id="cards"></div>`;
+
+  const wrap = document.getElementById('cards');
+  for (const r of results) {
+    if (r.type==='kbo_proxy_error') {
+      wrap.insertAdjacentHTML('beforeend', `
+        <div class="pcard" style="border:2px solid #f5c54233;background:rgba(245,197,66,.05);">
+          <div style="padding:20px 24px;">
+            <div style="font-size:1.1rem;font-weight:700;color:#f5c542;margin-bottom:10px;">🔍 KBO 검색 결과 없음</div>
+            <p style="color:var(--mu);line-height:1.7;margin:0 0 8px;">
+              <b>koreabaseball.com</b>에서 해당 선수를 찾을 수 없습니다.<br>
+              정확한 한글 이름으로 다시 검색해 보세요 (예: 류현진, 김도영, 양현종)
+            </p>
+            <p style="color:var(--mu2);font-size:.79rem;margin:0;">
+              ※ Cloudflare Worker 프록시가 일시적으로 불안정한 경우 잠시 후 다시 시도해 주세요.
+            </p>
+          </div>
+        </div>`);
+    } else if (r.type==='external') {
+      const html = buildExternalCard(r.data, r.league);
+      if (html) wrap.insertAdjacentHTML('beforeend', html);
+    } else if (r.type==='local') {
+      wrap.insertAdjacentHTML('beforeend', buildLocalCard(r.data));
+    } else {
+      const ph = document.createElement('div');
+      ph.className='pcard';
+      ph.style.cssText='padding:16px 20px;color:var(--mu);font-size:.82rem;';
+      ph.textContent=`${r.data.fullName||''}  불러오는 중…`;
+      wrap.appendChild(ph);
+      buildApiCard(r.data).then(html=>{
+        const tmp=document.createElement('div'); tmp.innerHTML=html;
+        ph.replaceWith(tmp.firstElementChild);
+      }).catch(()=>ph.remove());
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   리그별 타격 테이블 렌더러 (KBO/MLB/NPB 컬럼 분리)
+══════════════════════════════════════════════════════ */
+function renderBatTableByLeague(league, rows, careerRow) {
+  let thead='', tbody='';
+  if (league === 'KBO') {
+    // KBO: 경기, 타율, 안타, 홈런, 도루, 타점, 삼진, 볼넷
+    thead = `<tr><th>시즌</th><th>팀</th><th>경기</th><th>타율</th><th>안타</th><th>홈런</th><th>도루</th><th>타점</th><th>삼진</th><th>볼넷</th></tr>`;
+    tbody = rows.map(r=>`<tr>
+      <td class="td-yr">${r.yr}</td><td class="td-tm">${r.team}</td>
+      <td>${r.g}</td><td class="hy">${r.avg}</td><td>${r.h}</td>
+      <td class="hy">${r.hr}</td><td>${r.sb}</td><td class="hg">${r.rbi}</td>
+      <td>${r.so}</td><td>${r.bb}</td>
+    </tr>`).join('');
+    if (careerRow) tbody += `<tr class="crw">
+      <td>통산</td><td>—</td>
+      <td>${careerRow.g||'-'}</td><td>${careerRow.avg||'-'}</td><td>${careerRow.h||'-'}</td>
+      <td>${careerRow.hr||'-'}</td><td>${careerRow.sb||'-'}</td><td>${careerRow.rbi||'-'}</td>
+      <td>${careerRow.so||'-'}</td><td>${careerRow.bb||'-'}</td>
+    </tr>`;
+  } else if (league === 'MLB') {
+    // MLB: 타수, 득점, 안타, 홈런, 타점, 도루, 타율, OPS
+    thead = `<tr><th>시즌</th><th>팀</th><th>타수</th><th>득점</th><th>안타</th><th>홈런</th><th>타점</th><th>도루</th><th>타율</th><th>OPS</th></tr>`;
+    tbody = rows.map(r=>`<tr>
+      <td class="td-yr">${r.yr}</td><td class="td-tm">${r.team}</td>
+      <td>${r.ab}</td><td>${r.runs}</td><td>${r.h}</td>
+      <td class="hy">${r.hr}</td><td class="hg">${r.rbi}</td><td>${r.sb}</td>
+      <td class="hy">${r.avg}</td><td class="hw">${r.ops}</td>
+    </tr>`).join('');
+    if (careerRow) tbody += `<tr class="crw">
+      <td>통산</td><td>—</td>
+      <td>${careerRow.ab||'-'}</td><td>${careerRow.runs||'-'}</td><td>${careerRow.h||'-'}</td>
+      <td>${careerRow.hr||'-'}</td><td>${careerRow.rbi||'-'}</td><td>${careerRow.sb||'-'}</td>
+      <td>${careerRow.avg||'-'}</td><td>${careerRow.ops||'-'}</td>
+    </tr>`;
+  } else {
+    // NPB: 경기, 타율, 안타, 홈런, 타점, 도루, 장타율, 출루율
+    thead = `<tr><th>시즌</th><th>팀</th><th>경기</th><th>타율</th><th>안타</th><th>홈런</th><th>타점</th><th>도루</th><th>장타율</th><th>출루율</th></tr>`;
+    tbody = rows.map(r=>`<tr>
+      <td class="td-yr">${r.yr}</td><td class="td-tm">${r.team}</td>
+      <td>${r.g}</td><td class="hy">${r.avg}</td><td>${r.h}</td>
+      <td class="hy">${r.hr}</td><td class="hg">${r.rbi}</td><td>${r.sb}</td>
+      <td>${r.slg}</td><td>${r.obp}</td>
+    </tr>`).join('');
+    if (careerRow) tbody += `<tr class="crw">
+      <td>통산</td><td>—</td>
+      <td>${careerRow.g||'-'}</td><td>${careerRow.avg||'-'}</td><td>${careerRow.h||'-'}</td>
+      <td>${careerRow.hr||'-'}</td><td>${careerRow.rbi||'-'}</td><td>${careerRow.sb||'-'}</td>
+      <td>${careerRow.slg||'-'}</td><td>${careerRow.obp||'-'}</td>
+    </tr>`;
+  }
+  return `<div class="tbl-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   리그별 투구 테이블 렌더러 (KBO/MLB/NPB 컬럼 분리)
+══════════════════════════════════════════════════════ */
+function renderPitTableByLeague(league, rows, careerRow) {
+  let thead='', tbody='';
+  if (league === 'KBO') {
+    // KBO: 경기, ERA, 삼진, 볼넷, 승, 패, 홀드, 세이브
+    thead = `<tr><th>시즌</th><th>팀</th><th>경기</th><th>ERA</th><th>삼진</th><th>볼넷</th><th>승</th><th>패</th><th>홀드</th><th>세이브</th></tr>`;
+    tbody = rows.map(r=>`<tr>
+      <td class="td-yr">${r.yr}</td><td class="td-tm">${r.team}</td>
+      <td>${r.g}</td><td class="hy">${r.era}</td><td>${r.so}</td><td>${r.bb}</td>
+      <td>${r.w}</td><td>${r.l}</td><td>${r.hld}</td><td>${r.sv}</td>
+    </tr>`).join('');
+    if (careerRow) tbody += `<tr class="crw">
+      <td>통산</td><td>—</td>
+      <td>${careerRow.g||'-'}</td><td>${careerRow.era||'-'}</td><td>${careerRow.so||'-'}</td><td>${careerRow.bb||'-'}</td>
+      <td>${careerRow.w||'-'}</td><td>${careerRow.l||'-'}</td><td>${careerRow.hld||'-'}</td><td>${careerRow.sv||'-'}</td>
+    </tr>`;
+  } else if (league === 'MLB') {
+    // MLB: 경기, ERA, 이닝, 탈삼진, 승, 패, 홀드, 세이브
+    thead = `<tr><th>시즌</th><th>팀</th><th>경기</th><th>ERA</th><th>이닝</th><th>탈삼진</th><th>승</th><th>패</th><th>홀드</th><th>세이브</th></tr>`;
+    tbody = rows.map(r=>`<tr>
+      <td class="td-yr">${r.yr}</td><td class="td-tm">${r.team}</td>
+      <td>${r.g}</td><td class="hy">${r.era}</td><td class="hg">${r.ip}</td><td>${r.so}</td>
+      <td>${r.w}</td><td>${r.l}</td><td>${r.hld}</td><td>${r.sv}</td>
+    </tr>`).join('');
+    if (careerRow) tbody += `<tr class="crw">
+      <td>통산</td><td>—</td>
+      <td>${careerRow.g||'-'}</td><td>${careerRow.era||'-'}</td><td>${careerRow.ip||'-'}</td><td>${careerRow.so||'-'}</td>
+      <td>${careerRow.w||'-'}</td><td>${careerRow.l||'-'}</td><td>${careerRow.hld||'-'}</td><td>${careerRow.sv||'-'}</td>
+    </tr>`;
+  } else {
+    // NPB: 경기, 방어율, 이닝, 탈삼진, 승, 패, 홀드, 세이브
+    thead = `<tr><th>시즌</th><th>팀</th><th>경기</th><th>방어율</th><th>이닝</th><th>탈삼진</th><th>승</th><th>패</th><th>홀드</th><th>세이브</th></tr>`;
+    tbody = rows.map(r=>`<tr>
+      <td class="td-yr">${r.yr}</td><td class="td-tm">${r.team}</td>
+      <td>${r.g}</td><td class="hy">${r.era}</td><td class="hg">${r.ip}</td><td>${r.so}</td>
+      <td>${r.w}</td><td>${r.l}</td><td>${r.hld}</td><td>${r.sv}</td>
+    </tr>`).join('');
+    if (careerRow) tbody += `<tr class="crw">
+      <td>통산</td><td>—</td>
+      <td>${careerRow.g||'-'}</td><td>${careerRow.era||'-'}</td><td>${careerRow.ip||'-'}</td><td>${careerRow.so||'-'}</td>
+      <td>${careerRow.w||'-'}</td><td>${careerRow.l||'-'}</td><td>${careerRow.hld||'-'}</td><td>${careerRow.sv||'-'}</td>
+    </tr>`;
+  }
+  return `<div class="tbl-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   LOCAL DB 카드 — 통합 테이블
+══════════════════════════════════════════════════════ */
+function buildLocalCard(p) {
+  const init=(p.nameEn||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+  const lgBadge = p.league==='kbo'?'b-kbo':'b-npb';
+  const lgLabel = p.league==='kbo'?'KBO':'NPB';
+
+  // 통산 strip
+  let strip='';
+  if (p.isBatter&&p.careerHit) {
+    const c=p.careerHit;
+    strip=`<div class="kstrip"><div class="kst">통산 타율 <strong>${c.avg||'-'}</strong></div>
+      <div class="kst">홈런 <strong>${c.hr||'-'}</strong></div>
+      <div class="kst">타점 <strong>${c.rbi||'-'}</strong></div>
+      <div class="kst">OPS <strong>${c.ops||'-'}</strong></div></div>`;
+  } else if (!p.isBatter&&p.careerPit) {
+    const c=p.careerPit;
+    strip=`<div class="kstrip"><div class="kst">통산 ERA <strong>${c.era||'-'}</strong></div>
+      <div class="kst">WHIP <strong>${c.whip||'-'}</strong></div>
+      <div class="kst">${c.w||0}승 ${c.l||0}패</div>
+      <div class="kst">탈삼진 <strong>${c.so||'-'}</strong></div></div>`;
+  }
+
+  // 바이오
+  const bio=[
+    ['등번호', p.backNo ? 'No.'+p.backNo : ''],
+    ['생년월일', p.bDate?`${p.bDate} (${p.age}세)`:''],
+    ['출신지', p.born||''],['신장', p.height||''],['체중', p.weight||''],
+    ['타석/투구', `${p.bats||''} / ${p.throws||''}`],
+    ['데뷔', p.debut||''],['국적', p.nation||''],
+  ].filter(([,v])=>v).map(([l,v])=>`<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`).join('');
+
+  // 시즌 테이블 — 리그별 컬럼 분리 표시
+  let tableHtml='';
+  if (p.isBatter) {
+    const leagueKey = p.league==='kbo' ? 'KBO' : p.league==='npb' ? 'NPB' : 'MLB';
+    const rows=(p.seasons||[]).map(s=>({
+      yr:s.yr, team:s.team,
+      g:s.g??'-', avg:s.avg||'-', h:s.h??'-', hr:s.hr??'-',
+      sb:s.sb??0, rbi:s.rbi??'-', so:s.so??'-', bb:s.bb??'-',
+      ab:s.ab??'-', runs:s.runs??s.r??'-', ops:s.ops||'-',
+      slg:s.slg||'-', obp:s.obp||'-'
+    }));
+    const c=p.careerHit||{};
+    const careerRow=c.hr?{
+      g:c.g, avg:c.avg, h:c.h, hr:c.hr, sb:c.sb,
+      rbi:c.rbi, so:c.so, bb:c.bb,
+      ab:c.ab, runs:c.runs||c.r, ops:c.ops,
+      slg:c.slg, obp:c.obp
+    }:null;
+    tableHtml=renderBatTableByLeague(leagueKey, rows, careerRow);
+  } else {
+    const leagueKey = p.league==='kbo' ? 'KBO' : p.league==='npb' ? 'NPB' : 'MLB';
+    const rows=(p.seasons||[]).map(s=>{
+      const wlStr=s.wl||`${s.w||0}-${s.l||0}`;
+      const [w,l]= wlStr.includes('-') ? wlStr.split('-') : [s.w||0, s.l||0];
+      return {yr:s.yr, team:s.team,
+        g:s.g??'-', era:s.era||'-', ip:s.ip||'-',
+        so:s.so??'-', bb:s.bb??'-',
+        w:w??'-', l:l??'-', hld:s.hld??s.holds??0, sv:s.sv??0};
+    });
+    const c=p.careerPit||{};
+    const careerRow=c.g?{g:c.g,era:c.era,ip:c.ip,so:c.so,bb:c.bb,w:c.w,l:c.l,hld:c.hld||0,sv:c.sv||0}:null;
+    tableHtml=renderPitTableByLeague(leagueKey, rows, careerRow);
+  }
+
+  return `<div class="pcard">
+    <div class="prof">
+      <div class="photo">${init}</div>
+      <div class="pinfo">
+        <div class="pname">${escH(p.nameKo)} <span class="pname-sub">${escH(p.nameEn)}</span></div>
+        <div class="brow">
+          <span class="badge b-tm">🏟️ ${escH(p.team)}</span>
+          <span class="badge b-pos">${escH(p.pos)}</span>
+          <span class="badge ${lgBadge}">${lgLabel}</span>
+          ${p.debut?`<span class="badge b-yr">데뷔 ${p.debut}</span>`:''}
+          ${p.backNo?`<span class="badge b-inf">등번호 ${escH(p.backNo)}</span>`:''}
+        </div>
+        ${strip}
+      </div>
+    </div>
+    <span class="src-tag src-db">📋 자체 DB</span>
+    ${p.bio?`<div class="pdesc">${escH(p.bio)}</div>`:''}
+    ${p.note?`<p style="font-size:.72rem;color:var(--yw);padding:0 20px 8px;">※ ${p.note}</p>`:''}
+    <div class="bio-g">${bio}</div>
+    ${tableHtml}
+    <p class="tbl-note">※ 자체 DB 기록 · 이적 시즌은 다른 배경색 표시 · 통산은 해당 DB 내 기준</p>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   MLB Stats API 카드
+══════════════════════════════════════════════════════ */
+async function buildApiCard(player) {
+  const id=player.id;
+  let detail=player, batSplits=[], pitSplits=[], cBat=null, cPit=null;
+  let arsenalSplits=[], hitterZones=[], pitcherZones=[], statcastStat=null;
+  const szn=new Date().getFullYear();
+  try {
+    const [dr,br,pr,ar,hz,hzp,sc]=await Promise.all([
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}?hydrate=currentTeam`),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=yearByYear,career&group=hitting`),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=yearByYear,career&group=pitching`),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=pitchArsenal&group=pitching&season=${szn}`),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=hotColdZones&group=hitting&season=${szn}`),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=hotColdZones&group=pitching&season=${szn}`),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=statcast&group=hitting&season=${szn}`)
+    ]);
+    const dd=await dr.json(); if(dd.people?.[0]) detail=dd.people[0];
+    const bd=await br.json();
+    const pd=await pr.json();
+    if(bd.stats) bd.stats.forEach(sg=>{
+      if(sg.type?.displayName==='yearByYear') batSplits=sg.splits||[];
+      if(sg.type?.displayName==='career') cBat=sg.splits?.[0]?.stat||null;
+    });
+    if(pd.stats) pd.stats.forEach(sg=>{
+      if(sg.type?.displayName==='yearByYear') pitSplits=sg.splits||[];
+      if(sg.type?.displayName==='career') cPit=sg.splits?.[0]?.stat||null;
+    });
+    // 구종 아스날 파싱
+    const ad=await ar.json();
+    if(ad.stats) ad.stats.forEach(sg=>{ if((sg.splits||[]).length) arsenalSplits=sg.splits; });
+    // 타자 핫콜드 존
+    const hzd=await hz.json();
+    if(hzd.stats) hzd.stats.forEach(sg=>{
+      (sg.splits||[]).forEach(s=>{ if(s.stat?.zones?.length && !hitterZones.length) hitterZones=s.stat.zones; });
+    });
+    // 투수 피안타 존
+    const hzpd=await hzp.json();
+    if(hzpd.stats) hzpd.stats.forEach(sg=>{
+      (sg.splits||[]).forEach(s=>{ if(s.stat?.zones?.length && !pitcherZones.length) pitcherZones=s.stat.zones; });
+    });
+    // Statcast (발사각·타구속도)
+    const scd=await sc.json();
+    if(scd.stats) scd.stats.forEach(sg=>{
+      const sp=(sg.splits||[]);
+      if(sp.length && !statcastStat) statcastStat=sp[0].stat||null;
+    });
+  } catch(_){}
+
+  const name=detail.fullName||player.fullName||'?';
+  const pos=detail.primaryPosition?.abbreviation||'?';
+  const posN=detail.primaryPosition?.name||'';
+  const team=detail.currentTeam?.name||'(은퇴/FA)';
+  const birth=detail.birthDate||'';
+  const bPlace=[detail.birthCity,detail.birthCountry].filter(Boolean).join(', ');
+  const ht=detail.height||'';
+  const wt=detail.weight?`${detail.weight}lbs (${Math.round(detail.weight*.453)}kg)`:'';
+  const bats=detail.batSide?.description||'';
+  const throws=detail.pitchHand?.description||'';
+  const debut=detail.mlbDebutDate||'';
+  const jerseyNo=detail.primaryNumber||'';  // 등번호
+  const slug=detail.nameSlug||`${name.toLowerCase().replace(/\s+/g,'-')}-${id}`;
+  const init=name.split(' ').map(n=>n[0]||'').join('').slice(0,2).toUpperCase();
+  const photo=`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/${id}/headshot/67/current`;
+
+  let age='';
+  if(birth){const b=new Date(birth),n=new Date();age=n.getFullYear()-b.getFullYear()-(n<new Date(n.getFullYear(),b.getMonth(),b.getDate())?1:0)+'세';}
+
+  const spo=detail.primarySport?.id||1;
+  const lgBadge=spo===51?'b-kbo':spo===52?'b-npb':'b-mlb';
+  const lgLabel=spo===51?'KBO':spo===52?'NPB':'MLB';
+
+  let strip='';
+  if(cBat) strip=`<div class="kstrip">
+    <div class="kst">통산 타율 <strong>${cBat.avg||'-'}</strong></div>
+    <div class="kst">홈런 <strong>${cBat.homeRuns||'-'}</strong></div>
+    <div class="kst">타점 <strong>${cBat.rbi||'-'}</strong></div>
+    <div class="kst">OPS <strong>${cBat.ops||'-'}</strong></div></div>`;
+  else if(cPit) strip=`<div class="kstrip">
+    <div class="kst">통산 ERA <strong>${cPit.era||'-'}</strong></div>
+    <div class="kst">WHIP <strong>${cPit.whip||'-'}</strong></div>
+    <div class="kst">${cPit.wins||0}승 ${cPit.losses||0}패</div>
+    <div class="kst">탈삼진 <strong>${cPit.strikeOuts||'-'}</strong></div></div>`;
+
+  const bio=[
+    ['생년월일', birth?`${birth}${age?' ('+age+')':''}`:''],
+    ['출신지', bPlace],['신장', ht],['체중', wt],
+    ['타석', bats],['투구', throws],['MLB 데뷔', debut],
+    ['등번호', jerseyNo ? 'No.'+jerseyNo : ''],
+  ].filter(([,v])=>v).map(([l,v])=>`<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`).join('');
+
+  const hasBat=batSplits.length>0, hasPit=pitSplits.length>0;
+  const uid=`u${id}`;
+
+  // ── 리그별 타격 테이블 (KBO/MLB/NPB 컬럼 분리)
+  let batHtml='';
+  if(hasBat){
+    const toRow=(s)=>{
+      const st=s.stat;
+      return {yr:s.season||'-', team:s.team?.name||'-',
+        g:st.gamesPlayed??'-', avg:st.avg||'-', h:st.hits??'-',
+        hr:st.homeRuns??'-', sb:st.stolenBases??'-', rbi:st.rbi??'-',
+        so:st.strikeOuts??'-', bb:st.baseOnBalls??'-',
+        ab:st.atBats??'-', runs:st.runs??'-', ops:st.ops||'-',
+        slg:st.slg||'-', obp:st.obp||'-'};
+    };
+    const kboSplits=batSplits.filter(s=>s.sport?.id===51);
+    const mlbSplits=batSplits.filter(s=>[1,11,12,13,14,16].includes(s.sport?.id));
+    const npbSplits=batSplits.filter(s=>s.sport?.id===52);
+
+    if(kboSplits.length){
+      batHtml+=`<div class="lg-section-label">🇰🇷 KBO 타격 기록</div>`;
+      batHtml+=renderBatTableByLeague('KBO', kboSplits.map(toRow), null);
+    }
+    if(mlbSplits.length){
+      if(kboSplits.length||npbSplits.length) batHtml+=`<div class="lg-section-label">🇺🇸 MLB 타격 기록</div>`;
+      const mlbCareer=cBat?{
+        g:cBat.gamesPlayed, avg:cBat.avg, h:cBat.hits, hr:cBat.homeRuns,
+        sb:cBat.stolenBases, rbi:cBat.rbi, so:cBat.strikeOuts, bb:cBat.baseOnBalls,
+        ab:cBat.atBats, runs:cBat.runs, ops:cBat.ops, slg:cBat.slg, obp:cBat.obp
+      }:null;
+      batHtml+=renderBatTableByLeague('MLB', mlbSplits.map(toRow), mlbCareer);
+    }
+    if(npbSplits.length){
+      if(kboSplits.length||mlbSplits.length) batHtml+=`<div class="lg-section-label">🇯🇵 NPB 타격 기록</div>`;
+      batHtml+=renderBatTableByLeague('NPB', npbSplits.map(toRow), null);
+    }
+    if(!batHtml) batHtml=`<p style="padding:14px 20px;color:var(--mu);font-size:.82rem">타격 기록 없음</p>`;
+    batHtml+=`<p class="tbl-note">※ MLB Stats API 공식 데이터 · KBO(경기·타율·안타·홈런·도루·타점·삼진·볼넷) / MLB(타수·득점·안타·홈런·타점·도루·타율·OPS) / NPB(경기·타율·안타·홈런·타점·도루·장타율·출루율)</p>`;
+  }
+
+  // ── 리그별 투구 테이블 (KBO/MLB/NPB 컬럼 분리)
+  let pitHtml='';
+  if(hasPit){
+    const toPRow=(s)=>{
+      const st=s.stat;
+      return {yr:s.season||'-', team:s.team?.name||'-',
+        g:st.gamesPlayed??'-', era:st.era??'-', ip:st.inningsPitched??'-',
+        so:st.strikeOuts??'-', bb:st.baseOnBalls??'-',
+        w:st.wins??'-', l:st.losses??'-',
+        hld:st.holds??0, sv:st.saves??0};
+    };
+    const kboPit=pitSplits.filter(s=>s.sport?.id===51);
+    const mlbPit=pitSplits.filter(s=>[1,11,12,13,14,16].includes(s.sport?.id));
+    const npbPit=pitSplits.filter(s=>s.sport?.id===52);
+
+    if(kboPit.length){
+      pitHtml+=`<div class="lg-section-label">🇰🇷 KBO 투구 기록</div>`;
+      pitHtml+=renderPitTableByLeague('KBO', kboPit.map(toPRow), null);
+    }
+    if(mlbPit.length){
+      if(kboPit.length||npbPit.length) pitHtml+=`<div class="lg-section-label">🇺🇸 MLB 투구 기록</div>`;
+      const mlbCareerP=cPit?{g:cPit.gamesPlayed,era:cPit.era,ip:cPit.inningsPitched,
+        so:cPit.strikeOuts,bb:cPit.baseOnBalls,w:cPit.wins,l:cPit.losses,
+        hld:cPit.holds||0,sv:cPit.saves||0}:null;
+      pitHtml+=renderPitTableByLeague('MLB', mlbPit.map(toPRow), mlbCareerP);
+    }
+    if(npbPit.length){
+      if(kboPit.length||mlbPit.length) pitHtml+=`<div class="lg-section-label">🇯🇵 NPB 투구 기록</div>`;
+      pitHtml+=renderPitTableByLeague('NPB', npbPit.map(toPRow), null);
+    }
+    if(!pitHtml) pitHtml=`<p style="padding:14px 20px;color:var(--mu);font-size:.82rem">투구 기록 없음</p>`;
+    pitHtml+=`<p class="tbl-note">※ MLB Stats API 공식 데이터 · KBO(경기·ERA·삼진·볼넷·승·패·홀드·세이브) / MLB(경기·ERA·이닝·탈삼진·승·패·홀드·세이브) / NPB(경기·방어율·이닝·탈삼진·승·패·홀드·세이브)</p>`;
+  }
+
+  let statHtml='';
+  if(hasBat||hasPit){
+    statHtml=`<div class="stog-row">
+      ${hasBat?`<button class="stog on" onclick="stoggle(this,'bat${uid}','${uid}')">🏏 타격 기록</button>`:''}
+      ${hasPit?`<button class="stog ${!hasBat?'on':''}" onclick="stoggle(this,'pit${uid}','${uid}')">⚾ 투구 기록</button>`:''}
+    </div>
+    ${hasBat?`<div id="bat${uid}" class="spanel on">${batHtml}</div>`:''}
+    ${hasPit?`<div id="pit${uid}" class="spanel ${!hasBat?'on':''}">${pitHtml}</div>`:''}`;
+  } else {
+    statHtml=`<p style="padding:14px 20px;color:var(--mu);font-size:.82rem">MLB 공식 기록 없음</p>`;
+  }
+
+  // 구종·핫콜드·Statcast 렌더
+  const arsenalHtml  = renderPitchArsenal(arsenalSplits);
+  const isPitPlayer  = hasPit && (!hasBat || pitSplits.filter(s=>[1,11,12,13,14,16].includes(s.sport?.id)).length >= batSplits.filter(s=>[1,11,12,13,14,16].includes(s.sport?.id)).length);
+  const zonesHtml    = hasBat ? renderHotColdZones(hitterZones, false) : (hasPit ? renderHotColdZones(pitcherZones, true) : '');
+  const statcastHtml = hasBat ? renderStatcast(statcastStat, szn) : '';
+
+  return `<div class="pcard">
+    <div class="prof">
+      <div class="photo" id="ph${id}"><span>${init}</span>
+        <img src="${photo}" alt="${escH(name)}"
+          onload="this.previousElementSibling.style.display='none'"
+          onerror="this.remove()">
+      </div>
+      <div class="pinfo">
+        <div class="pname">${escH(name)}</div>
+        <div class="brow">
+          <span class="badge b-tm">🏟️ ${escH(team)}</span>
+          <span class="badge b-pos">${pos}${posN&&posN!==pos?' · '+posN:''}</span>
+          <span class="badge ${lgBadge}">${lgLabel}</span>
+          ${debut?`<span class="badge b-yr">MLB 데뷔 ${debut}</span>`:''}
+          ${age?`<span class="badge b-inf">${age}</span>`:''}
+          ${jerseyNo?`<span class="badge b-inf">등번호 ${escH(jerseyNo)}</span>`:''}
+        </div>${strip}
+      </div>
+    </div>
+    <span class="src-tag src-api">📡 MLB Stats API</span>
+    <div class="bio-g">${bio}</div>
+    ${statHtml}
+    ${arsenalHtml}
+    ${zonesHtml}
+    ${statcastHtml}
+  </div>`;
+}
+
+function stoggle(btn,panelId,uid){
+  const card=btn.closest('.pcard');
+  card.querySelectorAll('.stog').forEach(b=>b.classList.remove('on'));
+  card.querySelectorAll('.spanel').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById(panelId)?.classList.add('on');
+}
+
+/* ══════════════════════════════════════════════════════
+   유틸
+══════════════════════════════════════════════════════ */
+function isKorean(s){return /[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F\u3040-\u30FF]/.test(s);}
+
+function romanize(str){
+  const CHO=['g','kk','n','d','tt','r','m','b','pp','s','ss','','j','jj','ch','k','t','p','h'];
+  const JUNG=['a','ae','ya','yae','eo','e','yeo','ye','o','wa','wae','oe','yo','u','wo','we','wi','yu','eu','ui','i'];
+  const JONG=['','k','kk','ks','n','nj','nh','t','l','lg','lm','lb','ls','lt','lp','lh','m','b','bs','t','k','ph','h'];
+  let r='';
+  for(const ch of str){
+    const code=ch.charCodeAt(0);
+    if(code>=0xAC00&&code<=0xD7A3){
+      const i=code-0xAC00;
+      r+=CHO[Math.floor(i/28/21)]+JUNG[Math.floor(i/28)%21]+JONG[i%28];
+    }else r+=ch;
+  }
+  return r;
+}
+
+/* ══════════════════════════════════════════════════════
+   KBO — koreabaseball.com 공식 실시간 데이터 페치
+   Cloudflare Worker(kbo-proxy.rockyhong.workers.dev) 우선,
+   실패 시 로컬 프록시(kbo_proxy.py, localhost:8080) 폴백
+     Step 1: POST /ws/Controls.asmx/GetSearchPlayer → JSON (P_ID, P_NM, POS_NO)
+     Step 2: GET  /Record/Player/HitterDetail/Total.aspx?playerId={id}
+          또는     /Record/Player/PitcherDetail/Total.aspx?playerId={id}
+              → KBO 정규시즌 연도별 기록 테이블 파싱
+   타자 컬럼: 연도 팀명 AVG G PA AB R H 2B 3B HR TB RBI SB CS BB HBP SO GDP SLG OBP E
+   투수 컬럼: 연도 팀명 ERA G CG SHO W L SV HLD WPCT TBF IP H HR BB HBP SO R ER
+══════════════════════════════════════════════════════ */
+const CF_PROXY    = 'https://kbo-proxy.rockyhong.workers.dev'; // Cloudflare Worker (선수 검색용)
+const LOCAL_PROXY = 'http://localhost:8080';                    // 로컬 폴백 (kbo_proxy.py 실행 시)
+const PROXY = 'https://api.allorigins.win/get?url=';            // 범용 프록시
+
+/* ── Flashscore API 설정 (KBO/NPB 스케줄·순위) ── */
+const FS_SIGN    = 'SW9D1eZo';
+const FS_BASE    = 'https://global.flashscore.ninja/44/x/feed/';
+const FS_HEADERS = {'X-Fsign': FS_SIGN};
+// 2026 시즌 ID (시즌 변경 시 업데이트 필요)
+const FS_KBO_TOUR = 'vkjTfVEi';  // KBO 토너먼트 ID
+const FS_KBO_SEAS = 'rojGWW5k';  // KBO 2026 시즌 ID
+const FS_NPB_TOUR = 'x4v2dq4n';  // NPB 토너먼트 ID
+const FS_NPB_SEAS = 'dCrMScac';  // NPB 2026 시즌 ID
+
+/* KBO: CF Worker → 로컬 프록시 순으로 시도 */
+async function fetchKboData(query) {
+  for (const proxy of [CF_PROXY, LOCAL_PROXY]) {
+    try {
+      const result = await _kboFetch(proxy, query);
+      if (result) return result;
+    } catch(_) {}
+  }
+  return null;
+}
+
+async function _kboFetch(proxy, query) {
+  // ① POST /ws/Controls.asmx/GetSearchPlayer → JSON으로 playerId + 등번호 획득
+  const sr = await fetch(`${proxy}/ws/Controls.asmx/GetSearchPlayer`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json, text/javascript, */*'
+    },
+    body: `name=${encodeURIComponent(query)}`,
+    signal: AbortSignal.timeout(9000)
+  });
+  if (!sr.ok) return null;
+
+  const json = await sr.json();
+  // 응답 형식: {code:"100", now:[{P_ID, P_NM, T_NM, POS_NO, P_TYPE, BACK_NO, ...}], retire:[...]}
+  if (!json || json.code !== '100') return null;
+  const players = [...(json.now||[]), ...(json.retire||[])];
+  if (!players.length) return null;
+
+  const pl         = players[0];
+  const playerId   = pl.P_ID;
+  const playerName = pl.P_NM;
+  const teamName   = pl.T_NM  || '';
+  const posName    = pl.POS_NO  || '';  // 대분류: "투수"/"내야수"/"외야수"/"포수"
+  const detailPos  = pl.POS_NM  || pl.DETAIL_POS || pl.REAL_POS || ''; // 세부 포지션 (있을 경우)
+  const handInfo   = pl.P_TYPE  || '';  // 투타 정보: "우투우타"/"좌투좌타" 등
+  const backNo     = pl.BACK_NO || '';  // 등번호
+
+  // ② 투수/타자 페이지 동시 요청 — POS_NO/P_TYPE 불일치 문제 회피
+  //    실제 기록이 많은 쪽을 자동 선택 (투수는 PitcherDetail에 rows 多, 타자는 HitterDetail에 rows 多)
+  const BASE      = 'https://www.koreabaseball.com';
+  const hitPath   = `/Record/Player/HitterDetail/Total.aspx?playerId=${playerId}`;
+  const pitPath   = `/Record/Player/PitcherDetail/Total.aspx?playerId=${playerId}`;
+
+  const [hitResp, pitResp] = await Promise.all([
+    fetch(`${proxy}${hitPath}`, {signal: AbortSignal.timeout(12000)}),
+    fetch(`${proxy}${pitPath}`, {signal: AbortSignal.timeout(12000)})
+  ]);
+
+  let hitParsed = null, pitParsed = null;
+  let hitDoc = null;
+  if (hitResp.ok) {
+    hitDoc    = new DOMParser().parseFromString(await hitResp.text(), 'text/html');
+    hitParsed = parseKboPage(hitDoc, playerId, true,  playerName, BASE + hitPath);
+  }
+  if (pitResp.ok) {
+    const d = new DOMParser().parseFromString(await pitResp.text(), 'text/html');
+    pitParsed = parseKboPage(d, playerId, false, playerName, BASE + pitPath);
+  }
+
+  // 행이 많은 쪽 = 실제 포지션 기록 (동점이면 투수 우선)
+  const hitRows = hitParsed?.rows?.length || 0;
+  const pitRows = pitParsed?.rows?.length || 0;
+  const isPit   = (pitRows > 0 && pitRows >= hitRows);
+  const parsed  = isPit ? pitParsed : hitParsed;
+  if (!parsed) return null;
+
+  // 세부 포지션 — 타자: 페이지에서 추출 / 투수: 통계 기반 역할 추론
+  const pagePos     = (!isPit && !detailPos) ? extractKboPosFromDoc(hitDoc) : '';
+  const pitcherRole = isPit ? inferPitcherRole(parsed.rows) : null;
+
+  // 투수: 구종(PitchType) / 타자: 핫콜드존 + 발사각(BattedBall) 병렬 취득
+  let pitchTypeRows = null, kboHotColdZones = null, kboBattedBallRows = null;
+  try {
+    if (isPit) {
+      const ptPath = `/Record/Player/PitcherDetail/PitchType.aspx?playerId=${playerId}`;
+      const ptResp = await fetch(`${proxy}${ptPath}`, {signal: AbortSignal.timeout(8000)});
+      if (ptResp.ok) {
+        const ptDoc = new DOMParser().parseFromString(await ptResp.text(), 'text/html');
+        pitchTypeRows = parseKboPitchTypes(ptDoc);
+      }
+    } else {
+      // 타자: 핫콜드존 + 발사각 동시 요청
+      const [hczResp, bbResp] = await Promise.all([
+        fetch(`${proxy}/Record/Player/HitterDetail/HotColdZone.aspx?playerId=${playerId}`, {signal: AbortSignal.timeout(8000)}),
+        fetch(`${proxy}/Record/Player/HitterDetail/BattedBall.aspx?playerId=${playerId}`,  {signal: AbortSignal.timeout(8000)})
+      ]);
+      if (hczResp.ok) {
+        const hczDoc = new DOMParser().parseFromString(await hczResp.text(), 'text/html');
+        kboHotColdZones = parseKboHotColdZone(hczDoc);
+      }
+      if (bbResp.ok) {
+        const bbDoc = new DOMParser().parseFromString(await bbResp.text(), 'text/html');
+        kboBattedBallRows = parseKboBattedBall(bbDoc);
+      }
+    }
+  } catch(_){}
+
+  return { ...parsed, backNo, teamName, posName,
+    detailPos: detailPos || pagePos,
+    pitcherRole, handInfo, pitchTypeRows, kboHotColdZones, kboBattedBallRows };
+}
+
+function parseKboPage(doc, playerId, isHitter, name, sourceUrl) {
+  // koreabaseball.com 기록 테이블 파싱
+  // isHitter=true  → 타자 테이블(AVG+H)만 반환
+  // isHitter=false → 투수 테이블(ERA+IP)만 반환
+  const tables = [...doc.querySelectorAll('table')];
+  for (const tbl of tables) {
+    const ths = [...tbl.querySelectorAll('thead th')].map(t => t.textContent.trim());
+    if (!ths.length) continue;
+    const hasBat = ths.includes('AVG') && ths.includes('H');
+    const hasPit = ths.includes('ERA') && ths.includes('IP');
+    // 요청 타입과 다른 테이블 건너뜀
+    if (isHitter  && !hasBat) continue;
+    if (!isHitter && !hasPit) continue;
+
+    const rows = [];
+    tbl.querySelectorAll('tbody tr').forEach(tr => {
+      const tds = [...tr.querySelectorAll('td')].map(t => t.textContent.trim());
+      if (tds.length < 4) return;
+      const obj = {};
+      ths.forEach((h, i) => { obj[h] = tds[i] || '-'; });
+      rows.push(obj);
+    });
+    if (!rows.length) continue;
+
+    return { name, isBatter: hasBat, isPitcher: hasPit, rows, ths, playerId, sourceUrl, src: 'kbo' };
+  }
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════
+   NPB — npb.jp 외부 데이터 페치
+   CORS 프록시 → 선수 검색 → 기록 파싱
+══════════════════════════════════════════════════════ */
+async function fetchNpbData(query) {
+  try {
+    // npb.jp 선수 검색 (영문 이름 검색 시도)
+    const enQ = KO_MAP[query.replace(/\s+/g,'')] || (isKorean(query) ? romanize(query) : query);
+    const searchUrl = `https://npb.jp/bis/eng/players/search?query=${encodeURIComponent(enQ)}`;
+    const sr = await fetch(PROXY + encodeURIComponent(searchUrl), {signal:AbortSignal.timeout(6000)});
+    if (!sr.ok) return null;
+    const sd = await sr.json();
+    const sHtml = sd.contents||'';
+    const sDoc = new DOMParser().parseFromString(sHtml, 'text/html');
+    // 선수 링크 파싱 (/bis/eng/players/XXXXXXXX.html)
+    const pLink = [...sDoc.querySelectorAll('a[href*="/bis/eng/players/"]')]
+      .find(a=>/\/bis\/eng\/players\/\d+\.html/.test(a.getAttribute('href')||''));
+    if (!pLink) return null;
+    const href = pLink.getAttribute('href');
+    const playerId = (href.match(/\/(\d+)\.html/)||[])[1];
+    if (!playerId) return null;
+
+    // 선수 기록 페이지
+    const statsUrl = `https://npb.jp/bis/eng/players/${playerId}.html`;
+    const pr = await fetch(PROXY + encodeURIComponent(statsUrl), {signal:AbortSignal.timeout(6000)});
+    if (!pr.ok) return null;
+    const pd = await pr.json();
+    const pHtml = pd.contents||'';
+    const pDoc = new DOMParser().parseFromString(pHtml, 'text/html');
+    return parseNpbPage(pDoc, playerId, statsUrl);
+  } catch(e) { return null; }
+}
+
+function parseNpbPage(doc, playerId, sourceUrl) {
+  const nameEl = doc.querySelector('h1, .player-name, td.bb-playerDetail__title');
+  const name = nameEl?.textContent?.trim() || '';
+  const tables = [...doc.querySelectorAll('table')];
+  for (const tbl of tables) {
+    const ths = [...tbl.querySelectorAll('th')].map(t=>t.textContent.trim().replace(/\s+/g,' '));
+    if (!ths.length) continue;
+    const isBatter = ths.some(h=>h==='AVG'||h==='H'||h==='HR');
+    const isPitcher = ths.some(h=>h==='ERA'||h==='IP'||h==='SO'||h==='W');
+    if (!isBatter && !isPitcher) continue;
+    const rows = [];
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const tds = [...tr.querySelectorAll('td')].map(t=>t.textContent.trim());
+      if (tds.length < 4) return;
+      const obj = {};
+      ths.forEach((h,i)=>{ obj[h] = tds[i]||'-'; });
+      rows.push(obj);
+    });
+    if (!rows.length) continue;
+    return {name, isBatter, isPitcher, rows, ths, playerId, sourceUrl, src:'npb'};
+  }
+  return null;
+}
+
+/* koreabaseball.com / NPB 파싱 데이터 → 카드 HTML */
+function buildExternalCard(data, league) {
+  if (!data) return '';
+  const isBat  = data.isBatter;
+  const rows   = data.rows;
+  const lastRow = rows.filter(r=>r['연도']&&r['연도']!=='통산'&&r['연도']!=='Career').at(-1) || {};
+
+  /* ── 스탯 요약 박스 (게임카드 형식) ── */
+  let statBoxes = '';
+  if (isBat) {
+    const sf = [
+      [lastRow['G']||'-',      '경기'],
+      [lastRow['AVG']||'-',    '타율'],
+      [lastRow['H']||'-',      '안타'],
+      [lastRow['HR']||'-',     '홈런'],
+      [lastRow['SB']||'0',     '도루'],
+      [lastRow['RBI']||'-',    '타점'],
+      [lastRow['SO']||'-',     '삼진'],
+      [lastRow['BB']||'-',     '볼넷'],
+    ];
+    statBoxes = sf.map(([v,l])=>`<div class="stat-box"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
+  } else {
+    const sf = [
+      [lastRow['G']||'-',      '경기'],
+      [lastRow['ERA']||'-',    'ERA'],
+      [lastRow['SO']||'-',     '삼진'],
+      [lastRow['BB']||'-',     '볼넷'],
+      [lastRow['W']||'-',      '승'],
+      [lastRow['L']||'-',      '패'],
+      [lastRow['HLD']||'0',    '홀드'],
+      [lastRow['SV']||'0',     '세이브'],
+    ];
+    statBoxes = sf.map(([v,l])=>`<div class="stat-box"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
+  }
+
+  /* ── 연도별 기록 테이블 ── */
+  let tableHtml = '';
+  if (isBat) {
+    const mapped = rows.map(r=>({
+      yr:r['연도']||'-', team:r['팀명']||'-',
+      g:r['G']||'-', avg:r['AVG']||'-', h:r['H']||'-', hr:r['HR']||'-',
+      rbi:r['RBI']||'-', sb:r['SB']||'0', so:r['SO']||'-', bb:r['BB']||'-',
+      slg:r['SLG']||'-', obp:r['OBP']||'-',
+    })).filter(r=>r.yr!=='-'&&r.yr!=='통산'&&r.yr!=='Career');
+    tableHtml = renderBatTableByLeague(league, mapped, null);
+  } else {
+    const mapped = rows.map(r=>({
+      yr:r['연도']||'-', team:r['팀명']||'-',
+      g:r['G']||'-', era:r['ERA']||'-', ip:r['IP']||'-',
+      so:r['SO']||'-', bb:r['BB']||'-', w:r['W']||'-', l:r['L']||'-',
+      hld:r['HLD']||'0', sv:r['SV']||'0',
+    })).filter(r=>r.yr!=='-'&&r.yr!=='통산'&&r.yr!=='Career');
+    tableHtml = renderPitTableByLeague(league, mapped, null);
+  }
+
+  /* ── 등번호·팀·포지션 배지 ── */
+  const lgBadge   = league==='KBO' ? 'b-kbo' : 'b-npb';
+  const backNo    = data.backNo   || '';
+  const teamName  = data.teamName || '';
+  const posName     = data.posName    || '';   // 대분류: "투수"/"내야수"/"외야수"/"포수"
+  const detailPos   = data.detailPos  || '';   // 세부: "유격수"/"1루수" 등 (있을 때만)
+  const pitcherRole = data.pitcherRole|| '';   // 추론: "선발"/"중계"/"마무리"
+  const handInfo    = data.handInfo   || '';   // P_TYPE: "우투우타"/"좌투좌타"
+  // 포지션 표시 우선순위: 투수역할 > 세부포지션 > 대분류 > 기본값
+  const posType     = pitcherRole || detailPos || posName || (isBat ? '타자' : '투수');
+  const srcLabel  = data.src==='kbo' ? '📡 koreabaseball.com 공식' : '📡 npb.jp 공식';
+
+  /* ── KBO 선수 사진 URL (Naver CDN) ── */
+  const yr        = new Date().getFullYear();
+  const photoUrl  = (league==='KBO' && data.playerId)
+    ? `https://6ptotvmi5753.edge.naverncp.com/KBO_IMAGE/person/middle/${yr}/${data.playerId}.jpg`
+    : '';
+
+  return `<div class="pcard">
+    <div class="prof">
+      <div class="photo">
+        <span style="font-size:1.5rem">⚾</span>
+        ${photoUrl ? `<img src="${photoUrl}" alt="${escH(data.name||'')}"
+          onload="this.previousElementSibling.style.display='none'"
+          onerror="this.remove()">` : ''}
+        ${backNo ? `<span style="position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:.6rem;font-weight:800;color:#fff;background:rgba(0,0,0,.55);padding:2px 0;letter-spacing:.3px">No.${escH(backNo)}</span>` : ''}
+      </div>
+      <div class="pinfo">
+        <div class="pname">${escH(data.name||'알 수 없음')}</div>
+        <div class="brow">
+          ${teamName ? `<span class="badge b-tm">🏟️ ${escH(teamName)}</span>` : ''}
+          <span class="badge b-pos">${escH(posType)}</span>
+          ${(detailPos && posName && detailPos !== posType) ? `<span class="badge b-inf" style="opacity:.75">${escH(posName)}</span>` : ''}
+          ${handInfo ? `<span class="badge b-inf">${escH(handInfo)}</span>` : ''}
+          <span class="badge ${lgBadge}">${league}</span>
+          ${backNo ? `<span class="badge b-inf">등번호 ${escH(backNo)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="stat-grid">${statBoxes}</div>
+    <span class="src-tag src-api">${srcLabel} · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">원본 보기</a></span>
+    ${tableHtml}
+    ${(!isBat && data.pitchTypeRows)    ? renderKboPitchTypes(data.pitchTypeRows)       : ''}
+    ${(isBat  && data.kboHotColdZones)  ? renderHotColdZones(data.kboHotColdZones, false): ''}
+    ${(isBat  && data.kboBattedBallRows)? renderKboBattedBall(data.kboBattedBallRows)    : ''}
+    <p class="tbl-note">※ 최근 시즌 기준 요약 · ${data.src==='kbo'?'koreabaseball.com (KBO 공식)':'npb.jp'} 기록</p>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   MLB Statcast 렌더러 (발사각·타구속도·배럴률·강타율)
+══════════════════════════════════════════════════════ */
+function renderStatcast(stat, season) {
+  if (!stat) return '';
+  const la   = stat.launchAngle           != null ? (+stat.launchAngle).toFixed(1)+'°'     : null;
+  const ev   = stat.exitVelocity          != null ? (+stat.exitVelocity).toFixed(1)+' mph' : null;
+  const brrl = stat.barrelBatBallPercent  != null ? (+stat.barrelBatBallPercent).toFixed(1)+'%' : null;
+  const hh   = stat.hardHitPercent        != null ? (+stat.hardHitPercent).toFixed(1)+'%'  : null;
+  if (!la && !ev && !brrl && !hh) return '';
+  // 색상: 발사각(°) 높을수록 강타, 타구속도 빠를수록 hot
+  const laC  = la   ? (parseFloat(la)>15?'sc-hot':parseFloat(la)>8?'sc-warm':'sc-avg')  : 'sc-avg';
+  const evC  = ev   ? (parseFloat(ev)>92?'sc-hot':parseFloat(ev)>88?'sc-warm':'sc-avg')  : 'sc-avg';
+  const bC   = brrl ? (parseFloat(brrl)>10?'sc-hot':parseFloat(brrl)>6?'sc-warm':'sc-avg'): 'sc-avg';
+  const hhC  = hh   ? (parseFloat(hh)>42?'sc-hot':parseFloat(hh)>35?'sc-warm':'sc-avg')  : 'sc-avg';
+  const items = [
+    [la,'발사각','Launch Angle',laC],
+    [ev,'타구속도','Exit Velo',evC],
+    [brrl,'배럴률','Barrel%',bC],
+    [hh,'강타율','Hard Hit%',hhC]
+  ].filter(([v])=>v);
+  if (!items.length) return '';
+  return `<div class="sc-title">📐 Statcast — ${season}시즌</div>
+  <div class="sc-grid">${items.map(([v,l,s,c])=>`<div class="sc-box"><div class="sc-val ${c}">${v}</div><div class="sc-lbl">${escH(l)}<br><span style="font-size:.58rem;opacity:.7">${escH(s)}</span></div></div>`).join('')}</div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   KBO 핫·콜드 존 페이지 파서 (HitterDetail/HotColdZone.aspx)
+══════════════════════════════════════════════════════ */
+function parseKboHotColdZone(doc) {
+  // 방법 1: script 태그에서 JSON/배열 데이터 추출
+  for (const sc of doc.querySelectorAll('script')) {
+    const txt = sc.textContent || '';
+    const pats = [
+      /var\s+arrData\s*=\s*(\[[\s\S]*?\])\s*;/,
+      /var\s+zoneData\s*=\s*(\[[\s\S]*?\])\s*;/,
+      /var\s+arrZone\s*=\s*(\[[\s\S]*?\])\s*;/,
+      /"zones"\s*:\s*(\[[\s\S]*?\])/,
+    ];
+    for (const p of pats) {
+      const m = txt.match(p);
+      if (!m) continue;
+      try {
+        const d = JSON.parse(m[1].replace(/'/g,'"'));
+        if (Array.isArray(d) && d.length >= 9) {
+          return d.map(z => {
+            const avg = parseFloat(z.value || z.avg || z.AVG || '0');
+            return { zone: String(z.zone||z.no||'').padStart(2,'0'), value: z.value||z.avg||z.AVG||'—',
+              temp: avg>=.300?'hot':avg>=.250?'warm':avg>=.200?'lukewarm':'cold' };
+          });
+        }
+      } catch(_){}
+    }
+  }
+  // 방법 2: 테이블에서 .3자리 타율 9개 이상 추출
+  const avgPat = /^\.?\d?\.\d{3}$/;
+  for (const tbl of doc.querySelectorAll('table')) {
+    const cells = [...tbl.querySelectorAll('td')].filter(c => avgPat.test((c.textContent||'').trim()));
+    if (cells.length >= 9) {
+      return cells.slice(0, 13).map((c, i) => {
+        const val = c.textContent.trim();
+        const avg = parseFloat(val);
+        return { zone: String(i+1).padStart(2,'0'), value: val,
+          temp: avg>=.300?'hot':avg>=.250?'warm':avg>=.200?'lukewarm':'cold' };
+      });
+    }
+  }
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════
+   KBO 발사각 페이지 파서 (HitterDetail/BattedBall.aspx)
+══════════════════════════════════════════════════════ */
+function parseKboBattedBall(doc) {
+  // 테이블에서 발사각·타구유형 데이터 추출
+  for (const tbl of doc.querySelectorAll('table')) {
+    const ths = [...tbl.querySelectorAll('thead th')].map(t => t.textContent.trim());
+    if (!ths.length) continue;
+    // 발사각 또는 타구유형 컬럼 포함 여부
+    const hasLA   = ths.some(h => h.includes('발사각') || h.includes('Launch'));
+    const hasBB   = ths.some(h => h.includes('GB') || h.includes('FB') || h.includes('LD') || h.includes('타구'));
+    if (!hasLA && !hasBB) continue;
+    const rows = [];
+    tbl.querySelectorAll('tbody tr').forEach(tr => {
+      const tds = [...tr.querySelectorAll('td')].map(t => t.textContent.trim());
+      if (tds.length < 3) return;
+      const obj = {};
+      ths.forEach((h, i) => { obj[h] = tds[i] || '-'; });
+      rows.push(obj);
+    });
+    if (rows.length) return { ths, rows };
+  }
+  return null;
+}
+
+function renderKboBattedBall(data) {
+  if (!data || !data.rows?.length) return '';
+  const { ths, rows } = data;
+  // 최근 시즌 행 (연도 필드 기준)
+  const last = rows.filter(r => r['연도'] && r['연도'] !== '통산').at(-1) || rows.at(-1);
+  if (!last) return '';
+
+  // 표시할 대표 컬럼: 발사각·GB%·LD%·FB%·HR/FB%
+  const laKey  = ths.find(h => h.includes('발사각') || h.includes('Launch')) || '';
+  const gbKey  = ths.find(h => h === 'GB%' || h === 'GB') || '';
+  const ldKey  = ths.find(h => h === 'LD%' || h === 'LD') || '';
+  const fbKey  = ths.find(h => h === 'FB%' || h === 'FB') || '';
+  const hrfbKey= ths.find(h => h.includes('HR/FB') || h.includes('HRFB')) || '';
+
+  const items = [
+    laKey   && [last[laKey],  '발사각',  'Launch Angle', 'sc-warm'],
+    gbKey   && [last[gbKey],  '땅볼%',   'GB%',          'sc-avg'],
+    ldKey   && [last[ldKey],  '라인드라이브', 'LD%',     'sc-hot'],
+    fbKey   && [last[fbKey],  '뜬공%',   'FB%',          'sc-avg'],
+    hrfbKey && [last[hrfbKey],'HR/FB%',  'HR/FB%',       'sc-warm'],
+  ].filter(Boolean).filter(([v]) => v && v !== '-');
+
+  if (!items.length) return '';
+  return `<div class="sc-title">📊 타구 유형 — ${last['연도']||''}시즌</div>
+  <div class="sc-grid" style="grid-template-columns:repeat(${Math.min(items.length,5)},1fr)">${
+    items.map(([v,l,s,c])=>`<div class="sc-box"><div class="sc-val ${c}">${escH(v)}</div><div class="sc-lbl">${escH(l)}<br><span style="font-size:.58rem;opacity:.7">${escH(s)}</span></div></div>`).join('')
+  }</div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   KBO 구종 페이지 파서 (PitcherDetail/PitchType.aspx)
+══════════════════════════════════════════════════════ */
+function parseKboPitchTypes(doc) {
+  const tables = [...doc.querySelectorAll('table')];
+  for (const tbl of tables) {
+    const ths = [...tbl.querySelectorAll('thead th')].map(t => t.textContent.trim());
+    if (!ths.length) continue;
+    // 구종 테이블 판별: "구종" 컬럼 포함 여부
+    if (!ths.some(h => h.includes('구종'))) continue;
+    const rows = [];
+    tbl.querySelectorAll('tbody tr').forEach(tr => {
+      const tds = [...tr.querySelectorAll('td')].map(t => t.textContent.trim());
+      if (tds.length < 2) return;
+      const obj = {};
+      ths.forEach((h, i) => { obj[h] = tds[i] || '-'; });
+      rows.push(obj);
+    });
+    if (rows.length) return rows;
+  }
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════
+   MLB 구종 (Pitch Arsenal) 렌더러
+══════════════════════════════════════════════════════ */
+function renderPitchArsenal(splits) {
+  if (!splits || !splits.length) return '';
+  // 구종 코드별 색상
+  const PC = {
+    FF:'#e8352a', FA:'#e8352a',       // 4-Seam
+    FT:'#ff7c70', SI:'#ff7c70',       // 2-Seam / Sinker
+    FC:'#c084fc',                      // Cutter
+    SL:'#3b9eff', ST:'#818cf8',       // Slider / Sweeper
+    CU:'#2ec87a', KC:'#34d399', CS:'#6ee7b7', SV:'#34d399', // Curve
+    CH:'#f5c542', SC:'#f5c542',       // Changeup / Screwball
+    FS:'#fb923c', SP:'#fb923c', FO:'#fb923c', // Splitter
+    KN:'#94a3b8',                      // Knuckleball
+  };
+  const rows = (splits)
+    .filter(s => (s.stat?.percentage || 0) > 0)
+    .sort((a,b) => (b.stat?.percentage||0) - (a.stat?.percentage||0));
+  if (!rows.length) return '';
+  const maxPct = Math.max(...rows.map(r => r.stat?.percentage||0));
+
+  const bars = rows.map(r => {
+    const cd  = r.stat?.type?.code        || '';
+    const enm = r.stat?.type?.description || '';
+    const nm  = PITCH_KO[cd] || PITCH_KO[enm] || enm || '기타';
+    const pct = (r.stat?.percentage  || 0).toFixed(1);
+    const spd = r.stat?.averageSpeed ? r.stat.averageSpeed.toFixed(1)+' mph' : '';
+    const col = PC[cd] || '#8496b0';
+    const w   = maxPct > 0 ? ((r.stat?.percentage||0)/maxPct*100).toFixed(1) : '0';
+    return `<div class="pit-row">
+      <div class="pit-name">${escH(nm)}</div>
+      <div class="pit-bar-wrap">
+        <div class="pit-bar" style="width:${w}%;background:${col}">
+          <span class="pit-pct">${pct}%</span>
+        </div>
+      </div>
+      <div class="pit-spd">${spd}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="pit-wrap">
+    <div class="pit-title">⚾ 구종 구성 (Pitch Arsenal)</div>
+    ${bars}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   KBO 구종 렌더러 (koreabaseball.com 파싱 데이터)
+══════════════════════════════════════════════════════ */
+function renderKboPitchTypes(ptRows) {
+  if (!ptRows || !ptRows.length) return '';
+  // KBO 구종명 → 색상
+  const KC = {
+    '직구':'#e8352a','포심':'#e8352a','투심':'#ff7c70','싱커':'#ff7c70',
+    '슬라이더':'#3b9eff','커터':'#c084fc','스위퍼':'#818cf8',
+    '커브':'#2ec87a','너클커브':'#34d399',
+    '체인지업':'#f5c542','서클체인지':'#f5c542',
+    '스플리터':'#fb923c','포크볼':'#fb923c',
+    '너클볼':'#94a3b8',
+  };
+  // 비율 컬럼명 탐색 (비율 / 투구비율 / %)
+  const r0   = ptRows[0];
+  const keys = Object.keys(r0);
+  const nmKey  = keys.find(k => k.includes('구종')) || keys[0];
+  const pctKey = keys.find(k => k.includes('비율') || k.includes('PCT') || k.includes('%')) || keys[2];
+  const spdKey = keys.find(k => k.includes('평균') || k.includes('구속')) || '';
+
+  const sorted = [...ptRows].sort((a,b)=>(parseFloat(b[pctKey])||0)-(parseFloat(a[pctKey])||0));
+  const maxPct = Math.max(...sorted.map(r=>parseFloat(r[pctKey])||0));
+
+  const bars = sorted.map(r => {
+    const nm  = r[nmKey] || '?';
+    const pct = r[pctKey] || '-';
+    const spd = spdKey ? (r[spdKey]||'') : '';
+    const col = Object.entries(KC).find(([k])=>nm.includes(k))?.[1] || '#8496b0';
+    const w   = maxPct > 0 ? ((parseFloat(pct)||0)/maxPct*100).toFixed(1) : '0';
+    const disp = pct!=='-' ? pct+'%' : '-';
+    return `<div class="pit-row">
+      <div class="pit-name">${escH(nm)}</div>
+      <div class="pit-bar-wrap">
+        <div class="pit-bar" style="width:${w}%;background:${col}">
+          <span class="pit-pct">${disp}</span>
+        </div>
+      </div>
+      <div class="pit-spd">${spd ? escH(spd)+'km/h' : ''}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="pit-wrap">
+    <div class="pit-title">⚾ 구종 구성</div>
+    ${bars}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   MLB 핫·콜드 존 렌더러
+   MLB Stats API zones: "01"~"09"=스트라이크존 3×3
+                        "11"~"14"=아웃사이드 4코너
+══════════════════════════════════════════════════════ */
+function renderHotColdZones(zones, isPitcher) {
+  if (!zones || !zones.length) return '';
+  const zMap = {};
+  zones.forEach(z => { zMap[z.zone] = z; });
+
+  // 내부 3×3 (타자 시점 - 좌상단=11 아웃, 우상단=12 아웃 등 보조 표시 생략)
+  const inner = [['01','02','03'],['04','05','06'],['07','08','09']];
+
+  function cellHtml(zn) {
+    const z = zMap[zn] || {};
+    const val = z.value || '—';
+    // API가 제공하는 rgba color 우선, 없으면 temp로 결정
+    const bg = z.color || (
+      z.temp==='hot'      ? 'rgba(214,41,52,.9)'  :
+      z.temp==='warm'     ? 'rgba(240,196,90,.9)'  :
+      z.temp==='lukewarm' ? 'rgba(100,116,139,.85)':
+                            'rgba(59,130,246,.85)'
+    );
+    return `<div class="zone-cell" style="background:${bg}">${escH(val)}</div>`;
+  }
+
+  const gridHtml = inner.map(row => row.map(cellHtml).join('')).join('');
+
+  // 아웃사이드 코너 (11=고내 12=고외 13=저내 14=저외) 간략 표시
+  const outer = ['11','12','13','14'];
+  const outerHtml = outer.filter(z=>zMap[z]).map(zn=>{
+    const z=zMap[zn];
+    const lbl = zn==='11'?'고-내':zn==='12'?'고-외':zn==='13'?'저-내':'저-외';
+    const bg  = z.color||(z.temp==='hot'?'rgba(214,41,52,.9)':z.temp==='warm'?'rgba(240,196,90,.9)':z.temp==='lukewarm'?'rgba(100,116,139,.85)':'rgba(59,130,246,.85)');
+    return `<div style="display:flex;align-items:center;gap:5px;font-size:.67rem;"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${bg}"></span><span style="color:var(--mu2)">${lbl}</span><span style="font-weight:700;color:var(--tx)">${escH(z.value||'—')}</span></div>`;
+  }).join('');
+
+  const szn = new Date().getFullYear()-1;
+  const label = isPitcher ? '🎯 피안타 존 (투수 기준)' : '🎯 핫·콜드 존 (타자 기준)';
+
+  return `<div class="zone-wrap">
+    <div>
+      <div class="zone-title">${label} — ${szn}시즌 타율</div>
+      <div class="zone-grid">${gridHtml}</div>
+    </div>
+    <div>
+      <div class="zone-legend">
+        <div class="zone-leg-item"><div class="zone-leg-dot" style="background:#d62934"></div>HOT (고타율)</div>
+        <div class="zone-leg-item"><div class="zone-leg-dot" style="background:#f0c45a"></div>WARM</div>
+        <div class="zone-leg-item"><div class="zone-leg-dot" style="background:#64748b"></div>보통</div>
+        <div class="zone-leg-item"><div class="zone-leg-dot" style="background:#3b82f6"></div>COLD (저타율)</div>
+      </div>
+      ${outerHtml ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:4px">${outerHtml}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ 리그 정보 패널 (스케줄 · 순위)
+══════════════════════════════════════════════════════ */
+let _lgCur  = null;   // 현재 열린 리그 ('kbo'|'mlb'|'npb')
+let _lgTab  = 'schedule'; // 현재 탭
+let _lgDate = new Date(); // 현재 날짜
+
+const LG_CFG = {
+  kbo: {badge:'KBO', badgeClass:'b-kbo', title:'🇰🇷 한국 프로야구',
+    extSch:'https://www.flashscore.com/baseball/south-korea/kbo/',
+    extStd:`https://www.flashscore.com/baseball/south-korea/kbo/#/${FS_KBO_SEAS}/standings/overall/`},
+  mlb: {badge:'MLB', badgeClass:'b-mlb', title:'🇺🇸 메이저리그', extSch:'https://www.mlb.com/schedule', extStd:'https://www.mlb.com/standings'},
+  npb: {badge:'NPB', badgeClass:'b-npb', title:'🇯🇵 일본 프로야구',
+    extSch:'https://www.flashscore.com/baseball/japan/npb/',
+    extStd:`https://www.flashscore.com/baseball/japan/npb/#/${FS_NPB_SEAS}/standings/overall/`},
+};
+
+function _lgDateStr(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dt = String(d.getDate()).padStart(2,'0');
+  return `${y}.${m}.${dt}`;
+}
+function _lgDateApi(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dt = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dt}`;
+}
+function _lgDateKbo(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dt = String(d.getDate()).padStart(2,'0');
+  return `${y}${m}${dt}`;
+}
+
+function toggleLeague(lg) {
+  if (_lgCur === lg) { closeLeague(); return; }
+  _lgCur  = lg;
+  _lgTab  = 'schedule';
+  _lgDate = new Date();
+  // 검색 결과/featured 숨기기
+  document.getElementById('featured').style.display = 'none';
+  document.getElementById('main').innerHTML = '';
+  // 패널 열기
+  const panel = document.getElementById('lg-panel');
+  panel.style.display = 'block';
+  _updateLgHeader();
+  // 버튼 상태
+  document.querySelectorAll('.lg-nav-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.league === lg);
+  });
+  loadLgData();
+}
+
+function closeLeague() {
+  _lgCur = null;
+  document.getElementById('lg-panel').style.display = 'none';
+  document.getElementById('featured').style.display = 'block';
+  document.querySelectorAll('.lg-nav-btn').forEach(b => b.classList.remove('on'));
+}
+
+function _updateLgHeader() {
+  if (!_lgCur) return;
+  const cfg = LG_CFG[_lgCur];
+  const badge = document.getElementById('lg-badge');
+  badge.className = `badge ${cfg.badgeClass}`;
+  badge.textContent = cfg.badge;
+  document.getElementById('lg-title').textContent = cfg.title;
+  document.getElementById('lg-date-str').textContent = _lgDateStr(_lgDate);
+  // 탭 상태
+  document.querySelectorAll('.lg-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === _lgTab));
+  // 날짜 네비 표시/숨기기
+  document.getElementById('lg-date-nav').style.display = _lgTab === 'schedule' ? 'flex' : 'none';
+}
+
+function switchLgTab(tab) {
+  _lgTab = tab;
+  _updateLgHeader();
+  loadLgData();
+}
+
+function changeDate(delta) {
+  _lgDate = new Date(_lgDate);
+  _lgDate.setDate(_lgDate.getDate() + delta);
+  document.getElementById('lg-date-str').textContent = _lgDateStr(_lgDate);
+  loadLgData();
+}
+
+function goToday() {
+  _lgDate = new Date();
+  document.getElementById('lg-date-str').textContent = _lgDateStr(_lgDate);
+  loadLgData();
+}
+
+function loadLgData() {
+  const el = document.getElementById('lg-content');
+  el.innerHTML = '<div class="sbox"><div class="spin"></div><p>데이터 로딩 중...</p></div>';
+  if (_lgTab === 'schedule') {
+    if      (_lgCur === 'kbo') loadKboSchedule(el);
+    else if (_lgCur === 'mlb') loadMlbSchedule(el);
+    else if (_lgCur === 'npb') loadNpbSchedule(el);
+  } else {
+    if      (_lgCur === 'kbo') loadKboStandings(el);
+    else if (_lgCur === 'mlb') loadMlbStandings(el);
+    else if (_lgCur === 'npb') loadNpbStandings(el);
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ Flashscore 피드 공통 파서
+══════════════════════════════════════════════════════ */
+
+/* 날짜 오프셋 계산 (0=오늘, -1=어제, 1=내일) */
+function _lgDayOffset(date) {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const target = new Date(date);
+  target.setHours(0,0,0,0);
+  return Math.round((target - today) / 86400000);
+}
+
+/* Flashscore 경기 피드 파싱 — 지정 리그 필터링 */
+function _parseFlashscoreSchedule(text, leagueFilter) {
+  const allRecords = text.split('~');
+  let inLeague = false;
+  const games = [];
+
+  for (const rec of allRecords) {
+    if (rec.includes('ZA÷')) {
+      const m = rec.match(/ZA÷([^¬]+)/);
+      inLeague = !!(m && m[1] === leagueFilter);
+      continue;
+    }
+    if (!inLeague || !rec.includes('AA÷')) continue;
+
+    const f = {};
+    rec.split('¬').forEach(p => {
+      const i = p.indexOf('÷');
+      if (i > 0) f[p.slice(0,i)] = p.slice(i+1);
+    });
+
+    const ts  = parseInt(f.AD || 0) * 1000;
+    // KST/JST = UTC+9
+    const kst = new Date(ts + 9 * 3600000);
+    const timeStr = `${String(kst.getUTCHours()).padStart(2,'0')}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
+
+    const homeScore = f.WG || '';  // WG = 홈팀 점수
+    const awayScore = f.WF || '';  // WF = 원정팀 점수
+    const score = (homeScore !== '' && awayScore !== '') ? `${awayScore} - ${homeScore}` : '';
+
+    const ab = parseInt(f.AB || 1);
+    let status = timeStr;  // 기본: 시작 시간
+    if (ab === 2) status = '종료';
+    else if (ab === 3) status = '진행중';
+
+    games.push({
+      away: f.AF || '',
+      home: f.CX || f.AE || '',
+      score,
+      venue: '',
+      status
+    });
+  }
+  return games;
+}
+
+/* Flashscore 순위 피드 파싱 */
+function _parseFlashscoreStandings(text) {
+  const records = text.split('~').filter(rec => rec.includes('TN÷'));
+  if (!records.length) return [];
+
+  const teams = records.map(rec => {
+    const f = {};
+    rec.split('¬').forEach(p => {
+      const i = p.indexOf('÷');
+      if (i > 0) f[p.slice(0,i)] = p.slice(i+1);
+    });
+    return {
+      rank: parseInt(f.TR || 0),
+      team: f.TN || '',
+      g:    f.TM || '',
+      w:    f.TW || '',
+      l:    f.TL || '',
+      d:    f.TDR || '0',
+      pct:  f.PC  || '',
+      gb:   '-',
+      streak: ''
+    };
+  });
+
+  // GB(게임차) 계산
+  if (teams.length > 1) {
+    const top = teams[0];
+    const topDiff = parseInt(top.w||0) - parseInt(top.l||0);
+    teams.forEach(t => {
+      if (t.rank === 1) { t.gb = '-'; return; }
+      const diff = topDiff - (parseInt(t.w||0) - parseInt(t.l||0));
+      t.gb = (diff / 2).toFixed(1);
+    });
+  }
+  return teams;
+}
+
+/* ── KBO 스케줄 (Flashscore) ── */
+async function loadKboSchedule(el) {
+  try {
+    const offset = _lgDayOffset(_lgDate);
+    const r = await fetch(`${FS_BASE}f_6_${offset}_3_en_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    const games = _parseFlashscoreSchedule(text, 'SOUTH KOREA: KBO');
+    if (games.length > 0) { el.innerHTML = _renderScheduleTable(games, 'kbo'); return; }
+    el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} KBO 경기 없음</p>
+      <a href="${LG_CFG.kbo.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore KBO 일정</a></div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">⚠️ KBO 스케줄 데이터를 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.kbo.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore KBO 바로가기</a></div>`;
+  }
+}
+
+/* ── KBO 순위 (Flashscore) ── */
+async function loadKboStandings(el) {
+  try {
+    const r = await fetch(`${FS_BASE}to_${FS_KBO_TOUR}_${FS_KBO_SEAS}_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    const teams = _parseFlashscoreStandings(text);
+    if (teams.length > 0) { el.innerHTML = _renderStandingsTable(teams, 'kbo'); return; }
+    throw new Error('No data');
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">⚠️ KBO 순위 데이터를 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.kbo.extStd}" target="_blank" class="lg-ext-link">🔗 Flashscore KBO 순위 바로가기</a></div>`;
+  }
+}
+
+/* ── MLB 스케줄 ── */
+async function loadMlbSchedule(el) {
+  try {
+    const dateParam = _lgDateApi(_lgDate);
+    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateParam}&hydrate=team,linescore&language=ko`;
+    const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const dates = data.dates || [];
+    const gamesRaw = dates.length ? (dates[0].games || []) : [];
+
+    if (!gamesRaw.length) {
+      el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} MLB 경기 없음</p>
+        <a href="${LG_CFG.mlb.extSch}" target="_blank" class="lg-ext-link">🔗 MLB 공식 일정</a></div>`;
+      return;
+    }
+
+    const games = gamesRaw.map(g => {
+      const away  = g.teams?.away?.team?.name || '';
+      const home  = g.teams?.home?.team?.name || '';
+      const aScore = g.teams?.away?.score != null ? g.teams.away.score : '';
+      const hScore = g.teams?.home?.score != null ? g.teams.home.score : '';
+      const score  = (aScore !== '' && hScore !== '') ? `${aScore} - ${hScore}` : '';
+      const venue  = g.venue?.name || '';
+      const rawStatus = g.status?.detailedState || g.status?.abstractGameState || '';
+      let status = '예정';
+      if (rawStatus === 'Final' || rawStatus === 'Game Over') status = '종료';
+      else if (rawStatus === 'In Progress' || rawStatus === 'Live') status = '진행중';
+      else if (rawStatus === 'Postponed') status = '연기';
+      else if (rawStatus === 'Cancelled') status = '취소';
+      else if (g.gameDate) {
+        const t = new Date(g.gameDate);
+        status = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      }
+      // 팀명 한글 변환 시도
+      const ML_TEAM_KO = {
+        'Baltimore Orioles':'볼티모어','Boston Red Sox':'보스턴','New York Yankees':'뉴욕 양키스',
+        'Tampa Bay Rays':'탬파베이','Toronto Blue Jays':'토론토',
+        'Chicago White Sox':'시카고 화이트삭스','Cleveland Guardians':'클리블랜드',
+        'Detroit Tigers':'디트로이트','Kansas City Royals':'캔자스시티','Minnesota Twins':'미네소타',
+        'Houston Astros':'휴스턴','Los Angeles Angels':'LA 에인절스','Oakland Athletics':'오클랜드',
+        'Seattle Mariners':'시애틀','Texas Rangers':'텍사스','Sacramento River Cats':'새크라멘토',
+        'Atlanta Braves':'애틀랜타','Miami Marlins':'마이애미','New York Mets':'뉴욕 메츠',
+        'Philadelphia Phillies':'필라델피아','Washington Nationals':'워싱턴',
+        'Chicago Cubs':'시카고 컵스','Cincinnati Reds':'신시내티','Milwaukee Brewers':'밀워키',
+        'Pittsburgh Pirates':'피츠버그','St. Louis Cardinals':'세인트루이스',
+        'Arizona Diamondbacks':'애리조나','Colorado Rockies':'콜로라도',
+        'Los Angeles Dodgers':'LA 다저스','San Diego Padres':'샌디에이고','San Francisco Giants':'샌프란시스코',
+      };
+      return {away: ML_TEAM_KO[away]||away, home: ML_TEAM_KO[home]||home, score, venue, status};
+    });
+
+    el.innerHTML = _renderScheduleTable(games, 'mlb');
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">⚠️ MLB 스케줄 데이터 로드 실패<br>
+      <a href="${LG_CFG.mlb.extSch}" target="_blank" class="lg-ext-link">🔗 MLB 공식 일정 바로가기</a></div>`;
+  }
+}
+
+/* ── MLB 순위 ── */
+async function loadMlbStandings(el) {
+  try {
+    const yr = _lgDate.getFullYear();
+    const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${yr}&standingsTypes=regularSeason&hydrate=team`;
+    const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const ML_TEAM_KO = {
+      'Baltimore Orioles':'볼티모어 오리올스','Boston Red Sox':'보스턴 레드삭스','New York Yankees':'뉴욕 양키스',
+      'Tampa Bay Rays':'탬파베이 레이스','Toronto Blue Jays':'토론토 블루제이스',
+      'Chicago White Sox':'시카고 화이트삭스','Cleveland Guardians':'클리블랜드 가디언스',
+      'Detroit Tigers':'디트로이트 타이거스','Kansas City Royals':'캔자스시티 로열스','Minnesota Twins':'미네소타 트윈스',
+      'Houston Astros':'휴스턴 애스트로스','Los Angeles Angels':'LA 에인절스','Oakland Athletics':'오클랜드 애슬레틱스',
+      'Seattle Mariners':'시애틀 매리너스','Texas Rangers':'텍사스 레인저스',
+      'Atlanta Braves':'애틀랜타 브레이브스','Miami Marlins':'마이애미 말린스','New York Mets':'뉴욕 메츠',
+      'Philadelphia Phillies':'필라델피아 필리스','Washington Nationals':'워싱턴 내셔널스',
+      'Chicago Cubs':'시카고 컵스','Cincinnati Reds':'신시내티 레즈','Milwaukee Brewers':'밀워키 브루어스',
+      'Pittsburgh Pirates':'피츠버그 파이리츠','St. Louis Cardinals':'세인트루이스 카디널스',
+      'Arizona Diamondbacks':'애리조나 다이아몬드백스','Colorado Rockies':'콜로라도 로키스',
+      'Los Angeles Dodgers':'LA 다저스','San Diego Padres':'샌디에이고 파드리스','San Francisco Giants':'샌프란시스코 자이언츠',
+    };
+
+    // 지구별로 데이터 정리
+    const divData = [];
+    for (const rec of (data.records || [])) {
+      const divName = rec.division?.name || '';
+      const lgName  = rec.league?.name  || '';
+      const section = `${lgName} — ${divName}`;
+      const teams = (rec.teamRecords||[]).map((tr,i) => ({
+        rank: i+1,
+        team: ML_TEAM_KO[tr.team?.name]||tr.team?.name||'',
+        g:    (tr.wins||0)+(tr.losses||0),
+        w:    tr.wins||0,
+        l:    tr.losses||0,
+        d:    0,
+        pct:  tr.winningPercentage||'',
+        gb:   tr.gamesBack||'-',
+        streak: tr.streak?.streakCode||'',
+      }));
+      divData.push({section, teams});
+    }
+
+    if (!divData.length) throw new Error('No data');
+    el.innerHTML = _renderStandingsTableWithDivisions(divData, 'mlb');
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">⚠️ MLB 순위 데이터 로드 실패<br>
+      <a href="${LG_CFG.mlb.extStd}" target="_blank" class="lg-ext-link">🔗 MLB 공식 순위표 바로가기</a></div>`;
+  }
+}
+
+/* ── NPB 스케줄 (Flashscore) ── */
+async function loadNpbSchedule(el) {
+  try {
+    const offset = _lgDayOffset(_lgDate);
+    const r = await fetch(`${FS_BASE}f_6_${offset}_3_en_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    const games = _parseFlashscoreSchedule(text, 'JAPAN: NPB');
+    if (games.length > 0) { el.innerHTML = _renderScheduleTable(games, 'npb'); return; }
+    el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} NPB 경기 없음</p>
+      <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore NPB 일정</a></div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">⚠️ NPB 스케줄 데이터를 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.npb.extSch}" target="_blank" class="lg-ext-link">🔗 Flashscore NPB 바로가기</a></div>`;
+  }
+}
+
+/* ── NPB 순위 (Flashscore) ── */
+async function loadNpbStandings(el) {
+  try {
+    const r = await fetch(`${FS_BASE}to_${FS_NPB_TOUR}_${FS_NPB_SEAS}_1`, {headers: FS_HEADERS, signal: AbortSignal.timeout(10000)});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    const teams = _parseFlashscoreStandings(text);
+    if (teams.length > 0) { el.innerHTML = _renderStandingsTable(teams, 'npb'); return; }
+    throw new Error('No data');
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">⚠️ NPB 순위 데이터를 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.npb.extStd}" target="_blank" class="lg-ext-link">🔗 Flashscore NPB 순위 바로가기</a></div>`;
+  }
+}
+
+/* ── 공통 렌더러: 스케줄 테이블 ── */
+function _renderScheduleTable(games, lg) {
+  if (!games.length) return `<div class="sbox"><p>경기 없음</p></div>`;
+  const cfg = LG_CFG[lg||'kbo'];
+  const rows = games.map(g => {
+    const score = g.score || '';
+    const [aScore, hScore] = score ? score.split(/\s*[-:]\s*/) : ['',''];
+    const aWin = aScore !== '' && hScore !== '' && parseInt(aScore) > parseInt(hScore);
+    const hWin = aScore !== '' && hScore !== '' && parseInt(hScore) > parseInt(aScore);
+    const status = g.status || '예정';
+    let statusHtml = '';
+    if (status === '종료')   statusHtml = `<span class="st-final">종료</span>`;
+    else if (status === '진행중') statusHtml = `<span class="st-live">🔴 LIVE</span>`;
+    else if (status === '연기' || status === '취소') statusHtml = `<span class="st-cancel">${escH(status)}</span>`;
+    else statusHtml = `<span class="st-sched">${escH(status)}</span>`;
+    return `<tr>
+      <td class="team-away ${aWin?'hg':''}">${escH(g.away||'')}</td>
+      <td class="score-cell">${score ? `${aScore} <span style="color:var(--mu);font-weight:400">:</span> ${hScore}` : '<span style="color:var(--mu)">vs</span>'}</td>
+      <td class="team-home ${hWin?'hg':''}">${escH(g.home||'')}</td>
+      <td>${escH(g.venue||'')}</td>
+      <td>${statusHtml}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="lg-tbl-wrap">
+    <table class="lg-tbl">
+      <thead><tr>
+        <th>원정팀</th><th>스코어</th><th>홈팀</th><th>구장</th><th>상태</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="padding:6px 14px;"><a href="${cfg.extSch}" target="_blank" class="lg-ext-link" style="font-size:.72rem;">🔗 공식 사이트에서 더 보기</a></div>
+  </div>`;
+}
+
+/* ── 공통 렌더러: 순위 테이블 (단일 그룹) ── */
+function _renderStandingsTable(teams, lg) {
+  return _renderStandingsTableWithDivisions([{section:null, teams}], lg);
+}
+
+/* ── 공통 렌더러: 순위 테이블 (지구별 그룹) ── */
+function _renderStandingsTableWithDivisions(divData, lg) {
+  const cfg = LG_CFG[lg||'kbo'];
+  let html = `<div class="lg-tbl-wrap"><table class="lg-tbl">
+    <thead><tr>
+      <th style="width:34px">순위</th>
+      <th style="text-align:left;padding-left:14px">팀</th>
+      <th>G</th><th>승</th><th>패</th><th>무</th><th>승률</th><th>게차</th><th>연속</th>
+    </tr></thead>
+    <tbody>`;
+
+  for (const {section, teams} of divData) {
+    if (section) {
+      html += `<tr class="lg-div-row"><td colspan="9">${escH(section)}</td></tr>`;
+    }
+    for (const t of teams) {
+      const pctVal = parseFloat(t.pct);
+      const pctDisp = isNaN(pctVal) ? (t.pct||'-') : pctVal.toFixed(3);
+      html += `<tr>
+        <td class="rank-cell">${t.rank}</td>
+        <td class="tm-name">${escH(t.team)}</td>
+        <td>${t.g}</td>
+        <td><strong style="color:var(--gn)">${t.w}</strong></td>
+        <td><strong style="color:var(--rd)">${t.l}</strong></td>
+        <td>${t.d||0}</td>
+        <td>${pctDisp}</td>
+        <td>${t.gb||'-'}</td>
+        <td>${escH(t.streak||'')}</td>
+      </tr>`;
+    }
+  }
+
+  html += `</tbody></table>
+    <div style="padding:6px 14px;"><a href="${cfg.extStd}" target="_blank" class="lg-ext-link" style="font-size:.72rem;">🔗 공식 사이트에서 더 보기</a></div>
+  </div>`;
+  return html;
+}
+
+function escH(s){
+  if(!s)return'';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
