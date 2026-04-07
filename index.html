@@ -220,7 +220,8 @@
 .lg-tbl .score-cell{font-size:.95rem;font-weight:800;color:var(--ac);letter-spacing:1px;}
 .lg-tbl .team-away,.lg-tbl .team-home{font-weight:700;font-size:.83rem;}
 .st-final{background:rgba(46,200,122,.12);color:var(--gn);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
-.st-live{background:rgba(245,197,66,.15);color:var(--yw);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
+.st-live{background:rgba(245,197,66,.15);color:var(--yw);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;animation:livePulse 1.4s ease-in-out infinite;}
+@keyframes livePulse{0%,100%{opacity:1;}50%{opacity:.45;}}
 .st-sched{background:rgba(90,110,140,.15);color:var(--mu2);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
 .st-cancel{background:rgba(240,80,80,.12);color:var(--rd);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
 .lg-div-row td{background:rgba(59,158,255,.05)!important;color:var(--ac);font-size:.7rem;font-weight:700;text-align:left;padding:5px 14px;}
@@ -1546,7 +1547,7 @@ function buildLocalCard(p) {
   // 바이오
   const bio=[
     ['등번호', p.backNo ? 'No.'+p.backNo : ''],
-    ['생년월일', p.bDate?`${p.bDate} (${p.age}세)`:''],
+    ['생년월일', p.bDate||''],
     ['출신지', p.born||''],['신장', p.height||''],['체중', p.weight||''],
     ['타석/투구', `${p.bats||''} / ${p.throws||''}`],
     ['데뷔', p.debut||''],['국적', p.nation||''],
@@ -1683,8 +1684,14 @@ async function buildApiCard(player) {
   const lgBadge=spo===51?'b-kbo':spo===52?'b-npb':'b-mlb';
   const lgLabel=spo===51?'KBO':spo===52?'NPB':'MLB';
 
+  const isPitcher = ['P','SP','RP','CP','TWP'].includes(pos);
   let strip='';
-  if(cBat) strip=`<div class="kstrip">
+  if(isPitcher && cPit) strip=`<div class="kstrip">
+    <div class="kst">통산 ERA <strong>${cPit.era||'-'}</strong></div>
+    <div class="kst">WHIP <strong>${cPit.whip||'-'}</strong></div>
+    <div class="kst">${cPit.wins||0}승 ${cPit.losses||0}패</div>
+    <div class="kst">탈삼진 <strong>${cPit.strikeOuts||'-'}</strong></div></div>`;
+  else if(!isPitcher && cBat) strip=`<div class="kstrip">
     <div class="kst">통산 타율 <strong>${cBat.avg||'-'}</strong></div>
     <div class="kst">홈런 <strong>${cBat.homeRuns||'-'}</strong></div>
     <div class="kst">타점 <strong>${cBat.rbi||'-'}</strong></div>
@@ -1694,9 +1701,14 @@ async function buildApiCard(player) {
     <div class="kst">WHIP <strong>${cPit.whip||'-'}</strong></div>
     <div class="kst">${cPit.wins||0}승 ${cPit.losses||0}패</div>
     <div class="kst">탈삼진 <strong>${cPit.strikeOuts||'-'}</strong></div></div>`;
+  else if(cBat) strip=`<div class="kstrip">
+    <div class="kst">통산 타율 <strong>${cBat.avg||'-'}</strong></div>
+    <div class="kst">홈런 <strong>${cBat.homeRuns||'-'}</strong></div>
+    <div class="kst">타점 <strong>${cBat.rbi||'-'}</strong></div>
+    <div class="kst">OPS <strong>${cBat.ops||'-'}</strong></div></div>`;
 
   const bio=[
-    ['생년월일', birth?`${birth}${age?' ('+age+')':''}`:''],
+    ['생년월일', birth||''],
     ['출신지', bPlace],['신장', ht],['체중', wt],
     ['타석', bats],['투구', throws],['MLB 데뷔', debut],
     ['등번호', jerseyNo ? 'No.'+jerseyNo : ''],
@@ -1705,12 +1717,30 @@ async function buildApiCard(player) {
   const hasBat=batSplits.length>0, hasPit=pitSplits.length>0;
   const uid=`u${id}`;
 
+  // MLB 팀명 한글 변환 맵
+  const MLB_TEAM_KO_STATS = {
+    'Baltimore Orioles':'볼티모어','Boston Red Sox':'보스턴','New York Yankees':'뉴욕 양키스',
+    'Tampa Bay Rays':'탬파베이','Toronto Blue Jays':'토론토',
+    'Chicago White Sox':'시카고 화이트삭스','Cleveland Guardians':'클리블랜드',
+    'Detroit Tigers':'디트로이트','Kansas City Royals':'캔자스시티','Minnesota Twins':'미네소타',
+    'Houston Astros':'휴스턴','Los Angeles Angels':'LA 에인절스',
+    'Oakland Athletics':'오클랜드 애슬레틱스','Athletics':'애슬레틱스',
+    'Seattle Mariners':'시애틀','Texas Rangers':'텍사스',
+    'Atlanta Braves':'애틀랜타','Miami Marlins':'마이애미','New York Mets':'뉴욕 메츠',
+    'Philadelphia Phillies':'필라델피아','Washington Nationals':'워싱턴',
+    'Chicago Cubs':'시카고 컵스','Cincinnati Reds':'신시내티','Milwaukee Brewers':'밀워키',
+    'Pittsburgh Pirates':'피츠버그','St. Louis Cardinals':'세인트루이스',
+    'Arizona Diamondbacks':'애리조나','Colorado Rockies':'콜로라도',
+    'Los Angeles Dodgers':'LA 다저스','San Diego Padres':'샌디에이고','San Francisco Giants':'샌프란시스코',
+  };
+
   // ── 리그별 타격 테이블 (KBO/MLB/NPB 컬럼 분리)
   let batHtml='';
   if(hasBat){
     const toRow=(s)=>{
       const st=s.stat;
-      return {yr:s.season||'-', team:s.team?.name||'-',
+      const tn=s.team?.name||'-';
+      return {yr:s.season||'-', team:MLB_TEAM_KO_STATS[tn]||tn,
         g:st.gamesPlayed??'-', avg:st.avg||'-', h:st.hits??'-',
         hr:st.homeRuns??'-', sb:st.stolenBases??'-', rbi:st.rbi??'-',
         so:st.strikeOuts??'-', bb:st.baseOnBalls??'-',
@@ -1747,7 +1777,8 @@ async function buildApiCard(player) {
   if(hasPit){
     const toPRow=(s)=>{
       const st=s.stat;
-      return {yr:s.season||'-', team:s.team?.name||'-',
+      const tn=s.team?.name||'-';
+      return {yr:s.season||'-', team:MLB_TEAM_KO_STATS[tn]||tn,
         g:st.gamesPlayed??'-', era:st.era??'-', ip:st.inningsPitched??'-',
         so:st.strikeOuts??'-', bb:st.baseOnBalls??'-',
         w:st.wins??'-', l:st.losses??'-',
@@ -3514,13 +3545,24 @@ function goToday() {
   loadLgData();
 }
 
-/* 진행중 경기가 있을 때 60초 후 자동 갱신 */
+/* 시작 전 경기 시간을 오전/오후 형식으로 변환 */
+function _fmtSchedTime(t) {
+  if (!t) return '예정';
+  const m = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return t;
+  const h = parseInt(m[1]), min = m[2];
+  const ampm = h < 12 ? '오전' : '오후';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${ampm} ${h12}:${min}`;
+}
+
+/* 진행중 경기가 있을 때 30초 후 자동 갱신 */
 function _scheduleLiveRefresh(games) {
   clearTimeout(_liveTimer);
   if (games.some(g => g.status === '진행중')) {
     _liveTimer = setTimeout(() => {
       if (_lgTab === 'schedule') loadLgData();
-    }, 60000);
+    }, 30000);
   }
 }
 
@@ -3580,7 +3622,7 @@ async function loadKboSchedule(el) {
       if (!playCell && !cancelCell) continue;
       const venue = venueCell ? venueCell.Text.replace(/<[^>]+>/g,'').trim() : '';
       let away='', home='', score='';
-      let status = timeCell ? timeCell.Text.replace(/<[^>]+>/g,'').trim() : '예정';
+      let status = timeCell ? _fmtSchedTime(timeCell.Text.replace(/<[^>]+>/g,'').trim()) : '예정';
       if (cancelCell) {
         status = '취소';
         const m2 = cancelCell.Text.match(/<span[^>]*>([^<]+)<\/span>[^]*?<span[^>]*>([^<]+)<\/span>/);
@@ -3703,7 +3745,10 @@ async function loadMlbSchedule(el) {
       else if (rawStatus === 'Cancelled') status = '취소';
       else if (g.gameDate) {
         const t = new Date(g.gameDate);
-        status = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+        const h = t.getHours(), min = String(t.getMinutes()).padStart(2,'0');
+        const ampm = h < 12 ? '오전' : '오후';
+        const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        status = `${ampm} ${h12}:${min}`;
       }
       // 팀명 한글 변환 시도
       const ML_TEAM_KO = {
@@ -3711,7 +3756,8 @@ async function loadMlbSchedule(el) {
         'Tampa Bay Rays':'탬파베이','Toronto Blue Jays':'토론토',
         'Chicago White Sox':'시카고 화이트삭스','Cleveland Guardians':'클리블랜드',
         'Detroit Tigers':'디트로이트','Kansas City Royals':'캔자스시티','Minnesota Twins':'미네소타',
-        'Houston Astros':'휴스턴','Los Angeles Angels':'LA 에인절스','Oakland Athletics':'오클랜드',
+        'Houston Astros':'휴스턴','Los Angeles Angels':'LA 에인절스','Oakland Athletics':'오클랜드 애슬레틱스',
+        'Athletics':'애슬레틱스',
         'Seattle Mariners':'시애틀','Texas Rangers':'텍사스','Sacramento River Cats':'새크라멘토',
         'Atlanta Braves':'애틀랜타','Miami Marlins':'마이애미','New York Mets':'뉴욕 메츠',
         'Philadelphia Phillies':'필라델피아','Washington Nationals':'워싱턴',
@@ -3745,6 +3791,7 @@ async function loadMlbStandings(el) {
       'Chicago White Sox':'시카고 화이트삭스','Cleveland Guardians':'클리블랜드 가디언스',
       'Detroit Tigers':'디트로이트 타이거스','Kansas City Royals':'캔자스시티 로열스','Minnesota Twins':'미네소타 트윈스',
       'Houston Astros':'휴스턴 애스트로스','Los Angeles Angels':'LA 에인절스','Oakland Athletics':'오클랜드 애슬레틱스',
+      'Athletics':'애슬레틱스',
       'Seattle Mariners':'시애틀 매리너스','Texas Rangers':'텍사스 레인저스',
       'Atlanta Braves':'애틀랜타 브레이브스','Miami Marlins':'마이애미 말린스','New York Mets':'뉴욕 메츠',
       'Philadelphia Phillies':'필라델피아 필리스','Washington Nationals':'워싱턴 내셔널스',
@@ -3845,7 +3892,7 @@ async function loadNpbSchedule(el) {
         if (venueRaw.includes(jp)) { venue = ko; break; }
       }
       const timeStr = infoTd?.querySelector('.time')?.textContent?.trim() || '';
-      let score = '', status = timeStr || '예정';
+      let score = '', status = _fmtSchedTime(timeStr);
       if (matchTd.querySelector('.cancel')) {
         status = '취소';
       } else {
