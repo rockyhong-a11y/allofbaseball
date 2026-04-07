@@ -1048,11 +1048,18 @@ function npbAcSearch(q) {
       if (k.startsWith(qLow)) push(v, q);
     });
   } else if (isJpK) {
-    // 히라가나/가타카나: YOMI_MAP 부분일치
-    const hira = qn.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0)-0x60));
+    // 외국인 선수 패턴: Ｔ．キャベッジ → 프리픽스 제거 후 가나 부분만 처리
+    const fmatch = qn.match(/^[Ａ-Ｚ][．.](.+)$/);
+    const kanaQ = fmatch ? fmatch[1] : qn;
+    const hira = kanaQ.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0)-0x60));
+    // YOMI_MAP 부분일치
     Object.entries(NPB_YOMI_MAP).forEach(([k,v]) => {
       const kh = k.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0)-0x60));
       if (kh.startsWith(hira)) push(v, '');
+    });
+    // NPB_BIS_INDEX 가타카나 항목 부분일치 (외국인 선수)
+    Object.keys(NPB_BIS_INDEX).forEach(name => {
+      if (/[\u30A1-\u30F6]/.test(name) && name.includes(kanaQ)) push(name, '');
     });
   } else if (isKan) {
     // 한자: NPB_INDEX 부분일치
@@ -2962,13 +2969,13 @@ const KANJI_FIRST_YOMI = {
   '愛':'a','相':'a','阿':'a','赤':'a','明':'a','秋':'a','朝':'a','荒':'a','有':'a','安':'a',
   '青':'a','浅':'a','天':'a','新':'a',
   // い(i)
-  '一':'i','石':'i','今':'i','井':'i','伊':'i','岩':'i','稲':'i','池':'i','市':'i','入':'i','飯':'i',
+  '一':'i','石':'i','今':'i','井':'i','伊':'i','岩':'i','稲':'i','池':'i','市':'i','入':'i','飯':'i','泉':'i','磯':'i',
   // う(u)
-  '内':'u','宇':'u','上':'u','臼':'u',
+  '内':'u','宇':'u','上':'u','臼':'u','浦':'u','梅':'u','牛':'u',
   // え(e)
   '江':'e','榎':'e',
   // お(o)
-  '大':'o','岡':'o','奥':'o','小':'o',
+  '大':'o','岡':'o','奥':'o','小':['o','ko'],  // 小笠原=お / 小園=こ 양쪽 모두 커버
   // か(ka)
   '加':'ka','神':'ka','川':'ka','金':'ka','河':'ka','片':'ka','笠':'ka','鎌':'ka','垣':'ka',
   '亀':'ka','甲':'ka','勝':'ka','嘉':'ka','蒲':'ka',
@@ -3061,12 +3068,15 @@ async function fetchNpbData(query) {
     let jpName = '';
     if (isJp(norm)) {
       if (isKana(norm)) {
-        const hira = norm.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
-        jpName = NPB_YOMI_MAP[hira] || NPB_YOMI_MAP[norm] ||
+        // 외국인 선수 패턴: Ｔ．キャベッジ → キャベッジ (전각 알파벳+점 프리픽스 제거)
+        const fmatch = norm.match(/^[Ａ-Ｚ][．.](.+)$/);
+        const kanaBase = fmatch ? fmatch[1] : norm;
+        const hira = kanaBase.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+        jpName = NPB_YOMI_MAP[hira] || NPB_YOMI_MAP[kanaBase] ||
           (Object.entries(NPB_YOMI_MAP).find(([k]) => {
             const kh = k.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0)-0x60));
             return kh.startsWith(hira) && hira.length >= 2;
-          })?.[1]) || norm;
+          })?.[1]) || kanaBase;   // ← kanaBase 사용 (프리픽스 제거된 값)
       } else { jpName = norm; }
     } else {
       jpName = NPB_KO_MAP[normLow] ||
@@ -3116,11 +3126,45 @@ async function fetchNpbData(query) {
         if (suffix) bisId = await _searchBisPage(suffix);
       }
 
-      // 방법 B: 이름 첫 한자로 50음 페이지 추론 (KANJI_FIRST_YOMI)
-      // 대부분의 NPB 선수를 커버 — YOMI_MAP에 없는 선수도 검색 가능
+      // 방법 B: 이름 첫 한자로 50음 페이지 추론 (KANJI_FIRST_YOMI, 배열값 대응)
       if (!bisId) {
-        const suffix = KANJI_FIRST_YOMI[jpName[0]];
-        if (suffix) bisId = await _searchBisPage(suffix);
+        const sv = KANJI_FIRST_YOMI[jpName[0]];
+        if (sv) {
+          for (const s of (Array.isArray(sv) ? sv : [sv])) {
+            bisId = await _searchBisPage(s);
+            if (bisId) break;
+          }
+        }
+      }
+
+      // 방법 C: jpName이 가나 전용 (외국인 선수 キャベッジ 등)
+      // 탁점 가나는 전용 페이지 먼저 시도, 없으면 청음 부모 페이지로 폴백
+      if (!bisId && /[\u3040-\u30FF]/.test(jpName[0])) {
+        const VOICED_SUFFIX = {
+          'が':'ga','ぎ':'gi','ぐ':'gu','げ':'ge','ご':'go',
+          'ざ':'za','じ':'zi','ず':'zu','ぜ':'ze','ぞ':'zo',
+          'だ':'da','ぢ':'di','づ':'du','で':'de','ど':'do',
+          'ば':'ba','び':'bi','ぶ':'bu','べ':'be','ぼ':'bo',
+          'ぱ':'pa','ぴ':'pi','ぷ':'pu','ぺ':'pe','ぽ':'po',
+        };
+        const VOICED_PARENT = {
+          'が':'か','ぎ':'き','ぐ':'く','げ':'け','ご':'こ',
+          'ざ':'さ','じ':'し','ず':'す','ぜ':'せ','ぞ':'そ',
+          'だ':'た','ぢ':'ち','づ':'つ','で':'て','ど':'と',
+          'ば':'は','び':'ひ','ぶ':'ふ','べ':'へ','ぼ':'ほ',
+          'ぱ':'は','ぴ':'ひ','ぷ':'ふ','ぺ':'へ','ぽ':'ほ',
+        };
+        let h = jpName[0];
+        if (h >= '\u30A1' && h <= '\u30F6') h = String.fromCharCode(h.charCodeAt(0) - 0x60);
+        const voicedSuffix = VOICED_SUFFIX[h];
+        const parentSuffix = NPB_YOMI_PAGE[VOICED_PARENT[h] || h];
+        // 탁점 가나: 전용 페이지(da/ga/ba...) 우선, 실패 시 청음 부모(ta/ka/ha...) 시도
+        if (voicedSuffix) {
+          bisId = await _searchBisPage(voicedSuffix);
+        }
+        if (!bisId && parentSuffix) {
+          bisId = await _searchBisPage(parentSuffix);
+        }
       }
     }
     if (!bisId) return null;
@@ -3145,7 +3189,8 @@ async function fetchNpbData(query) {
       const jerseyIdx = lis.findIndex(l => /^\d{1,3}$/.test(l));
       if (jerseyIdx >= 0 && jerseyIdx + 2 < lis.length) {
         const cand = lis[jerseyIdx + 2];
-        if (/[\u4E00-\u9FFF]/.test(cand)) {
+        // 한자 또는 가타카나(외국인 선수)가 포함된 경우 선수명으로 인정
+        if (/[\u4E00-\u9FFF\u30A0-\u30FF]/.test(cand)) {
           teamFromLi  = lis[jerseyIdx + 1] || '';
           nameFromLi  = cand.replace(/　/g, ' ');
           yomiFromLi  = lis[jerseyIdx + 3] || '';
@@ -3153,7 +3198,8 @@ async function fetchNpbData(query) {
         }
       }
     }
-    const fullName = (nameFromTitle && /[\u4E00-\u9FFF]/.test(nameFromTitle))
+    // 외국인 선수는 title에 한자가 없어도 카타카나명 사용 (T.キャベッジ 등)
+    const fullName = (nameFromTitle && /[\u4E00-\u9FFF\u30A0-\u30FF]/.test(nameFromTitle))
       ? nameFromTitle : (nameFromLi || jpName.replace(/　/g, ' '));
 
     // 요미가나: li 패턴 우선, 없으면 h1 다음 p 탐색
