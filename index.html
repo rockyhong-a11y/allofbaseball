@@ -103,6 +103,8 @@
     .bc{background:var(--c2);border:1px solid var(--bd);border-radius:8px;padding:9px 11px;}
     .bl{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--mu);margin-bottom:3px;}
     .bv{font-size:.84rem;font-weight:600;line-height:1.3;}
+    .bio-row{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 0;}
+    .prof--pr{flex-direction:row-reverse;}
 
     .pdesc{font-size:.8rem;color:var(--mu2);line-height:1.7;padding:0 20px 12px;}
 
@@ -1020,7 +1022,7 @@ async function mlbAcSearch(q) {
    NPB 자동완성 (NPB_INDEX 한자 + KO_MAP + YOMI_MAP)
 ══════════════════════════════════════════════════════ */
 function npbAcSearch(q) {
-  const qn = q.replace(/\s+/g,'');
+  const qn = q.replace(/[\s\u3000]+/g,''); // 전각 스페이스(U+3000)도 제거
   if (!qn || qn.length < 1) return [];
   const qLow = qn.toLowerCase();
   const isKo  = /[가-힣]/.test(qn);
@@ -1326,8 +1328,8 @@ async function runKboNpb(query, league) {
     if (!seen.has(p.fullName)) { seen.add(p.fullName); results.push({type:'api',data:p}); }
   });
 
-  // ⑤ 자체DB — KBO는 절대 사용하지 않음 (NPB 전용)
-  if (league !== 'kbo') {
+  // ⑤ 자체DB — KBO는 절대 사용하지 않음, NPB도 npb.jp 데이터 있으면 사용 안 함
+  if (league !== 'kbo' && !extData) {
     LOCAL_DB.filter(p=>p.league===league).forEach(p=>{
       const match =
         p.nameKo.replace(/\s+/g,'').includes(query.replace(/\s+/g,'')) ||
@@ -2914,213 +2916,556 @@ const NPB_YOMI_MAP = {
 };
 
 /* ══════════════════════════════════════════════════════
-   NPB — 1point02.jp 선수 기록 페치
-   NPB_INDEX(정적 룩업) → CODETABS → 개인 기록 파싱
+   NPB BIS ID 인덱스 (npb.jp 선수 페이지 8자리 ID)
+══════════════════════════════════════════════════════ */
+const NPB_BIS_INDEX = {
+  '村上宗隆':'41845136','山田哲人':'91895133','岡本和真':'11515130',
+  '柳田悠岐':'31835133','佐藤輝明':'41045153','牧秀悟':'13115153',
+  '坂本勇人':'51955114','大山悠輔':'21325134','大谷翔平':'01305137',
+  '山本由伸':'53355134','佐々木朗希':'31035151','今永昇太':'01305132',
+  '吉田正尚':'63165132','森下暢仁':'53155151','田中将大':'11215114',
+  '伊藤大海':'51355153','早川隆久':'31835153','宮城大弥':'71875151',
+  '千賀滉大':'01005133','則本昂大':'51055137','菅野智之':'41745137',
+  '藤浪晋太郎':'41045137','青柳晃洋':'71175132','山岡泰輔':'83185134',
+  '松田宣浩':'51655112','甲斐拓也':'91595133','柳裕也':'63165134',
+  '山口航輝':'91895138','近藤健介':'41745135','鈴木誠也':'81785137',
+  '松井裕樹':'81285139','前田健太':'51655114','大野雄大':'11515133',
+  '大瀬良大地':'61365139','岸孝之':'91795114',
+  '野間峻祥':'01405130','宗山塁':'53155150','椋木蓮':'33335155',
+  '森唯斗':'01405139','山﨑福也':'21825130','山﨑颯一郎':'33335134',
+  // 레트로/MLB이적 선수 (동적 조회 실패 시 빠른 fallback)
+  '内海哲也':'81185119','田中将大':'11215114','岩隈久志':'61285114',
+  '黒田博樹':'81655114','新垣渚':'91295114','久保康友':'91295128',
+  '西岡剛':'01395114','城島健司':'51035114','福留孝介':'51195114',
+  '中島裕之':'81365114','井口資仁':'51115114','桑田真澄':'31735114',
+  '斎藤佑樹':'71185127','武田翔太':'91295149','大野雄大':'11515133',
+};
+
+/* 요미가나 첫자 → 50음 페이지 suffix */
+const NPB_YOMI_PAGE = {
+  'あ':'a','い':'i','う':'u','え':'e','お':'o',
+  'か':'ka','き':'ki','く':'ku','け':'ke','こ':'ko',
+  'さ':'sa','し':'si','す':'su','せ':'se','そ':'so',
+  'た':'ta','ち':'ti','つ':'tu','て':'te','と':'to',
+  'な':'na','に':'ni','ぬ':'nu','ね':'ne','の':'no',
+  'は':'ha','ひ':'hi','ふ':'hu','へ':'he','ほ':'ho',
+  'ま':'ma','み':'mi','む':'mu','め':'me','も':'mo',
+  'や':'ya','ゆ':'yu','よ':'yo',
+  'ら':'ra','り':'ri','る':'ru','れ':'re','ろ':'ro',
+  'わ':'wa',
+};
+
+/* 이름 첫 한자 → 50음 페이지 suffix (동적 BIS ID 조회용)
+   NPB_YOMI_MAP에 없는 선수도 첫 한자 읽기로 해당 50음 페이지를 추론 */
+const KANJI_FIRST_YOMI = {
+  // あ(a)
+  '愛':'a','相':'a','阿':'a','赤':'a','明':'a','秋':'a','朝':'a','荒':'a','有':'a','安':'a',
+  '青':'a','浅':'a','天':'a','新':'a',
+  // い(i)
+  '一':'i','石':'i','今':'i','井':'i','伊':'i','岩':'i','稲':'i','池':'i','市':'i','入':'i','飯':'i',
+  // う(u)
+  '内':'u','宇':'u','上':'u','臼':'u',
+  // え(e)
+  '江':'e','榎':'e',
+  // お(o)
+  '大':'o','岡':'o','奥':'o','小':'o',
+  // か(ka)
+  '加':'ka','神':'ka','川':'ka','金':'ka','河':'ka','片':'ka','笠':'ka','鎌':'ka','垣':'ka',
+  '亀':'ka','甲':'ka','勝':'ka','嘉':'ka','蒲':'ka',
+  // き(ki)
+  '菊':'ki','木':'ki','岸':'ki','北':'ki','君':'ki','喜':'ki',
+  // く(ku)
+  '久':'ku','黒':'ku','桑':'ku','国':'ku','熊':'ku','栗':'ku','紅':'ku','来':'ku',
+  // こ(ko)
+  '古':'ko',
+  // さ(sa)
+  '佐':'sa','坂':'sa','酒':'sa','沢':'sa','斉':'sa','齋':'sa','斎':'sa','桜':'sa',
+  // し(si)
+  '塩':'si','島':'si','嶋':'si','下':'si','篠':'si','志':'si','清':'si','白':'si','柴':'si',
+  // す(su)
+  '杉':'su','鈴':'su','菅':'su','諏':'su',
+  // せ(se)
+  '瀬':'se','関':'se',
+  // そ(so)
+  '宗':'so','曽':'so','添':'so',
+  // た(ta)
+  '田':'ta','高':'ta','竹':'ta','谷':'ta','橘':'ta','多':'ta','辰':'ta','太':'ta','立':'ta','滝':'ta','瀧':'ta',
+  // ち(ti)
+  '千':'ti','近':'ti','知':'ti',
+  // つ(tu)
+  '辻':'tu','土':'tu','筒':'tu',
+  // て(te)
+  '寺':'te','手':'te','鉄':'te',
+  // と(to)
+  '頓':'to','戸':'to','鳥':'to','友':'to','富':'to','豊':'to','外':'to','徳':'to',
+  // な(na)
+  '中':'na','長':'na','永':'na','波':'na','名':'na','那':'na',
+  // に(ni)
+  '西':'ni','仁':'ni','二':'ni',
+  // の(no)
+  '野':'no','能':'no',
+  // は(ha)
+  '橋':'ha','浜':'ha','林':'ha','原':'ha','秦':'ha','花':'ha','濱':'ha','羽':'ha',
+  // ひ(hi)
+  '広':'hi','平':'hi','樋':'hi','東':'hi','比':'hi','桧':'hi','菱':'hi',
+  // ふ(hu)
+  '福':'hu','藤':'hu',
+  // ほ(ho)
+  '細':'ho','堀':'ho','本':'ho','星':'ho',
+  // ま(ma)
+  '松':'ma','丸':'ma','前':'ma','牧':'ma','万':'ma','増':'ma','真':'ma','馬':'ma','枡':'ma',
+  // み(mi)
+  '水':'mi','宮':'mi','三':'mi','南':'mi','皆':'mi',
+  // む(mu)
+  '村':'mu',
+  // も(mo)
+  '森':'mo','元':'mo','望':'mo','門':'mo','茂':'mo',
+  // や(ya)
+  '山':'ya','矢':'ya','柳':'ya','八':'ya','薮':'ya',
+  // よ(yo)
+  '吉':'yo','横':'yo','与':'yo','米':'yo',
+  // わ(wa)
+  '若':'wa','渡':'wa','脇':'wa','和':'wa',
+  // け(ke)
+  '源':'ke','毛':'ke',
+};
+
+/* NPB 구단명 일본어 → 한국어 */
+const NPB_TEAM_KO_FULL = {
+  '東京ヤクルトスワローズ':'야쿠르트 스왈로즈','ヤクルト':'야쿠르트 스왈로즈',
+  '広島東洋カープ':'히로시마 카프','広島':'히로시마 카프',
+  '読売ジャイアンツ':'요미우리 자이언츠','巨人':'요미우리 자이언츠',
+  '中日ドラゴンズ':'주니치 드래곤즈','中日':'주니치 드래곤즈',
+  '横浜DeNAベイスターズ':'DeNA 베이스타즈','DeNA':'DeNA 베이스타즈','横浜':'DeNA 베이스타즈',
+  '阪神タイガース':'한신 타이거즈','阪神':'한신 타이거즈',
+  '福岡ソフトバンクホークス':'소프트뱅크 호크스','ソフトバンク':'소프트뱅크 호크스',
+  '北海道日本ハムファイターズ':'닛폰햄 파이터즈','日本ハム':'닛폰햄 파이터즈',
+  '東北楽天ゴールデンイーグルス':'라쿠텐 이글스','楽天':'라쿠텐 이글스',
+  '千葉ロッテマリーンズ':'롯데 마린스','ロッテ':'롯데 마린스',
+  'オリックス・バファローズ':'ORIX 버팔로즈','オリックス':'ORIX 버팔로즈','ORIX':'ORIX 버팔로즈',
+  '埼玉西武ライオンズ':'세이부 라이온즈','西武':'세이부 라이온즈',
+};
+
+/* ══════════════════════════════════════════════════════
+   NPB — npb.jp 공식 선수 기록 페치
+   NPB_BIS_INDEX(정적 룩업) → 50음 동적 조회 → npb.jp 파싱
 ══════════════════════════════════════════════════════ */
 async function fetchNpbData(query) {
   try {
-    // 일본어(한자/가나/전각) 판별
-    const isJp = str => /[\u3000-\u9FFF\uF900-\uFAFF\uFF01-\uFF9F]/.test(str);
+    const isJp   = str => /[\u3000-\u9FFF\uF900-\uFAFF\uFF01-\uFF9F]/.test(str);
     const isKana = str => /[\u3040-\u30FF]/.test(str);
-    const norm = query.replace(/[\s\u3000]/g, '');
-
-    // 1. 일본어 이름(한자) 결정
+    const norm    = query.replace(/[\s\u3000]/g, '');
     const normLow = norm.toLowerCase();
+
+    /* ── 1. 일본어 한자명 결정 ── */
     let jpName = '';
     if (isJp(norm)) {
       if (isKana(norm)) {
-        // 히라가나/가타카나: 가타카나→히라가나 정규화 후 YOMI_MAP 조회
         const hira = norm.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
-        if (NPB_YOMI_MAP[hira]) {
-          jpName = NPB_YOMI_MAP[hira];
-        } else if (NPB_YOMI_MAP[norm]) {
-          jpName = NPB_YOMI_MAP[norm];
-        } else {
-          // 부분 일치 (앞 2자 이상)
-          const yEntry = Object.entries(NPB_YOMI_MAP).find(([k]) => {
-            const kh = k.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+        jpName = NPB_YOMI_MAP[hira] || NPB_YOMI_MAP[norm] ||
+          (Object.entries(NPB_YOMI_MAP).find(([k]) => {
+            const kh = k.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0)-0x60));
             return kh.startsWith(hira) && hira.length >= 2;
-          });
-          jpName = yEntry ? yEntry[1] : norm; // 못 찾으면 원문 유지 (가타카나 외래어 등)
-        }
-      } else {
-        jpName = norm; // 한자
-      }
+          })?.[1]) || norm;
+      } else { jpName = norm; }
     } else {
-      // 한국어/영문: NPB_KO_MAP 조회
-      if (NPB_KO_MAP[normLow]) {
-        jpName = NPB_KO_MAP[normLow];
-      } else {
-        const koEntry = Object.entries(NPB_KO_MAP).find(([k]) => k.startsWith(normLow) && normLow.length >= 2);
-        if (koEntry) jpName = koEntry[1];
-      }
+      jpName = NPB_KO_MAP[normLow] ||
+        (Object.entries(NPB_KO_MAP).find(([k]) => k.startsWith(normLow) && normLow.length >= 2)?.[1]) || '';
       if (!jpName) {
-        // LOCAL_DB fallback
         const dbMatch = LOCAL_DB.find(p => p.league === 'npb' && (
           p.nameKo.replace(/\s+/g,'') === norm ||
           p.nameEn.toLowerCase().replace(/\s+/g,'') === normLow ||
-          (p.aliases||[]).some(a => a.replace(/\s+/g,'').toLowerCase() === normLow ||
-                                     a.replace(/\s+/g,'') === norm)
+          (p.aliases||[]).some(a => a.replace(/\s+/g,'').toLowerCase() === normLow || a.replace(/\s+/g,'') === norm)
         ));
         if (dbMatch) jpName = (dbMatch.aliases||[]).find(a => isJp(a)) || '';
       }
     }
     if (!jpName) return null;
 
-    // 2. NPB_INDEX에서 player ID 탐색 (완전일치 → 부분일치)
-    let found = null;
-    if (NPB_INDEX[jpName]) {
-      const [id, type] = NPB_INDEX[jpName];
-      found = {id, type};
-    } else {
-      const matches = Object.entries(NPB_INDEX).filter(([name]) =>
-        name.includes(jpName) || jpName.includes(name)
-      );
-      if (matches.length) {
-        matches.sort((a, b) => Math.abs(a[0].length - jpName.length) - Math.abs(b[0].length - jpName.length));
-        const [, [id, type]] = matches[0];
-        found = {id, type};
+    /* ── 2. npb.jp 선수 ID 탐색 ── */
+    let bisId = NPB_BIS_INDEX[jpName];
+
+    // 정적 인덱스에 없으면 50음 페이지 동적 조회
+    if (!bisId) {
+      // 50음 페이지에서 한자명으로 BIS ID 검색 (공통 helper)
+      const _searchBisPage = async (suffix) => {
+        try {
+          const idxUrl = `https://npb.jp/bis/players/all/index_${suffix}.html`;
+          const ir = await fetch(`${CODETABS}${encodeURIComponent(idxUrl)}`, {signal: AbortSignal.timeout(10000)});
+          if (!ir.ok) return null;
+          const iDoc = new DOMParser().parseFromString(await ir.text(), 'text/html');
+          const cleanJp = jpName.replace(/[\s　]/g,'');
+          for (const a of iDoc.querySelectorAll('a[href*="/bis/players/"]')) {
+            const txt = a.textContent.replace(/[\s　]/g, '');
+            // 현역선수: "7内野手中野拓夢阪神タイガース" 형태 → includes 사용
+            // 은퇴선수: "内海哲也1986年..." 형태 → includes 사용
+            if (txt === cleanJp || txt.includes(cleanJp)) {
+              const m = a.getAttribute('href').match(/\/bis\/players\/(\d{8})\.html/);
+              if (m) return m[1];
+            }
+          }
+        } catch(_) {}
+        return null;
+      };
+
+      // 방법 A: YOMI_MAP에서 yomi 찾아서 해당 50음 페이지 조회
+      const yomiEntry = Object.entries(NPB_YOMI_MAP).find(([, v]) => v === jpName);
+      if (yomiEntry) {
+        const hira = yomiEntry[0].replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0)-0x60));
+        const suffix = NPB_YOMI_PAGE[hira[0]];
+        if (suffix) bisId = await _searchBisPage(suffix);
+      }
+
+      // 방법 B: 이름 첫 한자로 50음 페이지 추론 (KANJI_FIRST_YOMI)
+      // 대부분의 NPB 선수를 커버 — YOMI_MAP에 없는 선수도 검색 가능
+      if (!bisId) {
+        const suffix = KANJI_FIRST_YOMI[jpName[0]];
+        if (suffix) bisId = await _searchBisPage(suffix);
       }
     }
-    if (!found) return null;
+    if (!bisId) return null;
 
-    // 3. 1point02.jp 개인 기록 페이지 fetch
-    const statsPath = found.type === 'bat'
-      ? `player_stats_bs.aspx?pl=${found.id}`
-      : `player_stats_ps.aspx?pl=${found.id}`;
-    const statsUrl = `https://1point02.jp/op/gnav/player/stats/${statsPath}`;
-
-    const r = await fetch(`${CODETABS}${encodeURIComponent(statsUrl)}`, {signal: AbortSignal.timeout(15000)});
+    /* ── 3. npb.jp 선수 페이지 fetch ── */
+    const pageUrl = `https://npb.jp/bis/players/${bisId}.html`;
+    const r = await fetch(`${CODETABS}${encodeURIComponent(pageUrl)}`, {signal: AbortSignal.timeout(15000)});
     if (!r.ok) throw new Error('fetch fail');
-    const sHtml = await r.text();
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
 
-    const doc = new DOMParser().parseFromString(sHtml, 'text/html');
-    const isBatter = found.type === 'bat';
+    /* ── 4. 선수 정보 파싱 ── */
+    // 풀네임: title 태그에서 추출 (가장 신뢰성 높음)
+    // 형식: "佐藤　輝明（阪神タイガース） | 個人年度別成績 | NPB.jp 日本野球機構"
+    const titleEl = doc.querySelector('title');
+    const titleText = titleEl?.textContent || '';
+    const nameFromTitle = titleText.split(/[（|]/)[0].trim().replace(/　/g, ' ');
+
+    // li 패턴 fallback: [배번, 구단명, 선수명, 요미가나]
+    let nameFromLi = '', yomiFromLi = '', teamFromLi = '';
+    for (const ul of doc.querySelectorAll('ul')) {
+      const lis = [...ul.querySelectorAll('li')].map(li => li.textContent.trim());
+      const jerseyIdx = lis.findIndex(l => /^\d{1,3}$/.test(l));
+      if (jerseyIdx >= 0 && jerseyIdx + 2 < lis.length) {
+        const cand = lis[jerseyIdx + 2];
+        if (/[\u4E00-\u9FFF]/.test(cand)) {
+          teamFromLi  = lis[jerseyIdx + 1] || '';
+          nameFromLi  = cand.replace(/　/g, ' ');
+          yomiFromLi  = lis[jerseyIdx + 3] || '';
+          break;
+        }
+      }
+    }
+    const fullName = (nameFromTitle && /[\u4E00-\u9FFF]/.test(nameFromTitle))
+      ? nameFromTitle : (nameFromLi || jpName.replace(/　/g, ' '));
+
+    // 요미가나: li 패턴 우선, 없으면 h1 다음 p 탐색
+    let yomi = yomiFromLi;
+    if (!yomi) {
+      const h1El = doc.querySelector('h1');
+      let yEl = h1El?.nextElementSibling;
+      while (yEl) {
+        const t = yEl.textContent?.trim();
+        if (t && /[\u3040-\u30FF・]/.test(t) && t.length < 30) { yomi = t; break; }
+        if (['TABLE','DIV','SECTION'].includes(yEl.tagName)) break;
+        yEl = yEl.nextElementSibling;
+      }
+    }
+
+    // 선수 사진
+    const photoEl = doc.querySelector('img[src*="p.npb.jp/players_photo"]') ||
+                    doc.querySelector('img[src*="npb.jp"][src*="player"]');
+    const photoUrl = photoEl?.getAttribute('src') || '';
+
+    // 바이오 dl/dt/dd 구조 파싱
+    const bioMap = {};
+    doc.querySelectorAll('dl').forEach(dl => {
+      const dts = [...dl.querySelectorAll('dt')];
+      const dds = [...dl.querySelectorAll('dd')];
+      dts.forEach((dt, i) => { bioMap[dt.textContent.trim()] = dds[i]?.textContent.trim() || ''; });
+    });
+    // table th/td 구조도 시도
+    for (const tbl of doc.querySelectorAll('table')) {
+      if ((tbl.textContent||'').match(/打率|防御率/)) break;
+      [...tbl.querySelectorAll('tr')].forEach(tr => {
+        const cs = [...tr.querySelectorAll('th, td')];
+        if (cs.length >= 2) bioMap[cs[0].textContent.trim()] = cs[1].textContent.trim();
+      });
+    }
+    // ul>li 순서: [배번, 구단명, 선수명, ...] 패턴
+    const allLis = [...doc.querySelectorAll('li')].map(li => li.textContent.trim());
+
+    const bTxt = doc.body?.textContent || '';
+    const getBio = (...keys) => { for (const k of keys) if (bioMap[k]) return bioMap[k]; return ''; };
+
+    const position  = getBio('ポジション','守備位置') || (bTxt.match(/ポジション[　\s：:]*([^\n\r\t:　]+)/)||[])[1]?.trim() || '';
+    const handInfo  = getBio('投打') || (bTxt.match(/投打[　\s：:]*([右左両]\s*投\s*[右左]?\s*打)/)||[])[1]?.trim().replace(/\s/g,'') || '';
+    const hwRaw     = getBio('身長／体重','身長/体重') || (bTxt.match(/身長[／/]体重[　\s：:]*(\d+cm[^\n\r\t　:]+)/)||[])[1]?.trim() || '';
+    const birthRaw  = getBio('生年月日') || (bTxt.match(/生年月日[　\s：:]*(\d{4}年\d{1,2}月\d{1,2}日)/)||[])[1]?.trim() || '';
+    const birthBm   = birthRaw.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    const birthDate = birthBm ? `${birthBm[1]}-${birthBm[2].padStart(2,'0')}-${birthBm[3].padStart(2,'0')}` : birthRaw;
+    // 경력 (経歴) / 초안 (ドラフト)
+    const careerHist = getBio('経歴') || (bTxt.match(/経歴[　\s：:]*([^\n\r\t:　]{3,})/)||[])[1]?.trim() || '';
+    const draftInfo  = getBio('ドラフト') || (bTxt.match(/ドラフト[　\s：:]*(\d{4}年[^\n\r\t:　]+)/)||[])[1]?.trim() || '';
+
+    // 전각 스페이스 제거 helper
+    const _teamNorm = s => s.replace(/[\s　]/g,'');
+    // 팀명: bio > li패턴 > allLis(정확 일치만) 순
+    let teamNameRaw = getBio('所属球団','球団') || teamFromLi || '';
+    if (!teamNameRaw) {
+      // allLis에서 팀키와 정확히 일치하는 항목만 (네비게이션 링크 오염 방지)
+      const tKeys = Object.keys(NPB_TEAM_KO_FULL).filter(k => k.length > 3);
+      teamNameRaw = allLis.find(l => tKeys.some(k => _teamNorm(l) === _teamNorm(k))) || '';
+    }
+    const teamEntry = Object.entries(NPB_TEAM_KO_FULL).sort((a,b)=>b[0].length-a[0].length)
+                        .find(([jp]) => { const jn=_teamNorm(jp),tn=_teamNorm(teamNameRaw); return tn.includes(jn)||jn.includes(tn); });
+    let teamName  = teamEntry ? teamEntry[1] : teamNameRaw;
+
+    let backNo = getBio('背番号') || '';
+    if (!backNo) { const nl = allLis.find(l => /^\d{1,3}$/.test(l)); if (nl) backNo = nl; }
+
+    /* ── 5. 시즌별 기록 테이블 파싱 ── */
     const rows = [];
+    let careerRow = null;
 
-    // tbl[1] = 基本(기본) 기록 테이블
     const tables = [...doc.querySelectorAll('table')];
-    const tbl = tables[1];
-    if (tbl) {
-      const ths = [...tbl.querySelectorAll('th')].map(t => t.textContent.trim());
-      tbl.querySelectorAll('tbody tr').forEach(tr => {
-        const tds = [...tr.querySelectorAll('td')].map(t => t.textContent.trim());
-        if (tds.length < 5) return;
+    let statsTable = null;
+    for (const tbl of tables) {
+      const hdr = (tbl.querySelector('thead tr')||tbl.querySelector('tr'))?.textContent || '';
+      if (hdr.includes('年度') && (hdr.includes('打率') || hdr.includes('防御率'))) {
+        statsTable = tbl; break;
+      }
+    }
+
+    // 투수/타자 판별: 스탯 테이블 헤더가 가장 정확 (MLB 이적 등으로 포지션 공란인 경우도 대응)
+    let isBatter;
+    if (statsTable) {
+      const hdrTxt = (statsTable.querySelector('thead tr')||statsTable.querySelector('tr'))?.textContent || '';
+      if (hdrTxt.includes('防御率') || hdrTxt.includes('投球回') || hdrTxt.includes('登板')) {
+        isBatter = false;
+      } else if (hdrTxt.includes('打率') || hdrTxt.includes('安打')) {
+        isBatter = true;
+      } else {
+        isBatter = !position.includes('投手'); // fallback
+      }
+    } else {
+      isBatter = !position.includes('投手'); // 테이블 없으면 포지션으로 판단
+    }
+
+    if (statsTable) {
+      const hdrRow = statsTable.querySelector('thead tr') || statsTable.querySelector('tr');
+      const ths = [...(hdrRow?.querySelectorAll('th')||[])].map(t => t.textContent.trim());
+      // tbody 행(시즌별) + tfoot 행(通算, npb.jp 특이 구조) 모두 포함
+      const dataRows = [
+        ...(statsTable.querySelector('tbody')
+          ? [...statsTable.querySelector('tbody').querySelectorAll('tr')]
+          : [...statsTable.querySelectorAll('tr')].slice(1)),
+        ...(statsTable.querySelector('tfoot')
+          ? [...statsTable.querySelector('tfoot').querySelectorAll('tr')]
+          : []),
+      ];
+
+      dataRows.forEach(tr => {
+        // :scope > td — 직접 자식만 선택 (table_inning 중첩 td 제외)
+        // 通算 행은 <th>로 구성되어 있으므로 td 없으면 th 사용
+        const directTd = [...tr.querySelectorAll(':scope > td')];
+        const isThRow  = directTd.length === 0;
+        const cells    = isThRow ? [...tr.querySelectorAll(':scope > th')] : directTd;
+        const tds = cells.map(t => {
+          const inn = t.querySelector('table.table_inning');
+          if (inn) return inn.textContent.replace(/\s/g,'').trim(); // "193.2" 형태로 정리
+          return t.textContent.trim();
+        });
+        if (tds.length < 3) return;
         const o = {};
-        ths.forEach((h,i) => { o[h] = tds[i] || '-'; });
+        ths.forEach((h, i) => { o[h] = tds[i] || '-'; });
+        const yr   = o['年度'] || tds[0] || '';
+        const team = o['所属球団'] || tds[1] || '-';
+        if (!yr || yr === '年度') return;
+        // 通算: 연도에 포함되거나(일반), th 행에서 팀 셀에 포함되는 경우(npb.jp 스타일)
+        const isCareer = /通[\s　]*算/.test(yr) || (isThRow && /通[\s　]*算/.test(team));
+
+        // 팀명 한글 변환 (전각 스페이스 포함 정규화)
+        const teamEntry2 = Object.entries(NPB_TEAM_KO_FULL).sort((a,b)=>b[0].length-a[0].length)
+                             .find(([jp]) => { const jn=_teamNorm(jp),tn=_teamNorm(team); return tn.includes(jn)||jn.includes(tn); });
+        const teamKo = teamEntry2 ? teamEntry2[1] : team;
+
         if (isBatter) {
-          const ab  = parseInt(o['打数'])   || 0;
-          const h   = parseInt(o['安打'])   || 0;
-          const s1  = parseInt(o['単打'])   || 0;
-          const d2  = parseInt(o['二塁打']) || 0;
-          const t3  = parseInt(o['三塁打']) || 0;
-          const hr  = parseInt(o['本塁打']) || 0;
-          const bb  = parseInt(o['四球'])   || 0;
-          const hbp = parseInt(o['死球'])   || 0;
-          const sf  = parseInt(o['犠飛'])   || 0;
-          const tb  = s1 + 2*d2 + 3*t3 + 4*hr;
-          const slg = ab > 0 ? (tb/ab).toFixed(3) : '-';
-          const obpD = ab + bb + hbp + sf;
-          const obp  = obpD > 0 ? ((h+bb+hbp)/obpD).toFixed(3) : '-';
-          rows.push({'연도':o['年度']||'-','팀명':o['球団']||'-',
-            'G':o['試合']||'-','AVG':o['打率']||'-','H':String(h||0),
-            'HR':String(hr||0),'RBI':o['打点']||'-','SB':o['盗塁']||'0',
-            'SO':o['三振']||'-','BB':String(bb||0),'SLG':slg,'OBP':obp});
+          const row = { g:o['試合']||'-', avg:o['打率']||'-', h:o['安打']||'-',
+            hr:o['本塁打']||'-', rbi:o['打点']||'-', sb:o['盗塁']||'0',
+            slg:o['長打率']||'-', obp:o['出塁率']||'-' };
+          if (isCareer) { careerRow = row; }
+          else { rows.push({'연도':yr,'팀명':teamKo,'G':row.g,'AVG':row.avg,'H':row.h,
+            'HR':row.hr,'RBI':row.rbi,'SB':row.sb,'SLG':row.slg,'OBP':row.obp}); }
         } else {
-          rows.push({'연도':o['年度']||'-','팀명':o['球団']||'-',
-            'G':o['登板']||'-','ERA':o['防御率']||'-','IP':o['投球回']||'-',
-            'SO':o['三振']||'-','BB':o['四球']||'-',
-            'W':o['勝']||'-','L':o['敗']||'-',
-            'HLD':o['ホールド']||'0','SV':o['セーブ']||'0'});
+          const row = { g:o['登板']||'-', era:o['防御率']||'-', ip:o['投球回']||'-',
+            so:o['三振']||'-', w:o['勝利']||o['勝']||'-', l:o['敗北']||o['敗']||'-',
+            hld:o['H']||o['HP']||o['ホールド']||'0', sv:o['セーブ']||'0' };
+          if (isCareer) { careerRow = row; }
+          else { rows.push({'연도':yr,'팀명':teamKo,'G':row.g,'ERA':row.era,'IP':row.ip,
+            'SO':row.so,'W':row.w,'L':row.l,'HLD':row.hld,'SV':row.sv}); }
         }
       });
     }
 
-    // 선수 이름: 페이지에서 추출 or 인덱스 이름 사용
-    const nameEl = doc.querySelector('h1, .bb-head01__title, .player-name');
-    const playerName = nameEl?.textContent?.trim().split(/[\s　]/)[0] || jpName;
-    const latestRow = rows.filter(r => r['연도'] !== '-').at(-1);
-    const teamName = latestRow?.['팀명'] || '';
+    // 팀명 검증: stats 행의 팀 목록에 없으면 마지막 stats 행 팀으로 교정
+    // (MLB 이적 선수 등은 페이지 네비 li가 bio 팀명을 오염할 수 있음)
+    if (rows.length > 0) {
+      const statsTeams = new Set(rows.map(r => r['팀명']));
+      if (!teamName || !statsTeams.has(teamName)) {
+        teamName = rows[rows.length - 1]['팀명'] || teamName;
+      }
+    }
 
-    // stats 없어도 선수를 찾았으면 링크 카드 반환 (CODETABS가 JS-테이블을 못 읽는 경우)
-    return {name: playerName, isBatter, isPitcher: !isBatter,
-      rows, playerId: found.id, sourceUrl: statsUrl, src:'1point02',
-      teamName, noStats: rows.length === 0};
+    // 포지션·투타·드래프트 한글 변환
+    const POS_JA_KO = {
+      '投手':'투수','先発投手':'선발투수','中継ぎ投手':'중계 투수','抑え投手':'마무리 투수',
+      '捕手':'포수','内野手':'내야수','外野手':'외야수','指名打者':'지명타자',
+      '一塁手':'1루수','二塁手':'2루수','三塁手':'3루수','遊撃手':'유격수',
+    };
+    const HAND_JA_KO = {
+      '右投右打':'우투우타','右投左打':'우투좌타',
+      '左投右打':'좌투우타','左投左打':'좌투좌타',
+      '右投両打':'우투양타','左投両打':'좌투양타','両投両打':'양투양타',
+    };
+    const posNameKo   = POS_JA_KO[position] || position;
+    const handInfoKo  = HAND_JA_KO[handInfo.replace(/\s/g,'')] || handInfo;
+    const draftInfoKo = draftInfo
+      .replace(/(\d{4})年ドラフト(\d+)位/, '$1년 드래프트 $2순위')
+      .replace(/育成ドラフト(\d+)位/, '육성 드래프트 $1순위')
+      .replace(/育成/g, '육성 ');
+    // 신장/체중 포맷 정리 (187cm／96kg → 187cm / 96kg)
+    const hwKo = hwRaw.replace(/／/g, ' / ').replace(/\s+/g,' ').trim();
+
+    return { name:fullName, yomi, isBatter, isPitcher:!isBatter,
+      rows, careerRow, backNo, teamName, posName:posNameKo, handInfo:handInfoKo,
+      birth:birthDate, heightWeight:hwKo, careerHist, draftInfo:draftInfoKo, photoUrl,
+      playerId:bisId, sourceUrl:pageUrl, src:'npb', noStats:rows.length===0 };
   } catch(e) { return null; }
 }
 
 /* koreabaseball.com / NPB 파싱 데이터 → 카드 HTML */
 function buildExternalCard(data, league) {
   if (!data) return '';
-  const isBat  = data.isBatter;
-  const rows   = data.rows;
-  const lastRow = rows.filter(r=>r['연도']&&r['연도']!=='통산'&&r['연도']!=='Career').at(-1) || {};
+  const isBat = data.isBatter;
+  const rows  = data.rows;
 
-  /* ── 스탯 요약 박스 (게임카드 형식) ── */
+  /* ── 연도별 기록 테이블 (공통) ── */
+  const _batMapped = () => rows.map(r=>({
+    yr:r['연도']||'-', team:r['팀명']||'-',
+    g:r['G']||'-', avg:r['AVG']||'-', h:r['H']||'-', hr:r['HR']||'-',
+    rbi:r['RBI']||'-', sb:r['SB']||'0', so:r['SO']||'-', bb:r['BB']||'-',
+    slg:r['SLG']||'-', obp:r['OBP']||'-',
+  })).filter(r=>r.yr!=='-'&&r.yr!=='통산'&&r.yr!=='Career');
+
+  const _pitMapped = () => rows.map(r=>({
+    yr:r['연도']||'-', team:r['팀명']||'-',
+    g:r['G']||'-', era:r['ERA']||'-', ip:r['IP']||'-',
+    so:r['SO']||'-', bb:r['BB']||'-', w:r['W']||'-', l:r['L']||'-',
+    hld:r['HLD']||'0', sv:r['SV']||'0',
+  })).filter(r=>r.yr!=='-'&&r.yr!=='통산'&&r.yr!=='Career');
+
+  const tableHtml = isBat
+    ? renderBatTableByLeague(league, _batMapped(), data.careerRow||null)
+    : renderPitTableByLeague(league, _pitMapped(), data.careerRow||null);
+
+  /* ════════════════════════════════════
+     NPB 전용 레이아웃 (MLB/KBO 카드와 동일 구조)
+     prof → photo(좌) + pinfo(이름·배지·kstrip)
+     bio-g → 바이오 정보 그리드
+     tableHtml → 시즌별 기록
+  ════════════════════════════════════ */
+  if (league === 'NPB') {
+    const backNo   = data.backNo   || '';
+    const teamName = data.teamName || '';
+    const posName  = data.posName  || (isBat ? '타자' : '투수');
+    const handInfo = data.handInfo || '';
+
+    // 선수 이니셜 (첫 한자) — 사진 없을 때 fallback
+    const npbInit = (data.name||'').replace(/[\s　]/g,'')[0] || '🇯🇵';
+    const photoUrl = data.photoUrl || '';
+
+    // 통산 기록 strip (MLB 카드와 동일 형식)
+    let kstrip = '';
+    if (data.careerRow) {
+      const c = data.careerRow;
+      kstrip = isBat
+        ? `<div class="kstrip">
+            <div class="kst">통산 타율 <strong>${c.avg||'-'}</strong></div>
+            <div class="kst">홈런 <strong>${c.hr||'-'}</strong></div>
+            <div class="kst">타점 <strong>${c.rbi||'-'}</strong></div>
+            <div class="kst">장타율 <strong>${c.slg||'-'}</strong></div></div>`
+        : `<div class="kstrip">
+            <div class="kst">통산 ERA <strong>${c.era||'-'}</strong></div>
+            <div class="kst">${c.w||0}승 ${c.l||0}패</div>
+            <div class="kst">탈삼진 <strong>${c.so||'-'}</strong></div>
+            <div class="kst">이닝 <strong>${c.ip||'-'}</strong></div></div>`;
+    }
+
+    // 바이오 그리드 (MLB bio-g 형식, 한글 레이블)
+    const bioItems = [
+      ['읽기',      data.yomi],
+      ['생년월일',  data.birth],
+      ['신장/체중', data.heightWeight],
+      ['투타',      handInfo],
+      ['경력',      data.careerHist],
+      ['드래프트',  data.draftInfo],
+    ].filter(([,v])=>v);
+    const bioHtml = bioItems.length
+      ? `<div class="bio-g">${bioItems.map(([l,v])=>`<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`).join('')}</div>`
+      : '';
+
+    return `<div class="pcard">
+      <div class="prof">
+        <div class="photo"><span>${npbInit}</span>
+          ${photoUrl ? `<img src="${photoUrl}" alt="${escH(data.name||'')}"
+            onload="this.previousElementSibling.style.display='none'"
+            onerror="this.remove()">` : ''}
+          ${backNo ? `<span style="position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:.6rem;font-weight:800;color:#fff;background:rgba(0,0,0,.55);padding:2px 0;">No.${escH(backNo)}</span>` : ''}
+        </div>
+        <div class="pinfo">
+          <div class="pname">${escH(data.name||'알 수 없음')}</div>
+          <div class="brow">
+            ${teamName ? `<span class="badge b-tm">🏟️ ${escH(teamName)}</span>` : ''}
+            <span class="badge b-pos">${escH(posName)}</span>
+            ${handInfo ? `<span class="badge b-inf">${escH(handInfo)}</span>` : ''}
+            <span class="badge b-npb">NPB</span>
+            ${backNo ? `<span class="badge b-inf">등번호 ${escH(backNo)}</span>` : ''}
+          </div>${kstrip}
+        </div>
+      </div>
+      <span class="src-tag src-api">📡 npb.jp 공식 · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">원본 보기</a></span>
+      ${bioHtml}
+      ${tableHtml}
+      <p class="tbl-note">※ npb.jp 공식 기록</p>
+    </div>`;
+  }
+
+  /* ════════════════════════════════════
+     KBO 레이아웃 (기존 유지)
+  ════════════════════════════════════ */
+  const lastRow   = rows.filter(r=>r['연도']&&r['연도']!=='통산'&&r['연도']!=='Career').at(-1) || {};
+  const lgBadge   = 'b-kbo';
+  const backNo    = data.backNo    || '';
+  const teamName  = data.teamName  || '';
+  const posName   = data.posName   || '';
+  const detailPos = data.detailPos || '';
+  const pitcherRole = data.pitcherRole || '';
+  const handInfo  = data.handInfo  || '';
+  const posType   = pitcherRole || detailPos || posName || (isBat ? '타자' : '투수');
+
   let statBoxes = '';
-  if (isBat) {
-    const sf = [
-      [lastRow['G']||'-',      '경기'],
-      [lastRow['AVG']||'-',    '타율'],
-      [lastRow['H']||'-',      '안타'],
-      [lastRow['HR']||'-',     '홈런'],
-      [lastRow['RBI']||'-',    '타점'],
-      [lastRow['SB']||'0',     '도루'],
-      [lastRow['SLG']||'-',    '장타율'],
-      [lastRow['OBP']||'-',    '출루율'],
-    ];
-    statBoxes = sf.map(([v,l])=>`<div class="stat-box"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
-  } else {
-    const sf = [
-      [lastRow['G']||'-',      '경기'],
-      [lastRow['ERA']||'-',    '방어율'],
-      [lastRow['IP']||'-',     '이닝'],
-      [lastRow['SO']||'-',     '탈삼진'],
-      [lastRow['W']||'-',      '승'],
-      [lastRow['L']||'-',      '패'],
-      [lastRow['HLD']||'0',    '홀드'],
-      [lastRow['SV']||'0',     '세이브'],
-    ];
-    statBoxes = sf.map(([v,l])=>`<div class="stat-box"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
-  }
+  const sfBat = [
+    [lastRow['G']||'-','경기'],[lastRow['AVG']||'-','타율'],[lastRow['H']||'-','안타'],
+    [lastRow['HR']||'-','홈런'],[lastRow['RBI']||'-','타점'],[lastRow['SB']||'0','도루'],
+    [lastRow['SLG']||'-','장타율'],[lastRow['OBP']||'-','출루율'],
+  ];
+  const sfPit = [
+    [lastRow['G']||'-','경기'],[lastRow['ERA']||'-','방어율'],[lastRow['IP']||'-','이닝'],
+    [lastRow['SO']||'-','탈삼진'],[lastRow['W']||'-','승'],[lastRow['L']||'-','패'],
+    [lastRow['HLD']||'0','홀드'],[lastRow['SV']||'0','세이브'],
+  ];
+  statBoxes = (isBat ? sfBat : sfPit).map(([v,l])=>`<div class="stat-box"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
 
-  /* ── 연도별 기록 테이블 ── */
-  let tableHtml = '';
-  if (isBat) {
-    const mapped = rows.map(r=>({
-      yr:r['연도']||'-', team:r['팀명']||'-',
-      g:r['G']||'-', avg:r['AVG']||'-', h:r['H']||'-', hr:r['HR']||'-',
-      rbi:r['RBI']||'-', sb:r['SB']||'0', so:r['SO']||'-', bb:r['BB']||'-',
-      slg:r['SLG']||'-', obp:r['OBP']||'-',
-    })).filter(r=>r.yr!=='-'&&r.yr!=='통산'&&r.yr!=='Career');
-    tableHtml = renderBatTableByLeague(league, mapped, null);
-  } else {
-    const mapped = rows.map(r=>({
-      yr:r['연도']||'-', team:r['팀명']||'-',
-      g:r['G']||'-', era:r['ERA']||'-', ip:r['IP']||'-',
-      so:r['SO']||'-', bb:r['BB']||'-', w:r['W']||'-', l:r['L']||'-',
-      hld:r['HLD']||'0', sv:r['SV']||'0',
-    })).filter(r=>r.yr!=='-'&&r.yr!=='통산'&&r.yr!=='Career');
-    tableHtml = renderPitTableByLeague(league, mapped, null);
-  }
-
-  /* ── 등번호·팀·포지션 배지 ── */
-  const lgBadge   = league==='KBO' ? 'b-kbo' : 'b-npb';
-  const backNo    = data.backNo   || '';
-  const teamName  = data.teamName || '';
-  const posName     = data.posName    || '';   // 대분류: "투수"/"내야수"/"외야수"/"포수"
-  const detailPos   = data.detailPos  || '';   // 세부: "유격수"/"1루수" 등 (있을 때만)
-  const pitcherRole = data.pitcherRole|| '';   // 추론: "선발"/"중계"/"마무리"
-  const handInfo    = data.handInfo   || '';   // P_TYPE: "우투우타"/"좌투좌타"
-  // 포지션 표시 우선순위: 투수역할 > 세부포지션 > 대분류 > 기본값
-  const posType     = pitcherRole || detailPos || posName || (isBat ? '타자' : '투수');
-  const srcLabel  = data.src==='kbo' ? '📡 koreabaseball.com 공식'
-                  : data.src==='1point02' ? '📡 1point02.jp'
-                  : '📡 npb.jp 공식';
-
-  /* ── KBO 선수 사진 URL (Naver CDN) ── */
-  const yr        = new Date().getFullYear();
-  const photoUrl  = (league==='KBO' && data.playerId)
+  const yr = new Date().getFullYear();
+  const photoUrl = (data.playerId)
     ? `https://6ptotvmi5753.edge.naverncp.com/KBO_IMAGE/person/middle/${yr}/${data.playerId}.jpg`
     : '';
 
@@ -3140,18 +3485,18 @@ function buildExternalCard(data, league) {
           <span class="badge b-pos">${escH(posType)}</span>
           ${(detailPos && posName && detailPos !== posType) ? `<span class="badge b-inf" style="opacity:.75">${escH(posName)}</span>` : ''}
           ${handInfo ? `<span class="badge b-inf">${escH(handInfo)}</span>` : ''}
-          <span class="badge ${lgBadge}">${league}</span>
+          <span class="badge ${lgBadge}">KBO</span>
           ${backNo ? `<span class="badge b-inf">등번호 ${escH(backNo)}</span>` : ''}
         </div>
       </div>
     </div>
     <div class="stat-grid">${statBoxes}</div>
-    <span class="src-tag src-api">${srcLabel} · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">원본 보기</a></span>
+    <span class="src-tag src-api">📡 koreabaseball.com 공식 · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">원본 보기</a></span>
     ${tableHtml}
     ${(!isBat && data.pitchTypeRows)    ? renderKboPitchTypes(data.pitchTypeRows)       : ''}
     ${(isBat  && data.kboHotColdZones)  ? renderHotColdZones(data.kboHotColdZones, false): ''}
     ${(isBat  && data.kboBattedBallRows)? renderKboBattedBall(data.kboBattedBallRows)    : ''}
-    <p class="tbl-note">※ 최근 시즌 기준 요약 · ${data.src==='kbo'?'koreabaseball.com (KBO 공식)':'npb.jp'} 기록</p>
+    <p class="tbl-note">※ koreabaseball.com (KBO 공식) 기록</p>
   </div>`;
 }
 
