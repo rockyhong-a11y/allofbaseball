@@ -1142,9 +1142,14 @@ function doSearch() {
   if (!raw) return;
   hideAcDrop();
   document.getElementById('featured').style.display = 'none';
-  const lg = detectLeague(raw);
-  if (lg === 'mlb') runMLB(raw);
-  else runKboNpb(raw, lg);
+  const forced = _selectedLeague;
+  _selectedLeague = null;
+  if (forced) {
+    if (forced === 'mlb') runMLB(raw);
+    else runKboNpb(raw, forced);
+  } else {
+    runAll(raw);
+  }
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1324,7 +1329,8 @@ async function runKboNpb(query, league) {
 
   // ③ KBO 공식 데이터(koreabaseball.com) 우선 표시, 있으면 자체DB 완전 차단
   if (extData) {
-    results.push({type:'external', data:extData, league:league.toUpperCase()});
+    const arr = Array.isArray(extData) ? extData : [extData];
+    arr.forEach(d => results.push({type:'external', data:d, league:league.toUpperCase()}));
   } else if (league === 'kbo') {
     // 프록시 미실행 안내 카드 삽입
     results.push({type:'kbo_proxy_error'});
@@ -1363,6 +1369,60 @@ async function runMLB(query) {
   } catch(e) {
     document.getElementById('main').innerHTML = `<div class="sbox"><div class="ico">⚠️</div><p>${e.message}</p></div>`;
   }
+}
+
+/* 전 리그 통합 검색 (강제 리그 미지정 시) */
+async function runAll(query) {
+  setLoading(query);
+  const results = [];
+  const seen = new Set();
+
+  const normQ = query.replace(/\s+/g,'');
+  const enQ = KO_MAP[query] || KO_MAP[normQ] || (isKorean(query) ? romanize(query) : query);
+
+  const [kboRes, npbRes, mlbRes] = await Promise.allSettled([
+    fetchKboData(query),
+    fetchNpbData(query),
+    (async() => {
+      let ppl = await mlbFetch(enQ, '1');
+      if (!ppl.length) ppl = await mlbFetch(enQ, '');
+      return ppl;
+    })(),
+  ]);
+
+  // ① KBO
+  const kboData = kboRes.status === 'fulfilled' ? kboRes.value : null;
+  if (Array.isArray(kboData)) {
+    kboData.forEach(d => results.push({type:'external', data:d, league:'KBO'}));
+  } else if (kboData) {
+    results.push({type:'external', data:kboData, league:'KBO'});
+  }
+
+  // ② MLB
+  if (mlbRes.status === 'fulfilled') {
+    (mlbRes.value||[]).forEach(p => {
+      if (!seen.has(p.fullName)) { seen.add(p.fullName); results.push({type:'api', data:p}); }
+    });
+  }
+
+  // ③ NPB
+  const npbData = npbRes.status === 'fulfilled' ? npbRes.value : null;
+  if (npbData) {
+    results.push({type:'external', data:npbData, league:'NPB'});
+  } else {
+    const q = query.toLowerCase().replace(/\s+/g,'');
+    LOCAL_DB.filter(p => p.league === 'npb').forEach(p => {
+      const match = p.nameKo.replace(/\s+/g,'').includes(query.replace(/\s+/g,'')) ||
+        p.nameEn.toLowerCase().replace(/\s+/g,'').includes(q) ||
+        (p.aliases||[]).some(a => a.replace(/\s+/g,'').toLowerCase().includes(q));
+      if (match && !seen.has(p.nameEn) && !seen.has(p.nameKo)) {
+        seen.add(p.nameEn); seen.add(p.nameKo);
+        results.push({type:'local', data:p});
+      }
+    });
+  }
+
+  renderAll(results, query);
 }
 
 async function mlbFetch(q, sportIds) {
@@ -1919,7 +1979,7 @@ async function fetchKboData(query) {
 }
 
 async function _kboFetch(proxy, query) {
-  // ① POST /ws/Controls.asmx/GetSearchPlayer → JSON으로 playerId + 등번호 획득
+  // ① POST /ws/Controls.asmx/GetSearchPlayer → JSON으로 선수 목록 획득
   const sr = await fetch(`${proxy}/ws/Controls.asmx/GetSearchPlayer`, {
     method: 'POST',
     headers: {
@@ -1937,20 +1997,28 @@ async function _kboFetch(proxy, query) {
   const players = [...(json.now||[]), ...(json.retire||[])];
   if (!players.length) return null;
 
-  const pl         = players[0];
+  // ② 동명이인 포함 최대 5명 병렬 조회
+  const results = await Promise.all(
+    players.slice(0, 5).map(pl => _kboFetchPlayer(proxy, pl).catch(() => null))
+  );
+  const valid = results.filter(Boolean);
+  return valid.length ? valid : null;
+}
+
+/* 선수 1명의 상세 기록 조회 */
+async function _kboFetchPlayer(proxy, pl) {
   const playerId   = pl.P_ID;
   const playerName = pl.P_NM;
   const teamName   = pl.T_NM  || '';
   const posName    = pl.POS_NO  || '';  // 대분류: "투수"/"내야수"/"외야수"/"포수"
-  const detailPos  = pl.POS_NM  || pl.DETAIL_POS || pl.REAL_POS || ''; // 세부 포지션 (있을 경우)
+  const detailPos  = pl.POS_NM  || pl.DETAIL_POS || pl.REAL_POS || ''; // 세부 포지션
   const handInfo   = pl.P_TYPE  || '';  // 투타 정보: "우투우타"/"좌투좌타" 등
   const backNo     = pl.BACK_NO || '';  // 등번호
 
-  // ② 투수/타자 페이지 동시 요청 — POS_NO/P_TYPE 불일치 문제 회피
-  //    실제 기록이 많은 쪽을 자동 선택 (투수는 PitcherDetail에 rows 多, 타자는 HitterDetail에 rows 多)
-  const BASE      = 'https://www.koreabaseball.com';
-  const hitPath   = `/Record/Player/HitterDetail/Total.aspx?playerId=${playerId}`;
-  const pitPath   = `/Record/Player/PitcherDetail/Total.aspx?playerId=${playerId}`;
+  // 투수/타자 페이지 동시 요청 — 실제 기록이 많은 쪽 자동 선택
+  const BASE    = 'https://www.koreabaseball.com';
+  const hitPath = `/Record/Player/HitterDetail/Total.aspx?playerId=${playerId}`;
+  const pitPath = `/Record/Player/PitcherDetail/Total.aspx?playerId=${playerId}`;
 
   const [hitResp, pitResp] = await Promise.all([
     fetch(`${proxy}${hitPath}`, {signal: AbortSignal.timeout(12000)}),
@@ -4288,6 +4356,18 @@ async function loadKboSchedule(el) {
   }
 }
 
+/* 동순위 처리: 승·패·무가 동일하면 같은 rank 번호 부여 (올림픽식) */
+function _assignRanks(teams) {
+  teams.forEach((t, i) => {
+    if (i === 0) { t.rank = 1; return; }
+    const prev = teams[i - 1];
+    t.rank = (+t.w === +prev.w && +t.l === +prev.l && +t.d === +prev.d)
+      ? prev.rank
+      : i + 1;
+  });
+  return teams;
+}
+
 /* ── KBO 순위 (koreabaseball.com /ws/Main.asmx/GetTeamRank) ── */
 async function loadKboStandings(el) {
   const KBO_TEAM = {
@@ -4319,6 +4399,7 @@ async function loadKboStandings(el) {
         streak: row[8]?.Text || '',
       };
     });
+    _assignRanks(teams);
     if (teams.length) { el.innerHTML = _renderStandingsTable(teams, 'kbo'); return; }
     throw new Error('No teams');
   } catch(e) {
@@ -4465,6 +4546,7 @@ async function loadMlbStandings(el) {
         gb:   tr.gamesBack||'-',
         streak: tr.streak?.streakCode||'',
       }));
+      _assignRanks(teams);
       divData.push({section, teams});
     }
 
@@ -4565,7 +4647,7 @@ async function loadNpbStandings(el) {
       return Object.keys(NPB_KO).filter(k => txt.includes(k)).length >= 3;
     });
     if (!tbl) return [];
-    return [...tbl.querySelectorAll('tr')].filter(r => r.querySelector('td')).map((tr, i) => {
+    const teams = [...tbl.querySelectorAll('tr')].filter(r => r.querySelector('td')).map((tr, i) => {
       const cells = [...tr.querySelectorAll('td,th')].map(c => c.textContent.trim());
       const koName = Object.keys(NPB_KO).find(k => (cells[0]||'').includes(k));
       if (!koName) return null;
@@ -4573,6 +4655,7 @@ async function loadNpbStandings(el) {
               g:cells[1]||'0', w:cells[2]||'0', l:cells[3]||'0', d:cells[4]||'0',
               pct:cells[5]||'', gb:i===0?'-':(cells[6]||'-'), streak:''};
     }).filter(Boolean);
+    return _assignRanks(teams);
   };
   try {
     const [rCl, rPl] = await Promise.all([
