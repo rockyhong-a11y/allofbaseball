@@ -2046,12 +2046,14 @@ async function _kboFetchPlayer(proxy, pl) {
   let hitParsed = null, pitParsed = null;
   let hitDoc = null, pitDoc = null;
   if (hitResp.ok) {
-    hitDoc    = new DOMParser().parseFromString(await hitResp.text(), 'text/html');
-    hitParsed = parseKboPage(hitDoc, playerId, true,  playerName, BASE + hitPath);
+    const hitRawHtml = await hitResp.text();
+    hitDoc    = new DOMParser().parseFromString(hitRawHtml, 'text/html');
+    hitParsed = parseKboPage(hitDoc, playerId, true,  playerName, BASE + hitPath, hitRawHtml);
   }
   if (pitResp.ok) {
-    pitDoc    = new DOMParser().parseFromString(await pitResp.text(), 'text/html');
-    pitParsed = parseKboPage(pitDoc, playerId, false, playerName, BASE + pitPath);
+    const pitRawHtml = await pitResp.text();
+    pitDoc    = new DOMParser().parseFromString(pitRawHtml, 'text/html');
+    pitParsed = parseKboPage(pitDoc, playerId, false, playerName, BASE + pitPath, pitRawHtml);
   }
 
   // 행이 많은 쪽 = 실제 포지션 기록 (동점이면 투수 우선)
@@ -2100,7 +2102,7 @@ async function _kboFetchPlayer(proxy, pl) {
     pitcherRole, handInfo, pitchTypeRows, kboHotColdZones, kboBattedBallRows };
 }
 
-function parseKboPage(doc, playerId, isHitter, name, sourceUrl) {
+function parseKboPage(doc, playerId, isHitter, name, sourceUrl, rawHtml = '') {
   // koreabaseball.com 기록 테이블 파싱
   // isHitter=true  → 타자 테이블(AVG+H)만 반환
   // isHitter=false → 투수 테이블(ERA+IP)만 반환
@@ -2140,7 +2142,7 @@ function parseKboPage(doc, playerId, isHitter, name, sourceUrl) {
     if (careerRaw) {
       careerRow = _toLow(careerRaw);
     } else {
-      // ③ tbody에 없으면 tfoot 시도 — 팀명 컬럼 없으므로 filteredThs로 매핑
+      // ③ tbody에 없으면 tfoot DOM 시도 — 팀명 컬럼 없으므로 filteredThs로 매핑
       const tfootTr = tbl.querySelector('tfoot tr');
       if (tfootTr) {
         const ftds = [...tfootTr.querySelectorAll('td,th')].map(t => t.textContent.trim());
@@ -2153,11 +2155,36 @@ function parseKboPage(doc, playerId, isHitter, name, sourceUrl) {
       }
     }
 
-    // ④ 시즌별 행만 남김 (통산 제외)
+    // ④ DOM으로 통산 행을 못 찾았으면 rawHtml에서 정규식으로 재시도
+    if (!careerRow && rawHtml) {
+      const filteredThs = ths.filter(h => h !== '팀명' && h !== '팀');
+      // tfoot 섹션 우선, 없으면 전체 HTML에서 검색
+      const tfootSection = rawHtml.match(/<tfoot[^>]*>([\s\S]*?)<\/tfoot>/i)?.[1] || '';
+      const searchIn = tfootSection || rawHtml;
+      const trMatches = [...searchIn.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+      for (const tr of trMatches) {
+        const cells = [...tr[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)]
+          .map(m => m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').trim());
+        if (cells.length && isCareer(cells[0])) {
+          if (cells.length === filteredThs.length) {
+            const tmp = {};
+            filteredThs.forEach((h, i) => { tmp[h] = cells[i] || '-'; });
+            careerRow = _toLow(tmp);
+          } else if (cells.length >= filteredThs.length - 1) {
+            // 셀 수가 약간 다를 때도 최선으로 매핑
+            const tmp = {};
+            filteredThs.forEach((h, i) => { tmp[h] = cells[i] || '-'; });
+            careerRow = _toLow(tmp);
+          }
+          break;
+        }
+      }
+    }
+
+    // ⑤ 시즌별 행만 남김 (통산 제외)
     const rows = allRows.filter(r => !isCareer(r[yrKey]) && r[yrKey] !== '-');
     if (!rows.length && !careerRow) continue;
 
-    console.log('[parseKboPage] isBatter:', hasBat, 'isPitcher:', hasPit, 'rows:', rows.length, 'careerRow:', careerRow);
     return { name, isBatter: hasBat, isPitcher: hasPit, rows, ths, careerRow, playerId, sourceUrl, src: 'kbo' };
   }
   return null;
@@ -3892,7 +3919,6 @@ function buildExternalCard(data, league) {
 
   // 통산 기록 strip (parseKboPage에서 tfoot 파싱한 careerRow 사용, lowercase 키)
   const careerR = data.careerRow || null;
-  console.log('[buildExternalCard KBO] isBat:', isBat, 'careerR:', careerR, 'name:', data.name);
   const kboStrip = careerR
     ? (isBat
       ? `<div class="kstrip">
