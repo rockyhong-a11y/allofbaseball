@@ -100,6 +100,7 @@
     .src-db{background:rgba(245,197,66,.1);color:var(--yw);}
 
     .bio-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:7px;padding:12px 20px 14px;}
+    .pinfo .bio-g{padding:8px 0 0;gap:5px;}
     .bc{background:var(--c2);border:1px solid var(--bd);border-radius:8px;padding:9px 11px;}
     .bl{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--mu);margin-bottom:3px;}
     .bv{font-size:.84rem;font-weight:600;line-height:1.3;}
@@ -385,6 +386,22 @@ function inferPitcherRole(rows) {
 /* ══════════════════════════════════════════════════════
    ★ KBO 타자 세부 포지션 추출 (선수 상세 페이지 파싱)
 ══════════════════════════════════════════════════════ */
+/* KBO 선수 프로필 파싱
+   koreabaseball.com 스탯 페이지의 playerProfile 컨트롤:
+   <span id="..._playerProfile_lblBirthday">2003년 10월 02일</span> 형태 */
+function parseKboBio(doc) {
+  if (!doc) return {};
+  const g = s => doc.querySelector(`[id$="${s}"]`)?.textContent?.trim() || '';
+  return {
+    birth:        g('lblBirthday'),
+    position:     g('lblPosition'),
+    heightWeight: g('lblHeightWeight'),
+    career:       g('lblCareer'),
+    signingBonus: g('lblPayment'),
+    draftRank:    g('lblDraft'),
+  };
+}
+
 function extractKboPosFromDoc(doc) {
   if (!doc) return '';
   const FIELD_POS = ['1루수','2루수','3루수','유격수','좌익수','중견수','우익수','포수','지명타자','DH'];
@@ -1607,10 +1624,14 @@ function buildLocalCard(p) {
       <div class="kst">OPS <strong>${c.ops||'-'}</strong></div></div>`;
   } else if (!p.isBatter&&p.careerPit) {
     const c=p.careerPit;
-    strip=`<div class="kstrip"><div class="kst">통산 ERA <strong>${c.era||'-'}</strong></div>
+    strip=`<div class="kstrip">
+      <div class="kst">통산 ERA <strong>${c.era||'-'}</strong></div>
       <div class="kst">WHIP <strong>${c.whip||'-'}</strong></div>
       <div class="kst">${c.w||0}승 ${c.l||0}패</div>
-      <div class="kst">탈삼진 <strong>${c.so||'-'}</strong></div></div>`;
+      <div class="kst">홀드 <strong>${c.hld||'0'}</strong></div>
+      <div class="kst">세이브 <strong>${c.sv||'0'}</strong></div>
+      <div class="kst">탈삼진 <strong>${c.so||'-'}</strong></div>
+      <div class="kst">이닝 <strong>${c.ip||'-'}</strong></div></div>`;
   }
 
   // 바이오
@@ -1755,26 +1776,23 @@ async function buildApiCard(player) {
 
   const isPitcher = ['P','SP','RP','CP','TWP'].includes(pos);
   let strip='';
-  if(isPitcher && cPit) strip=`<div class="kstrip">
-    <div class="kst">통산 ERA <strong>${cPit.era||'-'}</strong></div>
-    <div class="kst">WHIP <strong>${cPit.whip||'-'}</strong></div>
-    <div class="kst">${cPit.wins||0}승 ${cPit.losses||0}패</div>
-    <div class="kst">탈삼진 <strong>${cPit.strikeOuts||'-'}</strong></div></div>`;
-  else if(!isPitcher && cBat) strip=`<div class="kstrip">
-    <div class="kst">통산 타율 <strong>${cBat.avg||'-'}</strong></div>
-    <div class="kst">홈런 <strong>${cBat.homeRuns||'-'}</strong></div>
-    <div class="kst">타점 <strong>${cBat.rbi||'-'}</strong></div>
-    <div class="kst">OPS <strong>${cBat.ops||'-'}</strong></div></div>`;
-  else if(cPit) strip=`<div class="kstrip">
-    <div class="kst">통산 ERA <strong>${cPit.era||'-'}</strong></div>
-    <div class="kst">WHIP <strong>${cPit.whip||'-'}</strong></div>
-    <div class="kst">${cPit.wins||0}승 ${cPit.losses||0}패</div>
-    <div class="kst">탈삼진 <strong>${cPit.strikeOuts||'-'}</strong></div></div>`;
-  else if(cBat) strip=`<div class="kstrip">
-    <div class="kst">통산 타율 <strong>${cBat.avg||'-'}</strong></div>
-    <div class="kst">홈런 <strong>${cBat.homeRuns||'-'}</strong></div>
-    <div class="kst">타점 <strong>${cBat.rbi||'-'}</strong></div>
-    <div class="kst">OPS <strong>${cBat.ops||'-'}</strong></div></div>`;
+  const _mlbPitStrip = p => `<div class="kstrip">
+    <div class="kst">통산 ERA <strong>${p.era||'-'}</strong></div>
+    <div class="kst">WHIP <strong>${p.whip||'-'}</strong></div>
+    <div class="kst">${p.wins||0}승 ${p.losses||0}패</div>
+    <div class="kst">홀드 <strong>${p.holds||'0'}</strong></div>
+    <div class="kst">세이브 <strong>${p.saves||'0'}</strong></div>
+    <div class="kst">탈삼진 <strong>${p.strikeOuts||'-'}</strong></div>
+    <div class="kst">이닝 <strong>${p.inningsPitched||'-'}</strong></div></div>`;
+  const _mlbBatStrip = b => `<div class="kstrip">
+    <div class="kst">통산 타율 <strong>${b.avg||'-'}</strong></div>
+    <div class="kst">홈런 <strong>${b.homeRuns||'-'}</strong></div>
+    <div class="kst">타점 <strong>${b.rbi||'-'}</strong></div>
+    <div class="kst">OPS <strong>${b.ops||'-'}</strong></div></div>`;
+  if(isPitcher && cPit) strip=_mlbPitStrip(cPit);
+  else if(!isPitcher && cBat) strip=_mlbBatStrip(cBat);
+  else if(cPit) strip=_mlbPitStrip(cPit);
+  else if(cBat) strip=_mlbBatStrip(cBat);
 
   const bio=[
     ['생년월일', birth||''],
@@ -1911,10 +1929,10 @@ async function buildApiCard(player) {
           ${age?`<span class="badge b-inf">${age}</span>`:''}
           ${jerseyNo?`<span class="badge b-inf">등번호 ${escH(jerseyNo)}</span>`:''}
         </div>${strip}
+        ${bio ? `<div class="bio-g">${bio}</div>` : ''}
       </div>
     </div>
     <span class="src-tag src-api">📡 MLB Stats API</span>
-    <div class="bio-g">${bio}</div>
     ${statHtml}
     ${arsenalHtml}
     ${zonesHtml}
@@ -2026,14 +2044,14 @@ async function _kboFetchPlayer(proxy, pl) {
   ]);
 
   let hitParsed = null, pitParsed = null;
-  let hitDoc = null;
+  let hitDoc = null, pitDoc = null;
   if (hitResp.ok) {
     hitDoc    = new DOMParser().parseFromString(await hitResp.text(), 'text/html');
     hitParsed = parseKboPage(hitDoc, playerId, true,  playerName, BASE + hitPath);
   }
   if (pitResp.ok) {
-    const d = new DOMParser().parseFromString(await pitResp.text(), 'text/html');
-    pitParsed = parseKboPage(d, playerId, false, playerName, BASE + pitPath);
+    pitDoc    = new DOMParser().parseFromString(await pitResp.text(), 'text/html');
+    pitParsed = parseKboPage(pitDoc, playerId, false, playerName, BASE + pitPath);
   }
 
   // 행이 많은 쪽 = 실제 포지션 기록 (동점이면 투수 우선)
@@ -2046,6 +2064,9 @@ async function _kboFetchPlayer(proxy, pl) {
   // 세부 포지션 — 타자: 페이지에서 추출 / 투수: 통계 기반 역할 추론
   const pagePos     = (!isPit && !detailPos) ? extractKboPosFromDoc(hitDoc) : '';
   const pitcherRole = isPit ? inferPitcherRole(parsed.rows) : null;
+
+  // 바이오 정보 파싱 (히터/피쳐 페이지 중 파싱된 쪽 우선)
+  const bio = parseKboBio(hitDoc || pitDoc);
 
   // 투수: 구종(PitchType) / 타자: 핫콜드존 + 발사각(BattedBall) 병렬 취득
   let pitchTypeRows = null, kboHotColdZones = null, kboBattedBallRows = null;
@@ -2074,7 +2095,7 @@ async function _kboFetchPlayer(proxy, pl) {
     }
   } catch(_){}
 
-  return { ...parsed, backNo, teamName, posName,
+  return { ...parsed, backNo, teamName, posName, bio,
     detailPos: detailPos || pagePos,
     pitcherRole, handInfo, pitchTypeRows, kboHotColdZones, kboBattedBallRows };
 }
@@ -2093,17 +2114,51 @@ function parseKboPage(doc, playerId, isHitter, name, sourceUrl) {
     if (isHitter  && !hasBat) continue;
     if (!isHitter && !hasPit) continue;
 
-    const rows = [];
+    const KEY_MAP = {
+      'G':'g','AVG':'avg','H':'h','HR':'hr','RBI':'rbi','SB':'sb','SO':'so','BB':'bb',
+      'SLG':'slg','OBP':'obp','ERA':'era','W':'w','L':'l','SV':'sv','HLD':'hld','IP':'ip',
+      'PA':'pa','AB':'ab','R':'r','2B':'db','3B':'tb','TB':'totb','CS':'cs','HBP':'hbp',
+      'WPCT':'wpct','TBF':'tbf','CG':'cg','SHO':'sho','ER':'er',
+    };
+    const _toRow = (tds) => { const o={}; ths.forEach((h,i)=>{ o[h]=tds[i]||'-'; }); return o; };
+    const _toLow = (obj) => { const o={}; Object.entries(obj).forEach(([k,v])=>{ o[KEY_MAP[k]||k.toLowerCase()]=v; }); return o; };
+
+    // ① tbody 전체 수집 (통산 행 포함 — KBO는 tbody 마지막 행이 통산)
+    const allRows = [];
     tbl.querySelectorAll('tbody tr').forEach(tr => {
       const tds = [...tr.querySelectorAll('td')].map(t => t.textContent.trim());
       if (tds.length < 4) return;
-      const obj = {};
-      ths.forEach((h, i) => { obj[h] = tds[i] || '-'; });
-      rows.push(obj);
+      allRows.push(_toRow(tds));
     });
-    if (!rows.length) continue;
 
-    return { name, isBatter: hasBat, isPitcher: hasPit, rows, ths, playerId, sourceUrl, src: 'kbo' };
+    const yrKey = ths[0] || '연도';
+    const isCareer = v => v === '통산' || v === 'Career' || v === '通算';
+
+    // ② tbody에서 통산 행 추출
+    let careerRow = null;
+    const careerRaw = allRows.find(r => isCareer(r[yrKey]));
+    if (careerRaw) {
+      careerRow = _toLow(careerRaw);
+    } else {
+      // ③ tbody에 없으면 tfoot 시도 — 팀명 컬럼 없으므로 filteredThs로 매핑
+      const tfootTr = tbl.querySelector('tfoot tr');
+      if (tfootTr) {
+        const ftds = [...tfootTr.querySelectorAll('td,th')].map(t => t.textContent.trim());
+        if (ftds.length && isCareer(ftds[0])) {
+          const filteredThs = ths.filter(h => h !== '팀명' && h !== '팀');
+          const tmp = {};
+          filteredThs.forEach((h, i) => { tmp[h] = ftds[i] || '-'; });
+          careerRow = _toLow(tmp);
+        }
+      }
+    }
+
+    // ④ 시즌별 행만 남김 (통산 제외)
+    const rows = allRows.filter(r => !isCareer(r[yrKey]) && r[yrKey] !== '-');
+    if (!rows.length && !careerRow) continue;
+
+    console.log('[parseKboPage] isBatter:', hasBat, 'isPitcher:', hasPit, 'rows:', rows.length, 'careerRow:', careerRow);
+    return { name, isBatter: hasBat, isPitcher: hasPit, rows, ths, careerRow, playerId, sourceUrl, src: 'kbo' };
   }
   return null;
 }
@@ -3703,6 +3758,21 @@ async function fetchNpbData(query) {
   } catch(e) { return null; }
 }
 
+/* KBO IP 문자열("1577 2/3") → 이닝 수(float)로 변환, WHIP 계산 */
+function _calcKboWhip(bbStr, hStr, ipStr) {
+  if (!ipStr || ipStr === '-') return '-';
+  const parts = String(ipStr).trim().split(' ');
+  let ip = parseFloat(parts[0]) || 0;
+  if (parts[1]) {
+    const frac = parts[1].split('/');
+    ip += (parseFloat(frac[0]) || 0) / (parseFloat(frac[1]) || 3);
+  }
+  if (ip === 0) return '-';
+  const bb = parseFloat(String(bbStr).replace(/,/g,'')) || 0;
+  const h  = parseFloat(String(hStr).replace(/,/g,'')) || 0;
+  return ((bb + h) / ip).toFixed(2);
+}
+
 /* koreabaseball.com / NPB 파싱 데이터 → 카드 HTML */
 function buildExternalCard(data, league) {
   if (!data) return '';
@@ -3756,7 +3826,10 @@ function buildExternalCard(data, league) {
             <div class="kst">장타율 <strong>${c.slg||'-'}</strong></div></div>`
         : `<div class="kstrip">
             <div class="kst">통산 ERA <strong>${c.era||'-'}</strong></div>
+            <div class="kst">WHIP <strong>${c.whip||'-'}</strong></div>
             <div class="kst">${c.w||0}승 ${c.l||0}패</div>
+            <div class="kst">홀드 <strong>${c.hld||'0'}</strong></div>
+            <div class="kst">세이브 <strong>${c.sv||'0'}</strong></div>
             <div class="kst">탈삼진 <strong>${c.so||'-'}</strong></div>
             <div class="kst">이닝 <strong>${c.ip||'-'}</strong></div></div>`;
     }
@@ -3791,10 +3864,10 @@ function buildExternalCard(data, league) {
             <span class="badge b-npb">NPB</span>
             ${backNo ? `<span class="badge b-inf">등번호 ${escH(backNo)}</span>` : ''}
           </div>${kstrip}
+          ${bioHtml}
         </div>
       </div>
       <span class="src-tag src-api">📡 npb.jp 공식 · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">원본 보기</a></span>
-      ${bioHtml}
       ${tableHtml}
       <p class="tbl-note">※ npb.jp 공식 기록</p>
     </div>`;
@@ -3803,7 +3876,6 @@ function buildExternalCard(data, league) {
   /* ════════════════════════════════════
      KBO 레이아웃 (기존 유지)
   ════════════════════════════════════ */
-  const lastRow   = rows.filter(r=>r['연도']&&r['연도']!=='통산'&&r['연도']!=='Career').at(-1) || {};
   const lgBadge   = 'b-kbo';
   const backNo    = data.backNo    || '';
   const teamName  = data.teamName  || '';
@@ -3813,22 +3885,50 @@ function buildExternalCard(data, league) {
   const handInfo  = data.handInfo  || '';
   const posType   = pitcherRole || detailPos || posName || (isBat ? '타자' : '투수');
 
-  let statBoxes = '';
-  const sfBat = [
-    [lastRow['G']||'-','경기'],[lastRow['AVG']||'-','타율'],[lastRow['H']||'-','안타'],
-    [lastRow['HR']||'-','홈런'],[lastRow['RBI']||'-','타점'],[lastRow['SB']||'0','도루'],
-    [lastRow['SLG']||'-','장타율'],[lastRow['OBP']||'-','출루율'],
-  ];
-  const sfPit = [
-    [lastRow['G']||'-','경기'],[lastRow['ERA']||'-','방어율'],[lastRow['IP']||'-','이닝'],
-    [lastRow['SO']||'-','탈삼진'],[lastRow['W']||'-','승'],[lastRow['L']||'-','패'],
-    [lastRow['HLD']||'0','홀드'],[lastRow['SV']||'0','세이브'],
-  ];
-  statBoxes = (isBat ? sfBat : sfPit).map(([v,l])=>`<div class="stat-box"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
-
   const yr = new Date().getFullYear();
   const photoUrl = (data.playerId)
     ? `https://6ptotvmi5753.edge.naverncp.com/KBO_IMAGE/person/middle/${yr}/${data.playerId}.jpg`
+    : '';
+
+  // 통산 기록 strip (parseKboPage에서 tfoot 파싱한 careerRow 사용, lowercase 키)
+  const careerR = data.careerRow || null;
+  console.log('[buildExternalCard KBO] isBat:', isBat, 'careerR:', careerR, 'name:', data.name);
+  const kboStrip = careerR
+    ? (isBat
+      ? `<div class="kstrip">
+          <div class="kst">통산 타율 <strong>${careerR.avg||'-'}</strong></div>
+          <div class="kst">홈런 <strong>${careerR.hr||'-'}</strong></div>
+          <div class="kst">타점 <strong>${careerR.rbi||'-'}</strong></div>
+          <div class="kst">장타율 <strong>${careerR.slg||'-'}</strong></div>
+        </div>`
+      : (()=>{
+          const whip = _calcKboWhip(careerR.bb, careerR.h, careerR.ip);
+          return `<div class="kstrip">
+            <div class="kst">통산 ERA <strong>${careerR.era||'-'}</strong></div>
+            <div class="kst">WHIP <strong>${whip}</strong></div>
+            <div class="kst">${careerR.w||0}승 ${careerR.l||0}패</div>
+            <div class="kst">홀드 <strong>${careerR.hld||'0'}</strong></div>
+            <div class="kst">세이브 <strong>${careerR.sv||'0'}</strong></div>
+            <div class="kst">탈삼진 <strong>${careerR.so||'-'}</strong></div>
+            <div class="kst">이닝 <strong>${careerR.ip||'-'}</strong></div>
+          </div>`;
+        })())
+    : '';
+
+  // 바이오 그리드
+  const bio = data.bio || {};
+  const bioItems = [
+    ['생년월일', bio.birth],
+    ['포지션',   bio.position],
+    ['신장/체중', bio.heightWeight],
+    ['경력',     bio.career],
+    ['계약금',   bio.signingBonus],
+    ['지명순위', bio.draftRank],
+  ].filter(([,v]) => v);
+  const kboBioHtml = bioItems.length
+    ? `<div class="bio-g">${bioItems.map(([l,v]) =>
+        `<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`
+      ).join('')}</div>`
     : '';
 
   return `<div class="pcard">
@@ -3850,9 +3950,10 @@ function buildExternalCard(data, league) {
           <span class="badge ${lgBadge}">KBO</span>
           ${backNo ? `<span class="badge b-inf">등번호 ${escH(backNo)}</span>` : ''}
         </div>
+        ${kboStrip}
+        ${kboBioHtml}
       </div>
     </div>
-    <div class="stat-grid">${statBoxes}</div>
     <span class="src-tag src-api">📡 koreabaseball.com 공식 · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">원본 보기</a></span>
     ${tableHtml}
     ${(!isBat && data.pitchTypeRows)    ? renderKboPitchTypes(data.pitchTypeRows)       : ''}
@@ -4632,6 +4733,76 @@ async function loadNpbSchedule(el) {
   }
 }
 
+/* ── NPB 연속 기록 계산: 스케줄 페이지 파싱 ── */
+async function _fetchNpbStreaks(yr, mm) {
+  // 월 경계(예: 4월 초)에도 정확한 연속기록을 위해 이전달+이번달 동시 fetch
+  const mmNum = +mm;
+  const prevMm = mmNum === 1 ? 12 : mmNum - 1;
+  const prevYr = mmNum === 1 ? yr - 1 : yr;
+  const prevMmStr = String(prevMm).padStart(2, '0');
+  const urls = [
+    `https://npb.jp/games/${prevYr}/schedule_${prevMmStr}_detail.html`,
+    `https://npb.jp/games/${yr}/schedule_${mm}_detail.html`,
+  ];
+  const htmls = await Promise.all(
+    urls.map(url =>
+      fetch(`${CODETABS}${encodeURIComponent(url)}`, {signal: AbortSignal.timeout(12000)})
+        .then(r => r.ok ? r.text() : '').catch(() => '')
+    )
+  );
+  return _computeNpbStreaks(htmls);
+}
+
+function _computeNpbStreaks(htmlArr) {
+  // 스케줄 팀명(schedule) → 순위표 NPB_KO 키(standings) 매핑
+  const NORM = {'巨人':'読売', 'ORIX':'オリックス', 'スワローズ':'ヤクルト', '読売ジャイアンツ':'読売'};
+  const norm = t => NORM[t] || t;
+
+  const games = [];
+  htmlArr.forEach((html, idx) => {
+    if (!html) return;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('tr[id]').forEach(tr => {
+      const m = tr.id.match(/^date(\d{2})(\d{2})$/);
+      if (!m) return;
+      const matchTd = tr.querySelector('td');
+      if (!matchTd) return;
+      const t1 = matchTd.querySelector('.team1')?.textContent?.trim();
+      const t2 = matchTd.querySelector('.team2')?.textContent?.trim();
+      const s1 = matchTd.querySelector('.score1')?.textContent?.trim();
+      const s2 = matchTd.querySelector('.score2')?.textContent?.trim();
+      if (t1 && t2 && s1 && s2 && /^\d+$/.test(s1) && /^\d+$/.test(s2)) {
+        // idx(월 오프셋)*10000 + MMDD → 날짜순 정렬 키
+        const dateKey = idx * 10000 + (+m[1]) * 100 + (+m[2]);
+        games.push({dateKey, t1: norm(t1), t2: norm(t2), s1: +s1, s2: +s2});
+      }
+    });
+  });
+
+  games.sort((a, b) => a.dateKey - b.dateKey);
+
+  // 팀별 결과 시퀀스 누적
+  const teamSeq = {};
+  for (const g of games) {
+    const r1 = g.s1 > g.s2 ? 'W' : g.s1 < g.s2 ? 'L' : 'D';
+    const r2 = g.s2 > g.s1 ? 'W' : g.s2 < g.s1 ? 'L' : 'D';
+    (teamSeq[g.t1] = teamSeq[g.t1] || []).push(r1);
+    (teamSeq[g.t2] = teamSeq[g.t2] || []).push(r2);
+  }
+
+  // 마지막 결과부터 역방향 카운트
+  const streakMap = {};
+  for (const [team, seq] of Object.entries(teamSeq)) {
+    const last = seq[seq.length - 1];
+    if (!last) continue;
+    if (last === 'D') { streakMap[team] = '무'; continue; }
+    let cnt = 0;
+    for (let i = seq.length - 1; i >= 0 && seq[i] === last; i--) cnt++;
+    streakMap[team] = cnt + (last === 'W' ? '연승' : '연패');
+  }
+  return streakMap;
+}
+
 /* ── NPB 순위 (CODETABS → npb.jp/cl/ + npb.jp/pl/) ── */
 async function loadNpbStandings(el) {
   const NPB_KO = {
@@ -4640,6 +4811,7 @@ async function loadNpbStandings(el) {
     'ソフトバンク':'소프트뱅크 호크스','日本ハム':'닛폰햄 파이터즈','楽天':'라쿠텐 이글스',
     'ロッテ':'롯데 마린즈','オリックス':'ORIX 버팔로즈','西武':'세이부 라이온즈',
   };
+  let streakMap = {};  // parseLeaguePage 클로저에서 참조하므로 먼저 선언
   const parseLeaguePage = (html) => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const tbl = [...doc.querySelectorAll('table')].find(t => {
@@ -4653,15 +4825,19 @@ async function loadNpbStandings(el) {
       if (!koName) return null;
       return {rank:i+1, team:NPB_KO[koName],
               g:cells[1]||'0', w:cells[2]||'0', l:cells[3]||'0', d:cells[4]||'0',
-              pct:cells[5]||'', gb:i===0?'-':(cells[6]||'-'), streak:''};
+              pct:cells[5]||'', gb:i===0?'-':(cells[6]||'-'), streak: streakMap[koName]||''};
     }).filter(Boolean);
     return _assignRanks(teams);
   };
   try {
-    const [rCl, rPl] = await Promise.all([
+    const yr = _lgDate.getFullYear();
+    const mm = String(_lgDate.getMonth() + 1).padStart(2, '0');
+    const [rCl, rPl, sm] = await Promise.all([
       fetch(`${CODETABS}${encodeURIComponent('https://npb.jp/cl/')}`, {signal:AbortSignal.timeout(15000)}),
       fetch(`${CODETABS}${encodeURIComponent('https://npb.jp/pl/')}`, {signal:AbortSignal.timeout(15000)}),
+      _fetchNpbStreaks(yr, mm),
     ]);
+    streakMap = sm;  // 클로저 변수에 할당
     const [htmlCl, htmlPl] = await Promise.all([rCl.text(), rPl.text()]);
     const se = parseLeaguePage(htmlCl);
     const pa = parseLeaguePage(htmlPl);
