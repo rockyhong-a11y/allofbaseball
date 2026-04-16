@@ -1635,10 +1635,18 @@ function buildLocalCard(p) {
   }
 
   // 바이오
+  // 투타 배지용 한글 조합
+  const _handBadge = (bats, throws) => {
+    if (!bats && !throws) return '';
+    const t = throws ? throws.replace(/\s*\(.*?\)/,'').trim() : '';
+    const b = bats   ? bats.replace(/\s*\(.*?\)/,'').trim() : '';
+    return t || b ? `${t}${b}` : '';
+  };
+  const handBadge = _handBadge(p.bats, p.throws);
+
   const bio=[
     ['생년월일', p.bDate||''],
     ['출신지', p.born||''],['신장', p.height||''],['체중', p.weight||''],
-    ['타석/투구', `${p.bats||''} / ${p.throws||''}`],
     ['데뷔', p.debut||''],['국적', p.nation||''],
   ].filter(([,v])=>v).map(([l,v])=>`<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`).join('');
 
@@ -1685,6 +1693,7 @@ function buildLocalCard(p) {
           <span class="badge b-tm">🏟️ ${escH(p.team)}</span>
           <span class="badge b-pos">${escH(p.pos)}</span>
           <span class="badge ${lgBadge}">${lgLabel}</span>
+          ${handBadge?`<span class="badge b-inf">${escH(handBadge)}</span>`:''}
           ${p.debut?`<span class="badge b-yr">데뷔 ${p.debut}</span>`:''}
           ${p.backNo?`<span class="badge b-inf">등번호 ${escH(p.backNo)}</span>`:''}
         </div>
@@ -1774,8 +1783,10 @@ async function buildApiCard(player) {
   const lgLabel=spo===51?'KBO':spo===52?'NPB':'MLB';
 
   const isPitcher = ['P','SP','RP','CP','TWP'].includes(pos);
-  let strip='';
-  const _mlbPitStrip = p => `<div class="kstrip">
+  const hasBat=batSplits.length>0, hasPit=pitSplits.length>0;
+  const isTWP = hasBat && hasPit && cBat && cPit;
+
+  const _mlbPitStrip = (p, attr='') => `<div class="kstrip"${attr}>
     <div class="kst">통산 ERA <strong>${p.era||'-'}</strong></div>
     <div class="kst">WHIP <strong>${p.whip||'-'}</strong></div>
     <div class="kst">${p.wins||0}승 ${p.losses||0}패</div>
@@ -1783,23 +1794,33 @@ async function buildApiCard(player) {
     <div class="kst">세이브 <strong>${p.saves||'0'}</strong></div>
     <div class="kst">탈삼진 <strong>${p.strikeOuts||'-'}</strong></div>
     <div class="kst">이닝 <strong>${p.inningsPitched||'-'}</strong></div></div>`;
-  const _mlbBatStrip = b => `<div class="kstrip">
+  const _mlbBatStrip = (b, attr='') => `<div class="kstrip"${attr}>
     <div class="kst">통산 타율 <strong>${b.avg||'-'}</strong></div>
     <div class="kst">홈런 <strong>${b.homeRuns||'-'}</strong></div>
     <div class="kst">타점 <strong>${b.rbi||'-'}</strong></div>
     <div class="kst">OPS <strong>${b.ops||'-'}</strong></div></div>`;
-  if(isPitcher && cPit) strip=_mlbPitStrip(cPit);
+
+  let strip='';
+  if (isTWP) {
+    // 이도류: 타격탭 기본 표시, 투구탭 전환 시 토글
+    strip = _mlbBatStrip(cBat, ' data-twp="bat"') + _mlbPitStrip(cPit, ' data-twp="pit" style="display:none"');
+  } else if(isPitcher && cPit) strip=_mlbPitStrip(cPit);
   else if(!isPitcher && cBat) strip=_mlbBatStrip(cBat);
   else if(cPit) strip=_mlbPitStrip(cPit);
   else if(cBat) strip=_mlbBatStrip(cBat);
 
+  // 투타 배지 (한글 조합)
+  const HAND_EN_KO = {Right:'우', Left:'좌', Switch:'스위치'};
+  const throwsKo = HAND_EN_KO[throws] || throws;
+  const batsKo   = HAND_EN_KO[bats]   || bats;
+  const handBadge = (throwsKo && batsKo)
+    ? (bats==='Switch' ? `${throwsKo}투스위치` : `${throwsKo}투${batsKo}타`)
+    : (throwsKo || batsKo);
+
   const bio=[
     ['생년월일', birth||''],
-    ['출신지', bPlace],['신장', ht],['체중', wt],
-    ['타석', bats],['투구', throws],['MLB 데뷔', debut],
+    ['출신지', bPlace],['신장', ht],['체중', wt],['MLB 데뷔', debut],
   ].filter(([,v])=>v).map(([l,v])=>`<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`).join('');
-
-  const hasBat=batSplits.length>0, hasPit=pitSplits.length>0;
   const uid=`u${id}`;
 
   // MLB 팀명 한글 변환 맵
@@ -1923,6 +1944,7 @@ async function buildApiCard(player) {
           <span class="badge b-tm">🏟️ ${escH(team)}</span>
           <span class="badge b-pos">${pos}${posN&&posN!==pos?' · '+posN:''}</span>
           <span class="badge ${lgBadge}">${lgLabel}</span>
+          ${handBadge?`<span class="badge b-inf">${escH(handBadge)}</span>`:''}
           ${debut?`<span class="badge b-yr">MLB 데뷔 ${debut}</span>`:''}
           ${age?`<span class="badge b-inf">${age}</span>`:''}
           ${jerseyNo?`<span class="badge b-inf">등번호 ${escH(jerseyNo)}</span>`:''}
@@ -1944,6 +1966,11 @@ function stoggle(btn,panelId,uid){
   card.querySelectorAll('.spanel').forEach(p=>p.classList.remove('on'));
   btn.classList.add('on');
   document.getElementById(panelId)?.classList.add('on');
+  // 이도류(TWP) strip 토글: 타격탭↔투구탭 전환 시 해당 통산 기록 표시
+  const isBatPanel = panelId.startsWith('bat');
+  card.querySelectorAll('.kstrip[data-twp]').forEach(s => {
+    s.style.display = (s.dataset.twp === (isBatPanel ? 'bat' : 'pit')) ? 'flex' : 'none';
+  });
 }
 
 /* ══════════════════════════════════════════════════════
