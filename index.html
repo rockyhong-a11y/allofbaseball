@@ -1636,7 +1636,6 @@ function buildLocalCard(p) {
 
   // 바이오
   const bio=[
-    ['등번호', p.backNo ? 'No.'+p.backNo : ''],
     ['생년월일', p.bDate||''],
     ['출신지', p.born||''],['신장', p.height||''],['체중', p.weight||''],
     ['타석/투구', `${p.bats||''} / ${p.throws||''}`],
@@ -1798,7 +1797,6 @@ async function buildApiCard(player) {
     ['생년월일', birth||''],
     ['출신지', bPlace],['신장', ht],['체중', wt],
     ['타석', bats],['투구', throws],['MLB 데뷔', debut],
-    ['등번호', jerseyNo ? 'No.'+jerseyNo : ''],
   ].filter(([,v])=>v).map(([l,v])=>`<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`).join('');
 
   const hasBat=batSplits.length>0, hasPit=pitSplits.length>0;
@@ -3785,6 +3783,21 @@ async function fetchNpbData(query) {
   } catch(e) { return null; }
 }
 
+/* KBO 계약금 만원 단위 → 억/천만 단위 변환 (예: "30000만원" → "3억 원") */
+function _fmtKboBonus(raw) {
+  if (!raw || raw === '-') return raw;
+  const s = String(raw).replace(/,/g, '').trim();
+  if (s.includes('억')) return raw;        // 이미 억 단위면 그대로
+  const m = s.match(/^(\d+)(만원?)?/);
+  if (!m) return raw;
+  const n = parseInt(m[1], 10);           // 만원 단위 숫자
+  const uk  = Math.floor(n / 10000);      // 억
+  const man = n % 10000;                  // 나머지 만원
+  if (uk > 0 && man > 0) return `${uk}억 ${man.toLocaleString()}만원`;
+  if (uk > 0)            return `${uk}억 원`;
+  return `${n.toLocaleString()}만원`;
+}
+
 /* KBO IP 문자열("1577 2/3") → 이닝 수(float)로 변환, WHIP 계산 */
 function _calcKboWhip(bbStr, hStr, ipStr) {
   if (!ipStr || ipStr === '-') return '-';
@@ -3866,7 +3879,6 @@ function buildExternalCard(data, league) {
       ['읽기',      data.yomi],
       ['생년월일',  data.birth],
       ['신장/체중', data.heightWeight],
-      ['투타',      handInfo],
       ['경력',      data.careerHist],
       ['드래프트',  data.draftInfo],
     ].filter(([,v])=>v);
@@ -3948,7 +3960,7 @@ function buildExternalCard(data, league) {
     ['포지션',   bio.position],
     ['신장/체중', bio.heightWeight],
     ['경력',     bio.career],
-    ['계약금',   bio.signingBonus],
+    ['계약금',   _fmtKboBonus(bio.signingBonus)],
     ['지명순위', bio.draftRank],
   ].filter(([,v]) => v);
   const kboBioHtml = bioItems.length
