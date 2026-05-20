@@ -8889,26 +8889,32 @@ function cpblAcSearch(q) {
 /* ══════════════════════════════════════════════════════
    ★ CPBL 선수 데이터 fetch (en.cpbl.com.tw 바이오 파싱)
 ══════════════════════════════════════════════════════ */
-// CPBL 연도별 기록 — Worker API (/cpbl/stats) 호출
-let _cpblCareerCache = {};
+// CPBL 통계 DB (GitHub Actions 수집 → raw.githubusercontent.com)
+const CPBL_STATS_RAW = 'https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_stats.json';
+let _cpblStatsDbCache = null;  // 전체 DB 캐시 (1회만 fetch)
+let _cpblCareerCache = {};     // acnt별 캐시
+
+async function _loadCpblStatsDb() {
+  if (_cpblStatsDbCache) return _cpblStatsDbCache;
+  try {
+    const resp = await fetch(CPBL_STATS_RAW, { signal: AbortSignal.timeout(15000) });
+    if (!resp.ok) return null;
+    _cpblStatsDbCache = await resp.json();
+    return _cpblStatsDbCache;
+  } catch(_) { return null; }
+}
+
 async function _fetchCpblCareerStats(acnt, isBatter) {
   const cacheKey = `${acnt}-${isBatter ? 'bat' : 'pit'}`;
   if (_cpblCareerCache[cacheKey]) return _cpblCareerCache[cacheKey];
+  const type = isBatter ? 'bat' : 'pit';
   try {
-    const type = isBatter ? 'bat' : 'pit';
-    const resp = await fetch(
-      `https://kbo-proxy.rockyhong.workers.dev/cpbl/stats?acnt=${acnt}&type=${type}`,
-      { signal: AbortSignal.timeout(20000) }
-    );
-    const json = await resp.json();
-    // 응답 형식: { Success:true, Data:[...] } 또는 직접 배열
-    const data = Array.isArray(json) ? json : (json.Data || null);
-    if (!data || !data.length) return null;
-    _cpblCareerCache[cacheKey] = data;
-    return data;
-  } catch(_) {
-    return null;
-  }
+    const db = await _loadCpblStatsDb();
+    const entry = db?.[acnt];
+    const data = entry?.[type] || null;
+    if (data?.length) { _cpblCareerCache[cacheKey] = data; return data; }
+  } catch(_) {}
+  return null;
 }
 
 async function fetchCpblData(query) {
@@ -9131,18 +9137,15 @@ async function runCpbl(query) {
 /* ══════════════════════════════════════════════════════
    ★ CPBL 스케줄 — Worker API (/cpbl/schedule) 단일 날짜 표시
 ══════════════════════════════════════════════════════ */
-// 시즌 스케줄 전체 캐시 (연도 단위)
+// 시즌 스케줄 전체 캐시 (GitHub Actions 수집 → raw.githubusercontent.com)
 let _cpblSchedCache = null;
 async function _loadCpblSchedData(year) {
   if (_cpblSchedCache?.year === String(year)) return _cpblSchedCache.games;
-  const resp = await fetch(
-    `https://kbo-proxy.rockyhong.workers.dev/cpbl/schedule?year=${year}`,
-    { signal: AbortSignal.timeout(25000) }
-  );
-  const json = await resp.json();
-  // 응답 형식: { Success:true, Data:[...] } 또는 직접 배열
-  const games = Array.isArray(json) ? json : (json.Data || json);
-  if (!Array.isArray(games)) throw new Error('invalid response');
+  const url = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${year}.json`;
+  const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!resp.ok) throw new Error(`schedule fetch failed: ${resp.status}`);
+  const games = await resp.json();
+  if (!Array.isArray(games)) throw new Error('invalid schedule format');
   _cpblSchedCache = { year: String(year), games };
   return games;
 }

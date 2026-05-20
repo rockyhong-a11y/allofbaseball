@@ -1,0 +1,56 @@
+name: CPBL 데이터 자동 수집
+
+on:
+  schedule:
+    # 스케줄: 매일 KST 06:00 (UTC 21:00 전날) + 12:00 (UTC 03:00) + 18:00 (UTC 09:00) + 23:30 (UTC 14:30)
+    - cron: '0 21 * * *'   # KST 06:00
+    - cron: '0  3 * * *'   # KST 12:00
+    - cron: '0  9 * * *'   # KST 18:00
+    - cron: '30 14 * * *'  # KST 23:30 (경기 종료 후)
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '수집 대상 (all / stats / schedule)'
+        required: false
+        default: 'all'
+      year:
+        description: '시즌 연도'
+        required: false
+        default: '2026'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 환경 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: CPBL 스케줄 수집
+        if: ${{ github.event.inputs.target != 'stats' }}
+        run: |
+          python3 scripts/fetch_cpbl.py --schedule --year ${{ github.event.inputs.year || '2026' }}
+
+      - name: CPBL 선수 기록 수집
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'stats' || github.event_name == 'schedule' && (github.event.schedule == '0 21 * * *') }}
+        run: |
+          python3 scripts/fetch_cpbl.py --stats --year ${{ github.event.inputs.year || '2026' }}
+
+      - name: 변경사항 커밋
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "변경사항 없음 — 커밋 건너뜀"
+          else
+            git commit -m "chore: CPBL 데이터 자동 업데이트 $(date +'%Y-%m-%d %H:%M KST' -d '+9 hours')"
+            git push
+          fi
