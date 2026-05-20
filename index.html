@@ -9005,7 +9005,7 @@ function buildCpblCard(p) {
   const _int = v => (v == null || v === '') ? '---' : String(v);
 
   const hasStats = Array.isArray(p.careerStats) && p.careerStats.length > 0;
-  const seasons  = hasStats ? [...p.careerStats].sort((a,b) => b.Year - a.Year) : [];
+  const seasons  = hasStats ? [...p.careerStats].sort((a,b) => Number(b.Year) - Number(a.Year)) : [];
   const latest   = seasons[0] || null;
 
   let strip = '';
