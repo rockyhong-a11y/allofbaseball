@@ -8889,30 +8889,55 @@ function cpblAcSearch(q) {
 /* ══════════════════════════════════════════════════════
    ★ CPBL 선수 데이터 fetch (en.cpbl.com.tw 바이오 파싱)
 ══════════════════════════════════════════════════════ */
-// CPBL 시즌 기록 캐시 (top 15 batters - /stats/recordall에서 가져옴)
+// CPBL 시즌 기록 캐시 (타자 ~28명 + 투수 ~16명 — 4페이지 병렬 fetch)
 let _cpblStatsCache = null;
 async function _loadCpblStatsCache() {
   if (_cpblStatsCache) return _cpblStatsCache;
   const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
-  try {
-    // /stats/recordall은 파라미터 없이도 동작 (top 15 batters by AVG)
-    const url = 'https://en.cpbl.com.tw/stats/recordall';
-    const html = await fetch(`${PROXY}${encodeURIComponent(url)}`,
-      {signal: AbortSignal.timeout(15000)}).then(r => r.text());
-    const tableM = html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
-    const stats = {};
-    if (tableM) {
-      const ths = [...tableM[1].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)]
+  const stats = {};
+
+  const parsePage = (html, isBatter) => {
+    const tables = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)].map(m => m[1]);
+    for (const tbl of tables) {
+      const ths = [...tbl.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)]
         .map(m => m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim());
-      const rows = [...tableM[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].slice(1);
+      if (!ths.length) continue;
+      const rows = [...tbl.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].slice(1);
+      let found = false;
       for (const [, rowHtml] of rows) {
-        const acntM = rowHtml.match(/<a href="\/team\/person\?acnt=(\w+)"/);
+        const acntM = rowHtml.match(/[Aa]cnt=(\w+)/);
         if (!acntM) continue;
-        const tdValues = [...rowHtml.matchAll(/<td[^>]*class="num"[^>]*>([\s\S]*?)<\/td>/g)]
+        found = true;
+        const acnt = acntM[1];
+        if (stats[acnt]) continue;
+        // num class td 우선, 없으면 모든 td에서 rank+name 건너뛰고 추출
+        let vals = [...rowHtml.matchAll(/<td[^>]*class="[^"]*num[^"]*"[^>]*>([\s\S]*?)<\/td>/g)]
           .map(m => m[1].replace(/<[^>]+>/g,'').replace(/[（）]/g,'').trim());
-        stats[acntM[1]] = { values: tdValues, headers: ths.slice(1) };
+        if (!vals.length) {
+          vals = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+            .map(m => m[1].replace(/<[^>]+>/g,'').replace(/[（）]/g,'').trim()).slice(2);
+        }
+        stats[acnt] = { values: vals, headers: ths.slice(1), isBatter };
       }
+      if (found) break;
     }
+  };
+
+  try {
+    const BASE = 'https://en.cpbl.com.tw/stats/recordall?kindcode=A';
+    const pages = await Promise.all([
+      BASE + '&position=01&sortby=01',
+      BASE + '&position=01&sortby=01&Page=2',
+      BASE + '&position=02&sortby=01',
+      BASE + '&position=02&sortby=01&Page=2',
+    ].map(u =>
+      fetch(`${PROXY}${encodeURIComponent(u)}`, {signal: AbortSignal.timeout(15000)})
+        .then(r => r.text()).catch(() => '')
+    ));
+    parsePage(pages[0], true);
+    parsePage(pages[1], true);
+    parsePage(pages[2], false);
+    parsePage(pages[3], false);
     _cpblStatsCache = stats;
   } catch(_) {
     _cpblStatsCache = {};
@@ -9002,42 +9027,43 @@ function buildCpblCard(p) {
     `<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`
   ).join('');
 
-  // 통산 strip (시즌 기록이 있는 경우)
+  // 통산 strip + 스탯 테이블 (기록 있으면 채우고, 없으면 --- 표시)
+  const hasStats = p.seasonStats && p.seasonStats.values && p.seasonStats.values.length;
+  const hdrs = hasStats ? (p.seasonStats.headers || []) : [];
+  const vals  = hasStats ? (p.seasonStats.values  || []) : [];
+  const _v = (label) => {
+    if (!hasStats) return '---';
+    const idx = hdrs.findIndex(h => h === label);
+    return (idx >= 0 && vals[idx] !== '' && vals[idx] !== undefined) ? vals[idx] : '---';
+  };
   let strip = '';
   let statsTable = '';
-  if (p.seasonStats && p.seasonStats.values && p.seasonStats.values.length) {
-    const headers = p.seasonStats.headers || [];
-    const values  = p.seasonStats.values  || [];
-    const _v = (label) => {
-      const idx = headers.findIndex(h => h === label);
-      return idx >= 0 ? values[idx] : '-';
-    };
-    if (p.isBatter) {
-      // 타자 strip
+  if (p.isBatter) {
+    if (hasStats) {
       strip = `<div class="kstrip">
         <div class="kst">2026 타율 <strong>${_v('AVG')}</strong></div>
         <div class="kst">홈런 <strong>${_v('HR')}</strong></div>
         <div class="kst">타점 <strong>${_v('RBI')}</strong></div>
         <div class="kst">OPS <strong>${_v('OPS')}</strong></div>
       </div>`;
-      // KBO 동일 형식 테이블 (시즌, 팀, 경기, 타율, 안타, 홈런, 도루, 타점, 삼진, 볼넷)
-      statsTable = `<div class="tbl-wrap"><table>
-        <thead><tr><th>시즌</th><th>팀</th><th>경기</th><th>타율</th><th>안타</th><th>홈런</th><th>도루</th><th>타점</th><th>삼진</th><th>볼넷</th></tr></thead>
-        <tbody><tr>
-          <td class="td-yr">2026</td>
-          <td class="td-tm">${escH(p.seasonStats.team||p.team)}</td>
-          <td>${_v('G')}</td>
-          <td class="hy">${_v('AVG')}</td>
-          <td>${_v('H')}</td>
-          <td class="hy">${_v('HR')}</td>
-          <td>${_v('SB')}</td>
-          <td class="hg">${_v('RBI')}</td>
-          <td>${_v('SO')}</td>
-          <td>${_v('BB')}</td>
-        </tr></tbody>
-      </table></div>`;
-    } else {
-      // 투수 strip
+    }
+    statsTable = `<div class="tbl-wrap"><table>
+      <thead><tr><th>시즌</th><th>팀</th><th>경기</th><th>타율</th><th>안타</th><th>홈런</th><th>도루</th><th>타점</th><th>삼진</th><th>볼넷</th></tr></thead>
+      <tbody><tr>
+        <td class="td-yr">2026</td>
+        <td class="td-tm">${escH(p.team)}</td>
+        <td>${_v('G')}</td>
+        <td class="hy">${_v('AVG')}</td>
+        <td>${_v('H')}</td>
+        <td class="hy">${_v('HR')}</td>
+        <td>${_v('SB')}</td>
+        <td class="hg">${_v('RBI')}</td>
+        <td>${_v('SO')}</td>
+        <td>${_v('BB')}</td>
+      </tr></tbody>
+    </table></div>`;
+  } else {
+    if (hasStats) {
       strip = `<div class="kstrip">
         <div class="kst">2026 ERA <strong>${_v('ERA')}</strong></div>
         <div class="kst">WHIP <strong>${_v('WHIP')}</strong></div>
@@ -9046,28 +9072,24 @@ function buildCpblCard(p) {
         <div class="kst">탈삼진 <strong>${_v('SO')}</strong></div>
         <div class="kst">이닝 <strong>${_v('IP')}</strong></div>
       </div>`;
-      // KBO 동일 형식 투수 테이블
-      statsTable = `<div class="tbl-wrap"><table>
-        <thead><tr><th>시즌</th><th>팀</th><th>경기</th><th>승</th><th>패</th><th>세이브</th><th>이닝</th><th>ERA</th><th>WHIP</th><th>탈삼진</th></tr></thead>
-        <tbody><tr>
-          <td class="td-yr">2026</td>
-          <td class="td-tm">${escH(p.seasonStats.team||p.team)}</td>
-          <td>${_v('G')}</td>
-          <td class="hg">${_v('W')}</td>
-          <td>${_v('L')}</td>
-          <td class="hy">${_v('SV')}</td>
-          <td>${_v('IP')}</td>
-          <td class="hy">${_v('ERA')}</td>
-          <td>${_v('WHIP')}</td>
-          <td>${_v('SO')}</td>
-        </tr></tbody>
-      </table></div>`;
     }
+    statsTable = `<div class="tbl-wrap"><table>
+      <thead><tr><th>시즌</th><th>팀</th><th>경기</th><th>승</th><th>패</th><th>세이브</th><th>이닝</th><th>ERA</th><th>WHIP</th><th>탈삼진</th></tr></thead>
+      <tbody><tr>
+        <td class="td-yr">2026</td>
+        <td class="td-tm">${escH(p.team)}</td>
+        <td>${_v('G')}</td>
+        <td class="hg">${_v('W')}</td>
+        <td>${_v('L')}</td>
+        <td class="hy">${_v('SV')}</td>
+        <td>${_v('IP')}</td>
+        <td class="hy">${_v('ERA')}</td>
+        <td>${_v('WHIP')}</td>
+        <td>${_v('SO')}</td>
+      </tr></tbody>
+    </table></div>`;
   }
-
-  const noStatsMsg = !p.seasonStats ? `<div style="padding:14px 20px;border-top:1px solid var(--bd);font-size:.78rem;color:var(--mu2);">
-    ℹ️ 2026 시즌 상위 15위권 외 — <a href="${escH(p.pageUrl)}" target="_blank" style="color:var(--cpbl);">CPBL 공식 페이지에서 확인</a>
-  </div>` : '';
+  const noStatsMsg = '';
 
   // 이름 표시: 중문 번체(영문) 형식
   const displayName = p.nameZh
@@ -9127,70 +9149,87 @@ async function runCpbl(query) {
 ══════════════════════════════════════════════════════ */
 async function loadCpblSchedule(el) {
   const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
-  const yr = _lgDate.getFullYear();
-  const mm = String(_lgDate.getMonth()+1).padStart(2,'0');
-  const dd = String(_lgDate.getDate()).padStart(2,'0');
-  const targetDate = `${yr}/${mm}/${dd}`;
-  const dateStr = `${yr}.${mm}.${dd}`;
+  const d = _lgDate;
+  const mm  = String(d.getMonth()+1).padStart(2,'0');
+  const dd  = String(d.getDate()).padStart(2,'0');
+  const mmN = String(d.getMonth()+1);   // no-pad
+  const ddN = String(d.getDate());      // no-pad
+  const dateStr = `${d.getFullYear()}.${mm}.${dd}`;
+
+  // 繁中 팀명 → 영문
+  const ZH_TEAM = {
+    '中信兄弟':'Brothers','樂天桃猿':'Monkeys','富邦悍將':'Guardians',
+    '統一7-ELEVEn獅':'U-Lions','味全龍':'Dragons','台鋼雄鷹':'TSG Hawks',
+    '統一獅':'U-Lions','兄弟':'Brothers','桃猿':'Monkeys','悍將':'Guardians',
+    '龍':'Dragons','雄鷹':'TSG Hawks',
+  };
+  const toEn = zh => {
+    for (const [k,v] of Object.entries(ZH_TEAM)) if (zh.includes(k)) return v;
+    return zh;
+  };
+
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const isPast  = d < new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   try {
-    // /stats/hr (홈런 리스트 - SSR)에서 오늘 경기 추출
-    // 각 HR 행: [#, Year, Game, Innings, Date, Stadium, Batter, BatterTeam, Pitcher, PitcherTeam, RBI, Remarks]
-    const url = 'https://en.cpbl.com.tw/stats/hr';
-    const html = await fetch(`${PROXY}${encodeURIComponent(url)}`,
-      {signal: AbortSignal.timeout(12000)}).then(r => r.text());
-    const tableM = html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
-    const games = new Map(); // 키: gameNum, 값: {date, stadium, teams}
-    if (tableM) {
-      const rows = [...tableM[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].slice(1);
-      for (const [, rowHtml] of rows) {
-        const cells = [...rowHtml.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)]
-          .map(m => m[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,'').trim());
-        if (cells.length < 10) continue;
-        const [_, yrCol, gameNum, innings, date, stadium, batter, batTeam, pitcher, pitTeam] = cells;
-        if (date !== targetDate) continue;
-        const key = `${gameNum}|${date}`;
-        if (!games.has(key)) {
-          games.set(key, {
-            gameNum, date, stadium,
-            // 보통 batter 팀이 away, pitcher 팀이 home인 inning (홈팀은 후반 공격)
-            // 정확히 알 수 없으므로 두 팀 모두 표시
-            team1: batTeam, team2: pitTeam,
-          });
+    const html = await fetch(`${PROXY}${encodeURIComponent('https://hamivideo.hinet.net/main/606.do')}`,
+      {signal: AbortSignal.timeout(15000)}).then(r => r.text());
+
+    // 텍스트 추출 후 파싱
+    const text = html.replace(/<script[\s\S]*?<\/script>/gi,'')
+                     .replace(/<style[\s\S]*?<\/style>/gi,'')
+                     .replace(/<!--[\s\S]*?-->/g,'')
+                     .replace(/<[^>]+>/g,'\n');
+    const lines = text.split('\n').map(l => l.replace(/&[^;]+;/g,' ').trim()).filter(l => l.length > 0);
+
+    // 오늘 날짜 패턴: "M/D" 형식 (예: 5/20)
+    const todayPat1 = `${mmN}/${ddN}`;       // 5/20
+    const todayPat2 = `${mm}/${dd}`;          // 05/20
+    const todayPat3 = `${mmN}月${ddN}`;      // 5月20
+
+    const games = [];
+    let inToday = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // 날짜 섹션 전환 감지 ("M/D" 또는 "M月D" 패턴)
+      const isDateLine = /^\d{1,2}[\/月]\d{1,2}/.test(line);
+      if (isDateLine) {
+        inToday = line.startsWith(todayPat1) || line.startsWith(todayPat2) || line.startsWith(todayPat3);
+      }
+
+      // 오늘 게임 파싱: 【팀1】vs【팀2】 패턴
+      if (inToday || line.startsWith(todayPat1) || line.startsWith(todayPat2)) {
+        const m = line.match(/【([^】]+)】.*?【([^】]+)】/);
+        if (m) {
+          // 가장 가까운 앞 줄에서 시간 찾기
+          let time = '';
+          for (let j = i - 1; j >= Math.max(0, i-6); j--) {
+            if (/^\d{1,2}:\d{2}$/.test(lines[j])) { time = lines[j]; break; }
+          }
+          const status = isPast ? '종료' : (time ? `${time} 예정` : '예정');
+          games.push({ away: toEn(m[1]), home: toEn(m[2]), score:'', venue:'', status });
         }
       }
     }
 
-    // /standings/season 페이지 sticky에서 최근 경기 정보도 함께 가져옴 (옵션)
-    // 위 게임 정보를 schedule table로 표시
-    const gameObjects = [...games.values()].map(g => {
-      // 정확한 away/home 구분 불가하므로 그냥 두 팀 표시
-      const now = new Date();
-      const target = new Date(targetDate.replace(/\//g,'-'));
-      const isPast = target < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return {
-        away: g.team1, home: g.team2,
-        score: '', venue: g.stadium || '',
-        status: isPast ? '종료' : '예정',
-      };
-    });
-
-    if (gameObjects.length) {
-      el.innerHTML = _renderScheduleTable(gameObjects, 'cpbl') +
-        `<div style="padding:8px 14px;font-size:.72rem;color:var(--mu);">
-          ℹ️ ${dateStr} 홈런 발생 경기 기준 — 노히트런 경기는 표시되지 않습니다
+    if (games.length) {
+      el.innerHTML = _renderScheduleTable(games, 'cpbl') +
+        `<div style="padding:6px 14px;font-size:.72rem;color:var(--mu2);">
+          📺 출처: <a href="${LG_CFG.cpbl.extSch}" target="_blank" style="color:var(--cpbl);">Hami Video 一軍賽程表</a>
         </div>`;
     } else {
       el.innerHTML = `<div class="sbox">
-        <p>🏟️ ${dateStr} CPBL 경기 없음 (홈런 미발생)</p>
-        <p style="font-size:.78rem;color:var(--mu);margin-top:6px;">전체 스케줄은 공식 사이트에서 확인하세요</p>
-        <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정 보기</a>
+        <p>🏟️ ${dateStr} CPBL 경기 없음</p>
+        <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 Hami Video 一軍賽程表</a>
       </div>`;
     }
   } catch(e) {
     el.innerHTML = `<div class="lg-err">
       <p>⚠️ CPBL 스케줄을 불러오지 못했습니다.</p>
-      <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정 바로가기</a>
+      <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 Hami Video 一軍賽程表</a>
     </div>`;
   }
 }
@@ -9201,60 +9240,91 @@ async function loadCpblSchedule(el) {
 async function loadCpblStandings(el) {
   const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
   try {
-    const url = 'https://en.cpbl.com.tw/standings/season';
-    const html = await fetch(`${PROXY}${encodeURIComponent(url)}`,
+    const html = await fetch(`${PROXY}${encodeURIComponent('https://en.cpbl.com.tw/standings/season')}`,
       {signal: AbortSignal.timeout(12000)}).then(r => r.text());
 
-    // 첫 번째 테이블 파싱 (팀 순위)
-    const tableM = html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
-    if (!tableM) throw new Error('No table');
+    // 선수 링크 없고 숫자+팀명 행이 있는 순위 테이블 찾기
+    const tables = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)].map(m => m[1]);
+    let teams = [];
 
-    const rows = [];
-    const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
-    let m;
-    while ((m = rowRe.exec(tableM[1])) !== null) {
-      const cells = [];
-      const cellRe = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g;
-      let cm;
-      while ((cm = cellRe.exec(m[1])) !== null) {
-        cells.push(cm[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,'').trim());
+    for (const tbl of tables) {
+      const rows = [...tbl.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)];
+      if (rows.length < 3) continue;
+
+      // 각 행의 td 값 추출
+      const parsed = rows.map(([, rh]) =>
+        [...rh.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)]
+          .map(m => m[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim())
+      ).filter(r => r.length >= 5);
+
+      if (!parsed.length) continue;
+
+      // 헤더 행 찾기
+      const hdrRow = parsed[0];
+      const hasRank = hdrRow.some(c => /rank/i.test(c) || c === '#');
+      const hasTeam = hdrRow.some(c => /team/i.test(c));
+      const hasW    = hdrRow.some(c => /^W/i.test(c) || c === 'W');
+      if (!hasW) continue; // 순위 테이블 아님
+
+      // 컬럼 인덱스 찾기
+      const hdr = hdrRow;
+      const iRank = hdr.findIndex(c => /rank/i.test(c) || c === '#' || c === 'RANK');
+      const iTeam = hdr.findIndex(c => /team/i.test(c));
+      const iG    = hdr.findIndex(c => c === 'G');
+      const iWTL  = hdr.findIndex(c => /W.T.L/i.test(c) || c === 'W-T-L');
+      const iPCT  = hdr.findIndex(c => /pct/i.test(c) || c === 'PCT');
+      const iGB   = hdr.findIndex(c => c === 'GB');
+      const iSTRK = hdr.findIndex(c => /strk/i.test(c));
+      const iL10  = hdr.findIndex(c => /l10/i.test(c) || c === 'L10');
+
+      for (let i = 1; i < parsed.length; i++) {
+        const r = parsed[i];
+        if (r.length < 4) continue;
+
+        // rank+team이 같은 셀인지 분리된 셀인지 처리
+        let rank = '', team = '';
+        if (iRank >= 0 && iTeam >= 0 && iRank !== iTeam) {
+          rank = parseInt(r[iRank]) || i;
+          team = r[iTeam];
+        } else {
+          // rank+team이 첫 셀에 합쳐져 있는 경우 (예: "1 DRAGONS")
+          const first = r[0];
+          const m = first.match(/^(\d+)\s+(.+)/);
+          if (m) { rank = parseInt(m[1]); team = m[2].trim(); }
+          else   { rank = i; team = first; }
+        }
+        if (!team) continue;
+
+        const g   = iG   >= 0 ? r[iG]   : r[2] || '-';
+        const wtl = iWTL >= 0 ? r[iWTL] : r[3] || '';
+        const pct = iPCT >= 0 ? r[iPCT] : r[4] || '-';
+        const gb  = iGB  >= 0 ? r[iGB]  : r[5] || '-';
+
+        // STRK: W4 / L1 / T1 형식
+        let strk = '-';
+        if (iSTRK >= 0 && r[iSTRK]) {
+          const sm = r[iSTRK].match(/[WLT]\d+/);
+          strk = sm ? sm[0] : r[iSTRK].trim();
+        } else {
+          // 뒤에서 두 번째 컬럼에서 WLT+숫자 찾기
+          const cand = r[Math.max(0, r.length-2)];
+          const sm = (cand||'').match(/[WLT]\d+/);
+          if (sm) strk = sm[0];
+        }
+
+        const wtlM = wtl.match(/(\d+)-(\d+)-(\d+)/);
+        const w = wtlM ? wtlM[1] : '-';
+        const t = wtlM ? wtlM[2] : '0';
+        const l = wtlM ? wtlM[3] : '-';
+        const pctVal = parseFloat(pct);
+        teams.push({ rank, team, g, w, l, d:t, pct: isNaN(pctVal)?pct:pctVal.toFixed(3), gb, streak:strk });
       }
-      if (cells.length >= 5) rows.push(cells);
+      if (teams.length) break;
     }
 
-    if (rows.length < 2) throw new Error('No data');
-
-    // 헤더 건너뛰고 팀 데이터 파싱
-    const teams = [];
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      // r[0]: "1 DRAGONS", r[1]: G, r[2]: W-T-L, r[3]: PCT, r[4]: GB, ...
-      // 마지막 컬럼이 STRK ('W3', 'L1' 형식)
-      const rankTeam = r[0].replace(/\s+/g,' ').trim();
-      const rankM = rankTeam.match(/^(\d+)\s+(.+)/);
-      if (!rankM) continue;
-      const rank = parseInt(rankM[1]);
-      const team = rankM[2].trim();
-      const g    = r[1] || '-';
-      const wtl  = r[2] || '';
-      const pct  = r[3] || '-';
-      const gb   = r[4] || '-';
-      // STRK는 row의 끝에서 2번째 (마지막은 L10, STRK는 [W/L/T]+숫자)
-      // 컬럼: ...HOME(12), AWAY(13), STRK(14), L10(15)
-      const strkRaw = r[r.length - 2] || '';
-      const strkM = strkRaw.match(/[WLT]\d+/);
-      const strk = strkM ? strkM[0] : strkRaw.trim();
-      // W-T-L 파싱: "21-0-13"
-      const wtlM = wtl.match(/(\d+)-(\d+)-(\d+)/);
-      const w = wtlM ? wtlM[1] : '-';
-      const d = wtlM ? wtlM[2] : '0';
-      const l = wtlM ? wtlM[3] : '-';
-      const pctVal = parseFloat(pct);
-      teams.push({ rank, team, g, w, l, d, pct: isNaN(pctVal)?pct:pctVal.toFixed(3), gb, streak: strk });
-    }
-
-    if (!teams.length) throw new Error('No teams');
-    el.innerHTML = _renderStandingsTable(teams, 'cpbl');
+    if (!teams.length) throw new Error('No teams parsed');
+    el.innerHTML = _renderStandingsTable(teams, 'cpbl') +
+      `<div style="padding:6px 14px;"><a href="${LG_CFG.cpbl.extStd}" target="_blank" class="lg-ext-link" style="font-size:.72rem;">🔗 CPBL 공식 순위 바로가기</a></div>`;
   } catch(e) {
     el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.<br>
       <a href="${LG_CFG.cpbl.extStd}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 순위 바로가기</a></div>`;
