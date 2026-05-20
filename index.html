@@ -8623,6 +8623,44 @@ function cpblAcSearch(q) {
 /* ══════════════════════════════════════════════════════
    ★ CPBL 선수 데이터 fetch (en.cpbl.com.tw 바이오 파싱)
 ══════════════════════════════════════════════════════ */
+// CPBL 시즌 기록 캐시 (세션 내 1회만 fetch)
+let _cpblStatsCache = null;
+async function _loadCpblStatsCache() {
+  if (_cpblStatsCache) return _cpblStatsCache;
+  const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
+  const fetchPage = async (position) => {
+    const url = `https://en.cpbl.com.tw/stats/recordall?PageSize=60&Position=${position}&Sortby=01`;
+    const html = await fetch(`${PROXY}${encodeURIComponent(url)}`,
+      {signal: AbortSignal.timeout(15000)}).then(r => r.text());
+    const tableM = html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
+    if (!tableM) return {};
+    // 헤더 파싱
+    const ths = [...tableM[1].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)]
+      .map(m => m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim());
+    // 행 파싱
+    const rows = [...tableM[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].slice(1);
+    const stats = {};
+    for (const [, rowHtml] of rows) {
+      const acntM = rowHtml.match(/<a href="\/team\/person\?acnt=(\w+)"/);
+      if (!acntM) continue;
+      const acnt = acntM[1];
+      const tdValues = [...rowHtml.matchAll(/<td[^>]*class="num"[^>]*>([\s\S]*?)<\/td>/g)]
+        .map(m => m[1].replace(/<[^>]+>/g,'').replace(/[（）]/g,'').trim());
+      const teamM = rowHtml.match(/<a[^>]*TeamNo=(\w+)"[^>]*title="([^"]+)"/);
+      const team = teamM ? teamM[2] : '';
+      stats[acnt] = { team, values: tdValues, headers: ths.slice(1) }; // ths[0]은 RANK PLAYER
+    }
+    return stats;
+  };
+  try {
+    const [bat, pit] = await Promise.all([fetchPage('01'), fetchPage('02')]);
+    _cpblStatsCache = { bat, pit };
+  } catch(_) {
+    _cpblStatsCache = { bat: {}, pit: {} };
+  }
+  return _cpblStatsCache;
+}
+
 async function fetchCpblData(query) {
   // 1) CPBL_INDEX에서 Acnt 찾기
   const q = query.trim();
@@ -8643,11 +8681,14 @@ async function fetchCpblData(query) {
   }
   if (!acnt) return null;
 
-  // 2) 선수 페이지 HTML 파싱 (CODETABS 프록시)
+  // 2) 선수 페이지 HTML + 시즌 기록 캐시 병렬 fetch
   const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
   const pageUrl = `https://en.cpbl.com.tw/team/person?Acnt=${acnt}`;
-  const html = await fetch(`${PROXY}${encodeURIComponent(pageUrl)}`,
-    {signal: AbortSignal.timeout(12000)}).then(r => r.text());
+  const [html, statsCache] = await Promise.all([
+    fetch(`${PROXY}${encodeURIComponent(pageUrl)}`,
+      {signal: AbortSignal.timeout(12000)}).then(r => r.text()),
+    _loadCpblStatsCache(),
+  ]);
 
   // 3) PlayerBrief 섹션 파싱
   const clean = s => s ? s.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&#\d+;/g,m=>String.fromCharCode(parseInt(m.slice(2)))).trim() : '';
@@ -8680,11 +8721,15 @@ async function fetchCpblData(query) {
   const debut      = debutM? clean(debutM[1]): '';
   const nation     = nationM ? clean(nationM[1]) : '';
 
+  const isBatter = !/(pitcher|투수)/i.test(pos);
+  // 시즌 기록 매핑
+  const statsEntry = isBatter ? statsCache.bat[acnt] : statsCache.pit[acnt];
+  const seasonStats = statsEntry ? statsEntry : null;
+
   return {
     src: 'cpbl', name: playerName, jerseyNo, team, teamCode, acnt,
     photo: photoUrl, pos, bt, hw, born, debut, nation,
-    pageUrl,
-    isBatter: !/(pitcher|투수)/i.test(pos),
+    pageUrl, isBatter, seasonStats,
   };
 }
 
@@ -8704,6 +8749,73 @@ function buildCpblCard(p) {
     `<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`
   ).join('');
 
+  // 통산 strip (시즌 기록이 있는 경우)
+  let strip = '';
+  let statsTable = '';
+  if (p.seasonStats && p.seasonStats.values && p.seasonStats.values.length) {
+    const headers = p.seasonStats.headers || [];
+    const values  = p.seasonStats.values  || [];
+    const _v = (label) => {
+      const idx = headers.findIndex(h => h === label);
+      return idx >= 0 ? values[idx] : '-';
+    };
+    if (p.isBatter) {
+      // 타자 strip
+      strip = `<div class="kstrip">
+        <div class="kst">2026 타율 <strong>${_v('AVG')}</strong></div>
+        <div class="kst">홈런 <strong>${_v('HR')}</strong></div>
+        <div class="kst">타점 <strong>${_v('RBI')}</strong></div>
+        <div class="kst">OPS <strong>${_v('OPS')}</strong></div>
+      </div>`;
+      // KBO 동일 형식 테이블 (시즌, 팀, 경기, 타율, 안타, 홈런, 도루, 타점, 삼진, 볼넷)
+      statsTable = `<div class="tbl-wrap"><table>
+        <thead><tr><th>시즌</th><th>팀</th><th>경기</th><th>타율</th><th>안타</th><th>홈런</th><th>도루</th><th>타점</th><th>삼진</th><th>볼넷</th></tr></thead>
+        <tbody><tr>
+          <td class="td-yr">2026</td>
+          <td class="td-tm">${escH(p.seasonStats.team||p.team)}</td>
+          <td>${_v('G')}</td>
+          <td class="hy">${_v('AVG')}</td>
+          <td>${_v('H')}</td>
+          <td class="hy">${_v('HR')}</td>
+          <td>${_v('SB')}</td>
+          <td class="hg">${_v('RBI')}</td>
+          <td>${_v('SO')}</td>
+          <td>${_v('BB')}</td>
+        </tr></tbody>
+      </table></div>`;
+    } else {
+      // 투수 strip
+      strip = `<div class="kstrip">
+        <div class="kst">2026 ERA <strong>${_v('ERA')}</strong></div>
+        <div class="kst">WHIP <strong>${_v('WHIP')}</strong></div>
+        <div class="kst">${_v('W')}승 ${_v('L')}패</div>
+        <div class="kst">세이브 <strong>${_v('SV')}</strong></div>
+        <div class="kst">탈삼진 <strong>${_v('SO')}</strong></div>
+        <div class="kst">이닝 <strong>${_v('IP')}</strong></div>
+      </div>`;
+      // KBO 동일 형식 투수 테이블
+      statsTable = `<div class="tbl-wrap"><table>
+        <thead><tr><th>시즌</th><th>팀</th><th>경기</th><th>승</th><th>패</th><th>세이브</th><th>이닝</th><th>ERA</th><th>WHIP</th><th>탈삼진</th></tr></thead>
+        <tbody><tr>
+          <td class="td-yr">2026</td>
+          <td class="td-tm">${escH(p.seasonStats.team||p.team)}</td>
+          <td>${_v('G')}</td>
+          <td class="hg">${_v('W')}</td>
+          <td>${_v('L')}</td>
+          <td class="hy">${_v('SV')}</td>
+          <td>${_v('IP')}</td>
+          <td class="hy">${_v('ERA')}</td>
+          <td>${_v('WHIP')}</td>
+          <td>${_v('SO')}</td>
+        </tr></tbody>
+      </table></div>`;
+    }
+  }
+
+  const noStatsMsg = !p.seasonStats ? `<div style="padding:14px 20px;border-top:1px solid var(--bd);font-size:.78rem;color:var(--mu2);">
+    ℹ️ 2026 시즌 최소 출장 기준 미달 — <a href="${escH(p.pageUrl)}" target="_blank" style="color:var(--cpbl);">CPBL 공식 페이지에서 확인</a>
+  </div>` : '';
+
   return `<div class="pcard">
     <div class="prof">
       <div class="photo">${photoHtml}</div>
@@ -8714,19 +8826,14 @@ function buildCpblCard(p) {
           <span class="badge b-tm">${escH(p.team)}</span>
           ${p.pos ? `<span class="badge b-pos">${escH(p.pos)}</span>` : ''}
         </div>
+        ${strip}
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${bioRows}</div>
       </div>
     </div>
-    <div style="padding:14px 20px;border-top:1px solid var(--bd);">
-      <div style="font-size:.78rem;color:var(--mu2);margin-bottom:10px;">
-        ℹ️ CPBL 시즌 기록은 공식 사이트에서 확인하세요 (API 보안 정책상 직접 조회 불가)
-      </div>
-      <a href="${escH(p.pageUrl)}" target="_blank" style="display:inline-block;padding:8px 18px;background:var(--cpbl);color:#fff;border-radius:8px;font-size:.84rem;font-weight:700;text-decoration:none;">
-        📊 CPBL 공식 기록 보기
-      </a>
-    </div>
+    ${statsTable}
+    ${noStatsMsg}
     <div class="src-tag src-api" style="background:rgba(232,70,30,.1);color:var(--cpbl);">
-      🇹🇼 en.cpbl.com.tw
+      🇹🇼 en.cpbl.com.tw · 2026 시즌
     </div>
   </div>`;
 }
@@ -8793,9 +8900,9 @@ async function loadCpblSchedule(el) {
     const games = [];
 
     if (baseSno !== null) {
-      // baseSno ±8 범위 병렬 fetch
+      // baseSno ±10 범위 병렬 fetch
       const snos = [];
-      for (let i = baseSno - 8; i <= baseSno + 8; i++) if (i > 0) snos.push(i);
+      for (let i = baseSno - 10; i <= baseSno + 10; i++) if (i > 0) snos.push(i);
 
       const fetchGame = async (sno) => {
         try {
@@ -8803,7 +8910,26 @@ async function loadCpblSchedule(el) {
           const html = await fetch(`${PROXY}${encodeURIComponent(url)}`,
             {signal: AbortSignal.timeout(8000)}).then(r => r.text());
           const g = extractGame(html);
-          if (g && g.date === targetDate) return { ...g, sno };
+          if (!g || g.date !== targetDate) return null;
+          // 구장: title attribute에서 추출 시도
+          const venueM = html.match(/curtGameDetail\.FieldAbbe[\s\S]{0,200}/);
+          // GameStatus: form value="3"이면 종료, "1"이면 진행중 등
+          const statusM = html.match(/<input[^>]*name="GameStatus"[^>]*value="(\d+)"/);
+          const gameStatus = statusM ? parseInt(statusM[1]) : 0;
+          // 한국 표준시 기준 - 현재 시각 비교로 진행/종료 판단
+          const now = new Date();
+          const today = new Date(targetDate.replace(/\//g,'-'));
+          const isPastDay = today < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const isToday = today.getDate() === now.getDate() && today.getMonth() === now.getMonth() && today.getFullYear() === now.getFullYear();
+          let status = '예정';
+          if (isPastDay) status = '종료';
+          else if (isToday) {
+            // 오늘 경기 - 현재 시각 기준 추정
+            const hour = now.getHours();
+            if (hour >= 17 && hour < 23) status = '진행중';
+            else if (hour >= 23) status = '종료';
+          }
+          return { ...g, sno, status };
         } catch(_) {}
         return null;
       };
@@ -8816,24 +8942,24 @@ async function loadCpblSchedule(el) {
       }
       // sno 순 정렬 + 중복 제거
       const seenPairs = new Set();
+      const uniqueGames = [];
       for (const g of games.sort((a,b)=>a.sno-b.sno)) {
         const k = `${g.away}-${g.home}`;
-        if (!seenPairs.has(k)) { seenPairs.add(k); }
+        if (!seenPairs.has(k)) { seenPairs.add(k); uniqueGames.push(g); }
       }
+      games.length = 0;
+      games.push(...uniqueGames);
     }
 
     // 결과 렌더링
     if (games.length) {
       const gameObjects = games.map(g => ({
-        away: g.away, home: g.home, score: '', venue: '', status: '확인 필요'
+        away: g.away, home: g.home, score: '', venue: '', status: g.status || '예정'
       }));
       el.innerHTML = _renderScheduleTable(gameObjects, 'cpbl');
     } else {
-      el.innerHTML = `<div class="sbox">
-        <p>🏟️ ${dateStr} CPBL 경기 정보</p>
-        <p style="font-size:.8rem;color:var(--mu);margin-top:6px;">스케줄/점수는 공식 사이트에서 확인하세요</p>
-        <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정 보기</a>
-      </div>`;
+      el.innerHTML = `<div class="sbox"><p>🏟️ ${dateStr} CPBL 경기 없음</p>
+        <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정</a></div>`;
     }
   } catch(e) {
     el.innerHTML = `<div class="lg-err">
@@ -8876,7 +9002,8 @@ async function loadCpblStandings(el) {
     const teams = [];
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
-      // r[0]: "1\nDRAGONS", r[1]: G, r[2]: W-T-L, r[3]: PCT, r[4]: GB, ...
+      // r[0]: "1 DRAGONS", r[1]: G, r[2]: W-T-L, r[3]: PCT, r[4]: GB, ...
+      // 마지막 컬럼이 STRK ('W3', 'L1' 형식)
       const rankTeam = r[0].replace(/\s+/g,' ').trim();
       const rankM = rankTeam.match(/^(\d+)\s+(.+)/);
       if (!rankM) continue;
@@ -8886,7 +9013,11 @@ async function loadCpblStandings(el) {
       const wtl  = r[2] || '';
       const pct  = r[3] || '-';
       const gb   = r[4] || '-';
-      const strk = r[rows[i].length-1] || '';
+      // STRK는 row의 끝에서 2번째 (마지막은 L10, STRK는 [W/L/T]+숫자)
+      // 컬럼: ...HOME(12), AWAY(13), STRK(14), L10(15)
+      const strkRaw = r[r.length - 2] || '';
+      const strkM = strkRaw.match(/[WLT]\d+/);
+      const strk = strkM ? strkM[0] : strkRaw.trim();
       // W-T-L 파싱: "21-0-13"
       const wtlM = wtl.match(/(\d+)-(\d+)-(\d+)/);
       const w = wtlM ? wtlM[1] : '-';
