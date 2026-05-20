@@ -99,10 +99,18 @@ def fetch_all_stats(index_html_path):
 
             result = post_json(api_url, {'acnt': acnt, 'kindCode': 'A'}, token, cookie, page_url)
 
-            if result.get('Success') and result.get('Data'):
-                stats_db[acnt] = {ptype: result['Data']}
-                print(f'✅ {len(result["Data"])}시즌')
-                success += 1
+            if result.get('Success'):
+                # API 응답 키: BattingScore (타자) / PitchScore (투수) — JSON 문자열
+                raw_key = 'BattingScore' if is_batter else 'PitchScore'
+                raw_val = result.get(raw_key) or result.get('Data') or '[]'
+                seasons = json.loads(raw_val) if isinstance(raw_val, str) else raw_val
+                if seasons:
+                    stats_db[acnt] = {ptype: seasons}
+                    print(f'✅ {len(seasons)}시즌')
+                    success += 1
+                else:
+                    print(f'데이터 없음')
+                    fail += 1
             else:
                 print(f'응답 이상: {str(result)[:80]}')
                 fail += 1
@@ -137,8 +145,10 @@ def fetch_schedule(year):
             'https://en.cpbl.com.tw/schedule'
         )
 
-        if result.get('Success') is not False:
-            games = result.get('Data', result) if isinstance(result, dict) else result
+        if result.get('Success'):
+            # API 응답 키: GameDatas — JSON 문자열
+            raw_val = result.get('GameDatas') or result.get('Data') or '[]'
+            games = json.loads(raw_val) if isinstance(raw_val, str) else raw_val
             if isinstance(games, list):
                 print(f'  ✅ {len(games)}경기')
                 return games
