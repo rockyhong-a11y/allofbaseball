@@ -8899,25 +8899,33 @@ async function _loadCpblStatsCache() {
   const parsePage = (html, isBatter) => {
     const tables = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)].map(m => m[1]);
     for (const tbl of tables) {
-      const ths = [...tbl.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)]
-        .map(m => m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim());
-      if (!ths.length) continue;
+      // ① num class th만 (숫자 컬럼 헤더)
+      let numHdrs = [...tbl.matchAll(/<th[^>]*class="[^"]*num[^"]*"[^>]*>([\s\S]*?)<\/th>/g)]
+        .map(m => m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim()).filter(Boolean);
+      // ② fallback: 전체 th에서 RANK·PLAYER 제거
+      if (!numHdrs.length) {
+        numHdrs = [...tbl.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)]
+          .map(m => m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim())
+          .filter(h => h && !['RANK','PLAYER','#','No.',''].includes(h));
+      }
+      if (!numHdrs.length) continue;
+
       const rows = [...tbl.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].slice(1);
       let found = false;
       for (const [, rowHtml] of rows) {
-        const acntM = rowHtml.match(/[Aa]cnt=(\w+)/);
+        const acntM = rowHtml.match(/[Aa]cnt=([A-Za-z0-9]+)/);
         if (!acntM) continue;
         found = true;
-        const acnt = acntM[1];
+        const acnt = String(acntM[1]).padStart(10,'0');
         if (stats[acnt]) continue;
-        // num class td 우선, 없으면 모든 td에서 rank+name 건너뛰고 추출
+        // num class td 우선, 없으면 rank(0)+player(1) 건너뛰고 전체 td
         let vals = [...rowHtml.matchAll(/<td[^>]*class="[^"]*num[^"]*"[^>]*>([\s\S]*?)<\/td>/g)]
-          .map(m => m[1].replace(/<[^>]+>/g,'').replace(/[（）]/g,'').trim());
+          .map(m => m[1].replace(/<[^>]+>/g,'').replace(/[（）()]/g,'').trim());
         if (!vals.length) {
           vals = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
-            .map(m => m[1].replace(/<[^>]+>/g,'').replace(/[（）]/g,'').trim()).slice(2);
+            .map(m => m[1].replace(/<[^>]+>/g,'').replace(/[（）()]/g,'').trim()).slice(2);
         }
-        stats[acnt] = { values: vals, headers: ths.slice(1), isBatter };
+        if (vals.length) stats[acnt] = { values: vals, headers: numHdrs, isBatter };
       }
       if (found) break;
     }
@@ -9145,16 +9153,10 @@ async function runCpbl(query) {
 }
 
 /* ══════════════════════════════════════════════════════
-   ★ CPBL 스케줄 (box 페이지 파싱 + GameSno 스캔)
+   ★ CPBL 스케줄 (Hami Video 파싱 — 날짜별 그룹 표시)
 ══════════════════════════════════════════════════════ */
 async function loadCpblSchedule(el) {
   const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
-  const d = _lgDate;
-  const mm  = String(d.getMonth()+1).padStart(2,'0');
-  const dd  = String(d.getDate()).padStart(2,'0');
-  const mmN = String(d.getMonth()+1);   // no-pad
-  const ddN = String(d.getDate());      // no-pad
-  const dateStr = `${d.getFullYear()}.${mm}.${dd}`;
 
   // 繁中 팀명 → 영문
   const ZH_TEAM = {
@@ -9169,63 +9171,136 @@ async function loadCpblSchedule(el) {
   };
 
   const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const isPast  = d < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yr = now.getFullYear();
+  const DAY_KO = ['일','월','화','수','목','금','토'];
 
   try {
-    const html = await fetch(`${PROXY}${encodeURIComponent('https://hamivideo.hinet.net/main/606.do')}`,
+    const rawHtml = await fetch(`${PROXY}${encodeURIComponent('https://hamivideo.hinet.net/main/606.do')}`,
       {signal: AbortSignal.timeout(15000)}).then(r => r.text());
 
-    // 텍스트 추출 후 파싱
-    const text = html.replace(/<script[\s\S]*?<\/script>/gi,'')
-                     .replace(/<style[\s\S]*?<\/style>/gi,'')
-                     .replace(/<!--[\s\S]*?-->/g,'')
-                     .replace(/<[^>]+>/g,'\n');
-    const lines = text.split('\n').map(l => l.replace(/&[^;]+;/g,' ').trim()).filter(l => l.length > 0);
+    // HTML → 텍스트 라인 추출
+    const text = rawHtml.replace(/<script[\s\S]*?<\/script>/gi,'')
+                        .replace(/<style[\s\S]*?<\/style>/gi,'')
+                        .replace(/<!--[\s\S]*?-->/g,'')
+                        .replace(/<[^>]+>/g,'\n');
+    const lines = text.split('\n').map(l => l.replace(/&[^;]+;/g,' ').trim()).filter(Boolean);
 
-    // 오늘 날짜 패턴: "M/D" 형식 (예: 5/20)
-    const todayPat1 = `${mmN}/${ddN}`;       // 5/20
-    const todayPat2 = `${mm}/${dd}`;          // 05/20
-    const todayPat3 = `${mmN}月${ddN}`;      // 5月20
+    // 날짜별 게임 맵: "M-D" → { month, day, dt, games: Map<key, {away,home,time}> }
+    const dateGroups = new Map();
+    let curKey = null;
+    let curTime = '';
+    let pendingAway = null;
+    let awaitingHome = false;
 
-    const games = [];
-    let inToday = false;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // 날짜 섹션 전환 감지 ("M/D" 또는 "M月D" 패턴)
-      const isDateLine = /^\d{1,2}[\/月]\d{1,2}/.test(line);
-      if (isDateLine) {
-        inToday = line.startsWith(todayPat1) || line.startsWith(todayPat2) || line.startsWith(todayPat3);
-      }
-
-      // 오늘 게임 파싱: 【팀1】vs【팀2】 패턴
-      if (inToday || line.startsWith(todayPat1) || line.startsWith(todayPat2)) {
-        const m = line.match(/【([^】]+)】.*?【([^】]+)】/);
-        if (m) {
-          // 가장 가까운 앞 줄에서 시간 찾기
-          let time = '';
-          for (let j = i - 1; j >= Math.max(0, i-6); j--) {
-            if (/^\d{1,2}:\d{2}$/.test(lines[j])) { time = lines[j]; break; }
-          }
-          const status = isPast ? '종료' : (time ? `${time} 예정` : '예정');
-          games.push({ away: toEn(m[1]), home: toEn(m[2]), score:'', venue:'', status });
+    for (const line of lines) {
+      // 섹션2 포맷: "05/20(三) 18:30" — 날짜+요일+시간
+      const dtM = line.match(/^(\d{1,2})\/(\d{1,2})\([^)]+\)\s*(\d{2}:\d{2})/);
+      if (dtM) {
+        const mo = parseInt(dtM[1]), dy = parseInt(dtM[2]);
+        curTime = dtM[3];
+        curKey = `${mo}-${dy}`;
+        if (!dateGroups.has(curKey)) {
+          dateGroups.set(curKey, { month:mo, day:dy, dt:new Date(yr,mo-1,dy), games:new Map() });
         }
+        pendingAway = null;
+        awaitingHome = false;
+        continue;
+      }
+
+      // 팀명 라인: "【team】" (단독)
+      const teamM = line.match(/^【([^】]+)】$/);
+      if (teamM && curKey) {
+        const team = teamM[1];
+        if (!pendingAway) {
+          pendingAway = team;   // 첫 팀 = 원정팀
+          awaitingHome = true;
+        } else if (awaitingHome) {
+          // 두 번째 팀 = 홈팀 → 게임 확정
+          const away = toEn(pendingAway);
+          const home = toEn(team);
+          const gk = `${away}|${home}`;
+          const grp = dateGroups.get(curKey);
+          if (!grp.games.has(gk)) grp.games.set(gk, { away, home, time:curTime });
+          pendingAway = null;
+          awaitingHome = false;
+        }
+        continue;
+      }
+
+      // 섹션1/3 포맷: "5/20【away】vs【home】..." (인라인)
+      const inlineM = line.match(/^(\d{1,2})\/(\d{1,2})【([^】]+)】.*?【([^】]+)】/);
+      if (inlineM) {
+        const mo = parseInt(inlineM[1]), dy = parseInt(inlineM[2]);
+        const key = `${mo}-${dy}`;
+        if (!dateGroups.has(key)) {
+          dateGroups.set(key, { month:mo, day:dy, dt:new Date(yr,mo-1,dy), games:new Map() });
+        }
+        const away = toEn(inlineM[3]), home = toEn(inlineM[4]);
+        const gk = `${away}|${home}`;
+        const grp = dateGroups.get(key);
+        if (!grp.games.has(gk)) grp.games.set(gk, { away, home, time:curTime });
+        continue;
+      }
+
+      // 새 날짜 라인이 아닌 다른 패턴이 오면 away/home 대기 초기화
+      if (curKey && !/^【/.test(line) && line.length > 5) {
+        pendingAway = null;
+        awaitingHome = false;
       }
     }
 
-    if (games.length) {
-      el.innerHTML = _renderScheduleTable(games, 'cpbl') +
-        `<div style="padding:6px 14px;font-size:.72rem;color:var(--mu2);">
-          📺 출처: <a href="${LG_CFG.cpbl.extSch}" target="_blank" style="color:var(--cpbl);">Hami Video 一軍賽程表</a>
-        </div>`;
-    } else {
-      el.innerHTML = `<div class="sbox">
-        <p>🏟️ ${dateStr} CPBL 경기 없음</p>
-        <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 Hami Video 一軍賽程表</a>
-      </div>`;
+    // 날짜 순 정렬
+    const sorted = [...dateGroups.values()]
+      .filter(g => g.games.size > 0)
+      .sort((a,b) => a.dt - b.dt);
+
+    if (!sorted.length) throw new Error('no games');
+
+    // 날짜별 그룹 테이블 렌더링
+    let out = `<div class="lg-tbl-wrap"><table class="lg-tbl">
+      <thead><tr>
+        <th>원정팀</th><th>스코어</th><th>홈팀</th><th></th><th>상태</th>
+      </tr></thead><tbody>`;
+
+    for (const grp of sorted) {
+      const isPast  = grp.dt < today;
+      const isToday = grp.dt.getTime() === today.getTime();
+      const dayName = DAY_KO[grp.dt.getDay()];
+      const dateLabel = `${grp.month}월 ${grp.day}일 (${dayName})`;
+      out += `<tr class="lg-div-row"><td colspan="5">${dateLabel}</td></tr>`;
+
+      for (const g of grp.games.values()) {
+        let statusHtml;
+        if (isPast) {
+          statusHtml = '<span class="st-final">종료</span>';
+        } else if (isToday && g.time) {
+          const [hh,mi] = g.time.split(':').map(Number);
+          const gt = new Date(grp.dt.getFullYear(), grp.dt.getMonth(), grp.dt.getDate(), hh, mi);
+          statusHtml = now > gt
+            ? '<span class="st-final">종료</span>'
+            : `<span class="st-sched">${escH(g.time)} 예정</span>`;
+        } else {
+          statusHtml = g.time
+            ? `<span class="st-sched">${escH(g.time)} 예정</span>`
+            : '<span class="st-sched">예정</span>';
+        }
+        out += `<tr>
+          <td class="team-away">${escH(g.away)}</td>
+          <td class="score-cell"><span style="color:var(--mu);font-weight:400">vs</span></td>
+          <td class="team-home">${escH(g.home)}</td>
+          <td></td>
+          <td>${statusHtml}</td>
+        </tr>`;
+      }
     }
+
+    out += `</tbody></table>
+      <div style="padding:6px 14px;font-size:.72rem;color:var(--mu2);">
+        📺 출처: <a href="${LG_CFG.cpbl.extSch}" target="_blank" style="color:var(--cpbl);">Hami Video 一軍賽程表</a>
+      </div></div>`;
+    el.innerHTML = out;
+
   } catch(e) {
     el.innerHTML = `<div class="lg-err">
       <p>⚠️ CPBL 스케줄을 불러오지 못했습니다.</p>
