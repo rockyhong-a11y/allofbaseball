@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚾ 야구 선수 기록 검색기 — KBO · MLB · NPB</title>
+  <title>⚾ 야구 선수 기록 검색기 — KBO · MLB · NPB · CPBL</title>
   <style>
     :root {
       --bg:#070c18;--c1:#0e1525;--c2:#131d30;--c3:#1a2a40;
       --bd:#1c2b45;--bd2:#253650;
       --tx:#dde4f0;--mu:#5a6e8c;--mu2:#8496b0;
       --ac:#3b9eff;--gn:#2ec87a;--yw:#f5c542;--rd:#f05050;
-      --kbo:#4f8ef7;--mlb:#e8352a;--npb:#e83060;
+      --kbo:#4f8ef7;--mlb:#e8352a;--npb:#e83060;--cpbl:#e8461e;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;}
@@ -87,6 +87,7 @@
     .b-kbo{background:rgba(79,142,247,.15);color:var(--kbo);}
     .b-mlb{background:rgba(232,53,42,.15);color:#ff6b5e;}
     .b-npb{background:rgba(232,48,96,.15);color:var(--npb);}
+    .b-cpbl{background:rgba(232,70,30,.15);color:var(--cpbl);}
     .b-pos{background:rgba(59,158,255,.12);color:var(--ac);}
     .b-tm{background:rgba(255,255,255,.07);color:var(--tx);}
     .b-inf{background:rgba(46,200,122,.1);color:var(--gn);}
@@ -196,6 +197,7 @@
 .lg-nav-btn.on.kbo-btn{background:var(--kbo);border-color:var(--kbo);color:#fff;}
 .lg-nav-btn.on.mlb-btn{background:#e8352a;border-color:#e8352a;color:#fff;}
 .lg-nav-btn.on.npb-btn{background:var(--npb);border-color:var(--npb);color:#fff;}
+    .lg-nav-btn.on.cpbl-btn{background:var(--cpbl);border-color:var(--cpbl);color:#fff;}
 
 /* ── 리그 패널 ── */
 .lg-panel-inner{background:var(--c1);border:1px solid var(--bd);border-radius:14px;overflow:hidden;}
@@ -237,7 +239,7 @@
 <body>
 <div class="hdr">
   <h1>⚾ 야구 선수 기록 검색기</h1>
-  <p>KBO · MLB · NPB 전현직 선수 — 사진 · 바이오 · 시즌별 기록 통합 조회</p>
+  <p>KBO · MLB · NPB · CPBL 전현직 선수 — 사진 · 바이오 · 시즌별 기록 통합 조회</p>
 </div>
 
 <div class="srch-wrap">
@@ -245,15 +247,16 @@
     <button class="lg-nav-btn kbo-btn" data-league="kbo" onclick="toggleLeague('kbo')">KBO 스케줄/순위</button>
     <button class="lg-nav-btn mlb-btn" data-league="mlb" onclick="toggleLeague('mlb')">MLB 스케줄/순위</button>
     <button class="lg-nav-btn npb-btn" data-league="npb" onclick="toggleLeague('npb')">NPB 스케줄/순위</button>
+    <button class="lg-nav-btn cpbl-btn" data-league="cpbl" onclick="toggleLeague('cpbl')">CPBL 스케줄/순위</button>
   </div>
   <div class="ac-wrap">
     <div class="srch-row">
-      <input id="si" type="text" placeholder="선수 이름 (한글 · 일본어 · 영문)…" autocomplete="off" spellcheck="false" autofocus>
+      <input id="si" type="text" placeholder="선수 이름 (한글 · 일본어 · 영문 · 중문)…" autocomplete="off" spellcheck="false" autofocus>
       <button class="srch-btn" onclick="doSearch()">🔍 검색</button>
     </div>
     <div class="ac-drop" id="acdrop"></div>
   </div>
-  <p class="srch-sub" id="sub">🇰🇷 KBO · 🇺🇸 MLB · 🇯🇵 NPB 전리그 통합 검색 — 김도영, 오타니, 무라카미, Judge, Yamamoto 모두 검색 가능</p>
+  <p class="srch-sub" id="sub">🇰🇷 KBO · 🇺🇸 MLB · 🇯🇵 NPB · 🇹🇼 CPBL 전리그 통합 검색 — 김도영, 오타니, 무라카미, Judge, Yamamoto, CHIANG Chen Yen 모두 검색 가능</p>
 </div>
 
 <div id="featured" class="featured-wrap">
@@ -301,6 +304,20 @@
       <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">이마나가</div>
       <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">오 사다하루</div>
       <div class="feat-chip" data-league="npb" onmousedown="fillChip(this)">나가시마</div>
+    </div>
+  </div>
+  <div class="feat-section">
+    <div class="feat-header">
+      <span class="badge b-cpbl feat-lg-badge">CPBL</span>
+      <span class="feat-lg-name">🇹🇼 대만 프로야구</span>
+    </div>
+    <div class="feat-chips">
+      <div class="feat-chip" data-league="cpbl" onmousedown="fillChip(this)">CHIANG Chen Yen</div>
+      <div class="feat-chip" data-league="cpbl" onmousedown="fillChip(this)">LIN Tzu Wei</div>
+      <div class="feat-chip" data-league="cpbl" onmousedown="fillChip(this)">TSENG Jyun Yue</div>
+      <div class="feat-chip" data-league="cpbl" onmousedown="fillChip(this)">John GANT</div>
+      <div class="feat-chip" data-league="cpbl" onmousedown="fillChip(this)">Mario SANCHEZ</div>
+      <div class="feat-chip" data-league="cpbl" onmousedown="fillChip(this)">Jackson STEPHENS</div>
     </div>
   </div>
 </div>
@@ -1131,6 +1148,10 @@ function detectLeague(q) {
   if (_selectedLeague) { const l = _selectedLeague; _selectedLeague = null; return l; }
   const qn = q.replace(/\s+/g,'');
   const qk = qn.toLowerCase();
+  // CPBL_INDEX 직접 매칭 (영문 이름)
+  if (CPBL_INDEX[qn] || CPBL_INDEX[q]) return 'cpbl';
+  const cpblPartialMatch = Object.keys(CPBL_INDEX).some(k => k.replace(/\s+/g,'').toLowerCase().startsWith(qk) && qk.length >= 3);
+  if (cpblPartialMatch) return 'cpbl';
   // KO_MAP 에 있으면 MLB
   if (KO_MAP[qn] || KO_MAP[q]) return 'mlb';
   // 한글 입력 시 NPB_KO_MAP 우선 체크
@@ -1190,6 +1211,7 @@ function doSearch() {
   _selectedLeague = null;
   if (forced) {
     if (forced === 'mlb') runMLB(raw);
+    else if (forced === 'cpbl') runCpbl(raw);
     else runKboNpb(raw, forced);
   } else {
     runAll(raw);
@@ -1224,7 +1246,7 @@ function renderAcItems(items, q) {
   const drop = document.getElementById('acdrop');
   acIdx = -1;
   if (!items.length) { drop.classList.remove('show'); return; }
-  const lgMap = { kbo:['b-kbo','KBO'], mlb:['b-mlb','MLB'], npb:['b-npb','NPB'] };
+  const lgMap = { kbo:['b-kbo','KBO'], mlb:['b-mlb','MLB'], npb:['b-npb','NPB'], cpbl:['b-cpbl','CPBL'] };
   drop.innerHTML = items.map(it => {
     const [bc, lb] = lgMap[it.league] || ['',''];
     // 표시 이름: MLB에서 한글 검색 시 한글명 우선
@@ -1300,9 +1322,10 @@ _siEl.addEventListener('input', () => {
       const npbDynamic = npbAcSearch(q);
       const npbSeen = new Set(npbLocal.map(x=>x.display));
       const npbItems = [...npbLocal, ...npbDynamic.filter(x=>!npbSeen.has(x.display))];
+      const cpblItems = cpblAcSearch(q);
       const seen = new Set();
       const merged = [];
-      for (const it of [...kboItems, ...mlbItems, ...npbItems]) {
+      for (const it of [...kboItems, ...mlbItems, ...npbItems, ...cpblItems]) {
         const k = it.display.toLowerCase();
         if (!seen.has(k)) { merged.push(it); seen.add(k); }
       }
@@ -1424,6 +1447,8 @@ async function runAll(query) {
   const normQ = query.replace(/\s+/g,'');
   const enQ = KO_MAP[query] || KO_MAP[normQ] || (isKorean(query) ? romanize(query) : query);
 
+  const cpblCheck = detectLeague(query) === 'cpbl';
+  if (cpblCheck) { runCpbl(query); return; }
   const [kboRes, npbRes, mlbRes] = await Promise.allSettled([
     fetchKboData(query),
     fetchNpbData(query),
@@ -1566,6 +1591,21 @@ function renderBatTableByLeague(league, rows, careerRow) {
       <td>${careerRow.hr||'-'}</td><td>${careerRow.rbi||'-'}</td><td>${careerRow.sb||'-'}</td>
       <td>${careerRow.avg||'-'}</td><td>${careerRow.ops||'-'}</td>
     </tr>`;
+  } else if (league === 'CPBL') {
+    // CPBL: KBO와 동일 형식
+    thead = `<tr><th>시즌</th><th>팀</th><th>경기</th><th>타율</th><th>안타</th><th>홈런</th><th>도루</th><th>타점</th><th>삼진</th><th>볼넷</th></tr>`;
+    tbody = rows.map(r=>`<tr>
+      <td class="td-yr">${r.yr}</td><td class="td-tm">${r.team}</td>
+      <td>${r.g}</td><td class="hy">${r.avg}</td><td>${r.h}</td>
+      <td class="hy">${r.hr}</td><td>${r.sb}</td><td class="hg">${r.rbi}</td>
+      <td>${r.so}</td><td>${r.bb}</td>
+    </tr>`).join('');
+    if (careerRow) tbody += `<tr class="crw">
+      <td>통산</td><td>—</td>
+      <td>${careerRow.g||'-'}</td><td>${careerRow.avg||'-'}</td><td>${careerRow.h||'-'}</td>
+      <td>${careerRow.hr||'-'}</td><td>${careerRow.sb||'-'}</td><td>${careerRow.rbi||'-'}</td>
+      <td>${careerRow.so||'-'}</td><td>${careerRow.bb||'-'}</td>
+    </tr>`;
   } else {
     // NPB: 경기, 타율, 안타, 홈런, 타점, 도루, 장타율, 출루율
     thead = `<tr><th>시즌</th><th>팀</th><th>경기</th><th>타율</th><th>안타</th><th>홈런</th><th>타점</th><th>도루</th><th>장타율</th><th>출루율</th></tr>`;
@@ -1638,8 +1678,8 @@ function renderPitTableByLeague(league, rows, careerRow) {
 ══════════════════════════════════════════════════════ */
 function buildLocalCard(p) {
   const init=(p.nameEn||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
-  const lgBadge = p.league==='kbo'?'b-kbo':'b-npb';
-  const lgLabel = p.league==='kbo'?'KBO':'NPB';
+  const lgBadge = p.league==='kbo'?'b-kbo':p.league==='cpbl'?'b-cpbl':'b-npb';
+  const lgLabel = p.league==='kbo'?'KBO':p.league==='cpbl'?'CPBL':'NPB';
 
   // 통산 strip
   let strip='';
@@ -1680,7 +1720,7 @@ function buildLocalCard(p) {
   // 시즌 테이블 — 리그별 컬럼 분리 표시
   let tableHtml='';
   if (p.isBatter) {
-    const leagueKey = p.league==='kbo' ? 'KBO' : p.league==='npb' ? 'NPB' : 'MLB';
+    const leagueKey = p.league==='kbo' ? 'KBO' : p.league==='npb' ? 'NPB' : p.league==='cpbl' ? 'CPBL' : 'MLB';
     const rows=(p.seasons||[]).map(s=>({
       yr:s.yr, team:s.team,
       g:s.g??'-', avg:s.avg||'-', h:s.h??'-', hr:s.hr??'-',
@@ -1697,7 +1737,7 @@ function buildLocalCard(p) {
     }:null;
     tableHtml=renderBatTableByLeague(leagueKey, rows, careerRow);
   } else {
-    const leagueKey = p.league==='kbo' ? 'KBO' : p.league==='npb' ? 'NPB' : 'MLB';
+    const leagueKey = p.league==='kbo' ? 'KBO' : p.league==='npb' ? 'NPB' : p.league==='cpbl' ? 'CPBL' : 'MLB';
     const rows=(p.seasons||[]).map(s=>{
       const wlStr=s.wl||`${s.w||0}-${s.l||0}`;
       const [w,l]= wlStr.includes('-') ? wlStr.split('-') : [s.w||0, s.l||0];
@@ -7563,6 +7603,9 @@ const LG_CFG = {
   npb: {badge:'NPB', badgeClass:'b-npb', title:'🇯🇵 일본 프로야구',
     extSch:'https://pacificleague.com/game/search',
     extStd:'https://npb.jp/standings/2026/'},
+  cpbl: {badge:'CPBL', badgeClass:'b-cpbl', title:'🇹🇼 대만 프로야구',
+    extSch:'https://en.cpbl.com.tw/schedule',
+    extStd:'https://en.cpbl.com.tw/standings/season'},
 };
 
 function _lgDateStr(d) {
@@ -7660,10 +7703,12 @@ function loadLgData() {
     if      (_lgCur === 'kbo') loadKboSchedule(el);
     else if (_lgCur === 'mlb') loadMlbSchedule(el);
     else if (_lgCur === 'npb') loadNpbSchedule(el);
+    else if (_lgCur === 'cpbl') loadCpblSchedule(el);
   } else {
     if      (_lgCur === 'kbo') loadKboStandings(el);
     else if (_lgCur === 'mlb') loadMlbStandings(el);
     else if (_lgCur === 'npb') loadNpbStandings(el);
+    else if (_lgCur === 'cpbl') loadCpblStandings(el);
   }
 }
 
@@ -8467,6 +8512,396 @@ function _renderStandingsTableWithDivisions(divData, lg) {
     <div style="padding:6px 14px;"><a href="${cfg.extStd}" target="_blank" class="lg-ext-link" style="font-size:.72rem;">🔗 공식 사이트에서 더 보기</a></div>
   </div>`;
   return html;
+}
+
+
+/* ══════════════════════════════════════════════════════
+   ★ CPBL 선수 인덱스 (이름 → [Acnt, 팀코드])
+      출처: en.cpbl.com.tw 6개 구단 전체 로스터 2026시즌
+══════════════════════════════════════════════════════ */
+const CPBL_INDEX = {
+  // BROTHERS (ACN)
+  'CHIANG Chung Chen':['0000001232','ACN'],'LEE Chen Chang':['0000003331','ACN'],
+  'Nivaldo RODRIGUEZ':['0000005151','ACN'],'CHENG Hao Chun':['0000002345','ACN'],
+  'LU Yen Ching':['0000003639','ACN'],'CHEN Hu':['0000000771','ACN'],
+  'LU Meng Yang':['0000006874','ACN'],'HSIEH Jung Hao':['0000003506','ACN'],
+  'WU Chun Wei':['0000004625','ACN'],'CHEN Tong En':['0000006732','ACN'],
+  'KAO Yu Chieh':['0000002285','ACN'],'CHEN Jiu Teng':['0000007282','ACN'],
+  'YANG Siang He':['0000007086','ACN'],'WANG Wei Chen':['0000000929','ACN'],
+  'CHANG Jen Wei':['0000006730','ACN'],'CHEN Chun Hsiu':['0000003609','ACN'],
+  'WANG Cheng Shun':['0000002307','ACN'],'HUANG Wei Sheng':['0000005298','ACN'],
+  'YUEH Tung Hua':['0000002291','ACN'],'LI Sheng Yu':['0000005656','ACN'],
+  'CHANG Chih Hao':['0000003183','ACN'],'SUNG Cheng Jui':['0000006225','ACN'],
+  'YUEH Cheng Hua':['0000005571','ACN'],
+  // U-LIONS (ADD)
+  'LIN Tzu Wei':['0000002695','ADD'],'TAKASHIO Masaki':['0000006818','ADD'],
+  'CHUNG Yun Hua':['0000007293','ADD'],'LEE Chi Feng':['0000006127','ADD'],
+  'HUANG Chun Yen':['0000002303','ADD'],'Jackson STEPHENS':['0000007597','ADD'],
+  'ZHENG Fu Hao':['0000006850','ADD'],'Brock DYKXHOORN':['0000005731','ADD'],
+  'WU Cheng Yu':['0000005482','ADD'],'KAO Wei Chiang':['0000005315','ADD'],
+  'Denyi REYES':['0000006295','ADD'],'CHANG Hsiang':['0000006716','ADD'],
+  'CHEN Chung Yu':['0000002298','ADD'],'LIN Tzu Hao':['0000006223','ADD'],
+  'PAN Chieh Kai':['0000002707','ADD'],'LIN Tzu Chieh':['0000001339','ADD'],
+  'LIN Ching Kai':['0000004642','ADD'],'LI Cheng Ling':['0000004641','ADD'],
+  'SU Chih Chieh':['0000001474','ADD'],
+  // MONKEYS (AJL)
+  'SU Chun Chang':['0000005558','AJL'],'CHEN Kuan Yu':['0000000941','AJL'],
+  'CHU Cheng Yang':['0000000128','AJL'],'Tyler EPPLER':['0000006906','AJL'],
+  'CHIU Chun Wei':['0000006720','AJL'],'Pedro FERNANDEZ':['0000007062','AJL'],
+  'WANG Chih Hsuan':['0000006228','AJL'],'Kyle MARMAN':['0000007790','AJL'],
+  'CHUANG Hsin Yen':['0000005509','AJL'],'LIN Hung Yu':['0000003467','AJL'],
+  'YEN Hung Chun':['0000004032','AJL'],'LIN Chen Fei':['0000000153','AJL'],
+  'YU Te Lung':['0000003563','AJL'],'LIN Chih Ping':['0000003345','AJL'],
+  'MA Chieh Sen':['0000006240','AJL'],'CHENG Chin':['0000000159','AJL'],
+  'LIN Cheng Hua':['0000006235','AJL'],'CHEN Chen Wei':['0000004633','AJL'],
+  // GUARDIANS (AEO)
+  'CHIANG Kuo Hao':['0000005479','AEO'],'LIAO Jen Lei':['0000002280','AEO'],
+  'LEE Chien Hsun':['0000005561','AEO'],'CHANG Yi':['0000005790','AEO'],
+  'Shawn MORIMANDO':['0000006749','AEO'],'TSENG Jyun Yue':['0000006227','AEO'],
+  'LI Tung Ming':['0000006739','AEO'],'SUZUKI Shunsuke':['0000007228','AEO'],
+  'ABE Yudai':['0000007783','AEO'],'LIN Zhen Cheng':['0000006870','AEO'],
+  'DAI Pei Feng':['0000004645','AEO'],'LIN Ze Bin':['0000005510','AEO'],
+  'WANG Yi Cheng':['0000006736','AEO'],'LIU Chun Hao':['0000006743','AEO'],
+  'TUNG Yu Cheng':['0000005336','AEO'],'SHEN Hao Wei':['0000000362','AEO'],
+  'CHANG Ming Yu':['0000000361','AEO'],'CHOU Chia Le':['0000006868','AEO'],
+  'KUNG Nien En':['0000006738','AEO'],
+  // DRAGONS (AAA)
+  'LI Chao':['0000006160','AAA'],'Marcelo MARTINEZ':['0000007264','AAA'],
+  'John GANT':['0000007779','AAA'],'LU Wei Cheng':['0000005552','AAA'],
+  'ZHAO Jing Long':['0000006215','AAA'],'Bryan WOODALL':['0000000762','AAA'],
+  'WANG Bo Yang':['0000006910','AAA'],'CHEN Wei Hao':['0000006750','AAA'],
+  'CHEN Kuan Wei':['0000005555','AAA'],'LIN Tzu Yu':['0000001821','AAA'],
+  'LIN Hsin Jie':['0000005789','AAA'],'Cristopher MERCEDES':['0000006555','AAA'],
+  'LIN Kai Wei':['0000005788','AAA'],'LIN Chen Hsun':['0000006217','AAA'],
+  'JIANG Shao Hong':['0000005291','AAA'],'CHU Yu Hsien':['0000001318','AAA'],
+  'LI Kai Wei':['0000005540','AAA'],'CHANG Cheng Yu':['0000005542','AAA'],
+  'LI Chan I':['0000006726','AAA'],'LIU Ji Hong':['0000005545','AAA'],
+  'CHEN Tzu Hao':['0000000743','AAA'],'KUO Tian Shin':['0000005549','AAA'],
+  'WANG Shun Ho':['0000006216','AAA'],
+  // TSG (AKP)
+  'CHEN Cheng Yi':['0000006771','AKP'],'LIN Shi Xiang':['0000006949','AKP'],
+  'CHEN Yu Hung':['0000006833','AKP'],'SHIH Tzu Chien':['0000002348','AKP'],
+  'CHIANG Chen Yen':['0000002679','AKP'],'Eric STOUT':['0000007053','AKP'],
+  'WANG Yao Lin':['0000001390','AKP'],'WEI Hong Liang':['0000007580','AKP'],
+  'CHEN Po Ching':['0000006832','AKP'],'HUANG Tzu Peng':['0000002274','AKP'],
+  'HSU Chun Yang':['0000005285','AKP'],'David BUCHANAN':['0000007570','AKP'],
+  'CHEN Shih Chia':['0000007064','AKP'],'WU Ming Hung':['0000002304','AKP'],
+  'LIU Shih Hao':['0000001258','AKP'],'TSENG Tzu Yu':['0000006927','AKP'],
+  'TANG Jia Hao':['0000005333','AKP'],'WU Nien Ting':['0000003649','AKP'],
+  'TSENG Yu Ching':['0000007301','AKP'],'KUO Fu Lin':['0000001291','AKP'],
+  'Steven MOYA':['0000007239','AKP'],'CHEN Wun Jie':['0000000772','AKP'],
+  'WANG Po Hsuan':['0000005340','AKP'],'WANG Po Jung':['0000000935','AKP'],
+};
+
+const CPBL_TEAM_FULL = {
+  'ACN':'Brothers','ADD':'U-Lions','AJL':'Monkeys',
+  'AEO':'Guardians','AAA':'Dragons','AKP':'TSG Hawks',
+};
+
+/* ══════════════════════════════════════════════════════
+   ★ CPBL 자동완성
+══════════════════════════════════════════════════════ */
+function cpblAcSearch(q) {
+  const qLow = q.toLowerCase().replace(/\s+/g,'');
+  if (qLow.length < 2) return [];
+  const results = [];
+  Object.entries(CPBL_INDEX).forEach(([name, [acnt, teamCode]]) => {
+    const nameLow = name.toLowerCase().replace(/\s+/g,'');
+    if (nameLow.startsWith(qLow) || nameLow.includes(qLow)) {
+      results.push({
+        display: name,
+        sub: CPBL_TEAM_FULL[teamCode] || teamCode,
+        keys: [nameLow],
+        league: 'cpbl',
+        team: CPBL_TEAM_FULL[teamCode] || teamCode,
+      });
+    }
+  });
+  return results.slice(0, 6);
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ CPBL 선수 데이터 fetch (en.cpbl.com.tw 바이오 파싱)
+══════════════════════════════════════════════════════ */
+async function fetchCpblData(query) {
+  // 1) CPBL_INDEX에서 Acnt 찾기
+  const q = query.trim();
+  const qLow = q.toLowerCase().replace(/\s+/g,'');
+  let acnt = null, teamCode = null, matchedName = null;
+
+  // 정확 매칭
+  for (const [name, info] of Object.entries(CPBL_INDEX)) {
+    const nLow = name.toLowerCase().replace(/\s+/g,'');
+    if (nLow === qLow) { acnt = info[0]; teamCode = info[1]; matchedName = name; break; }
+  }
+  // prefix 매칭 (3글자 이상)
+  if (!acnt && qLow.length >= 3) {
+    for (const [name, info] of Object.entries(CPBL_INDEX)) {
+      const nLow = name.toLowerCase().replace(/\s+/g,'');
+      if (nLow.startsWith(qLow)) { acnt = info[0]; teamCode = info[1]; matchedName = name; break; }
+    }
+  }
+  if (!acnt) return null;
+
+  // 2) 선수 페이지 HTML 파싱 (CODETABS 프록시)
+  const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
+  const pageUrl = `https://en.cpbl.com.tw/team/person?Acnt=${acnt}`;
+  const html = await fetch(`${PROXY}${encodeURIComponent(pageUrl)}`,
+    {signal: AbortSignal.timeout(12000)}).then(r => r.text());
+
+  // 3) PlayerBrief 섹션 파싱
+  const clean = s => s ? s.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&#\d+;/g,m=>String.fromCharCode(parseInt(m.slice(2)))).trim() : '';
+  const matchField = (html, cls) => {
+    const m = html.match(new RegExp(`class="${cls}"[^>]*>[\\s\\S]*?<div class="desc">(.*?)</div>`));
+    return m ? clean(m[1]) : '';
+  };
+
+  const briefM = html.match(/<div class="PlayerBrief">([\s\S]*?)<\/div>\s*<form/);
+  const brief = briefM ? briefM[1] : html;
+
+  const teamM  = brief.match(/<div class="team">([^<]+)<\/div>/);
+  const nameM  = brief.match(/<div class="name">([^<]+)<span class="number">(\d+)<\/span>/);
+  const imgM   = brief.match(/background-image:url\(([^)]+)\)/);
+  const posM   = brief.match(/class="pos"[\s\S]*?<div class="desc">([^<]+)<\/div>/);
+  const btM    = brief.match(/class="b_t"[\s\S]*?<div class="desc">([^<]+)<\/div>/);
+  const hwM    = brief.match(/class="ht_wt"[\s\S]*?<div class="desc">([\s\S]*?)<\/div>/);
+  const bornM  = brief.match(/class="born"[\s\S]*?<div class="desc">([^<]+)<\/div>/);
+  const debutM = brief.match(/class="debut"[\s\S]*?<div class="desc">([^<]+)<\/div>/);
+  const nationM= brief.match(/class="nationality"[\s\S]*?<div class="desc">([^<]+)<\/div>/);
+
+  const playerName = nameM ? clean(nameM[1]) : (matchedName || q);
+  const jerseyNo   = nameM ? nameM[2] : '';
+  const team       = teamM ? clean(teamM[1]) : (CPBL_TEAM_FULL[teamCode] || teamCode);
+  const photoUrl   = imgM  ? ('https://en.cpbl.com.tw' + imgM[1].replace(/^https?:\/\/[^/]+/, '')) : '';
+  const pos        = posM  ? clean(posM[1]) : '';
+  const bt         = btM   ? clean(btM[1]) : '';
+  const hw         = hwM   ? clean(hwM[1]).replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim() : '';
+  const born       = bornM ? clean(bornM[1]) : '';
+  const debut      = debutM? clean(debutM[1]): '';
+  const nation     = nationM ? clean(nationM[1]) : '';
+
+  return {
+    src: 'cpbl', name: playerName, jerseyNo, team, teamCode, acnt,
+    photo: photoUrl, pos, bt, hw, born, debut, nation,
+    pageUrl,
+    isBatter: !/(pitcher|투수)/i.test(pos),
+  };
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ CPBL 결과 카드 빌더
+══════════════════════════════════════════════════════ */
+function buildCpblCard(p) {
+  const init = (p.name||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+  const photoHtml = p.photo
+    ? `<img src="${p.photo}" alt="${escH(p.name)}" onerror="this.style.display='none'">`
+    : init;
+
+  const bioRows = [
+    ['포지션', p.pos],['투타', p.bt],['신체', p.hw],
+    ['생년월일', p.born],['데뷔', p.debut],['국적', p.nation],
+  ].filter(([,v])=>v).map(([l,v])=>
+    `<div class="bc"><div class="bl">${l}</div><div class="bv">${escH(v)}</div></div>`
+  ).join('');
+
+  return `<div class="pcard">
+    <div class="prof">
+      <div class="photo">${photoHtml}</div>
+      <div class="pinfo">
+        <div class="pname">${escH(p.name)} ${p.jerseyNo?`<span class="pname-sub">#${p.jerseyNo}</span>`:''}</div>
+        <div class="brow">
+          <span class="badge b-cpbl">CPBL</span>
+          <span class="badge b-tm">${escH(p.team)}</span>
+          ${p.pos ? `<span class="badge b-pos">${escH(p.pos)}</span>` : ''}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${bioRows}</div>
+      </div>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--bd);">
+      <div style="font-size:.78rem;color:var(--mu2);margin-bottom:10px;">
+        ℹ️ CPBL 시즌 기록은 공식 사이트에서 확인하세요 (API 보안 정책상 직접 조회 불가)
+      </div>
+      <a href="${escH(p.pageUrl)}" target="_blank" style="display:inline-block;padding:8px 18px;background:var(--cpbl);color:#fff;border-radius:8px;font-size:.84rem;font-weight:700;text-decoration:none;">
+        📊 CPBL 공식 기록 보기
+      </a>
+    </div>
+    <div class="src-tag src-api" style="background:rgba(232,70,30,.1);color:var(--cpbl);">
+      🇹🇼 en.cpbl.com.tw
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ CPBL 검색 실행
+══════════════════════════════════════════════════════ */
+async function runCpbl(query) {
+  setLoading(query);
+  const data = await fetchCpblData(query).catch(() => null);
+  if (!data) {
+    document.getElementById('main').innerHTML = `<div class="pcard" style="padding:24px;">
+      <div style="font-size:1rem;font-weight:700;color:var(--yw);margin-bottom:10px;">🔍 CPBL 선수를 찾을 수 없습니다</div>
+      <p style="color:var(--mu);line-height:1.7;">
+        영문 이름으로 정확하게 검색해 주세요.<br>
+        예: <em>CHIANG Chen Yen</em>, <em>LIN Tzu Wei</em>, <em>John GANT</em>
+      </p>
+      <a href="https://en.cpbl.com.tw/player" target="_blank" class="lg-ext-link" style="margin:12px 0 0;">🔗 CPBL 전체 선수 목록</a>
+    </div>`;
+    return;
+  }
+  const main = document.getElementById('main');
+  main.innerHTML = `<div class="rhead">
+    <h3>🔍 "${escH(query)}" — CPBL</h3>
+    <span>🇹🇼 대만 프로야구</span>
+  </div><div id="cards"></div>`;
+  document.getElementById('cards').insertAdjacentHTML('beforeend', buildCpblCard(data));
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ CPBL 스케줄 (box 페이지 파싱 + GameSno 스캔)
+══════════════════════════════════════════════════════ */
+async function loadCpblSchedule(el) {
+  const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
+  const dateStr = _lgDateStr(_lgDate).replace(/\./g,'/');
+  const yr = _lgDate.getFullYear();
+  const mm = String(_lgDate.getMonth()+1).padStart(2,'0');
+  const dd = String(_lgDate.getDate()).padStart(2,'0');
+  const targetDate = `${yr}/${mm}/${dd}`;
+
+  try {
+    // 기본 box 페이지 먼저 가져와서 GameSno 확인
+    const boxUrl = `https://en.cpbl.com.tw/box`;
+    const baseHtml = await fetch(`${PROXY}${encodeURIComponent(boxUrl)}`,
+      {signal: AbortSignal.timeout(12000)}).then(r => r.text());
+
+    // GameSno 추출
+    const snoM = baseHtml.match(/<input[^>]*id="GameSno"[^>]*value="(\d+)"/);
+    const baseSno = snoM ? parseInt(snoM[1]) : null;
+
+    // 브레드크럼에서 날짜/팀 추출 헬퍼
+    const extractGame = (html) => {
+      const bcM = html.match(/<li><a href="#">(\d{4}\/\d{2}\/\d{2})\s+([^<]+?)\s+VS\.\s+([^<]+?)<\/a><\/li>/);
+      if (!bcM) return null;
+      return { date: bcM[1], away: bcM[2].trim(), home: bcM[3].trim() };
+    };
+
+    // score 추출 헬퍼
+    const extractScore = (html) => {
+      // Vue.js 렌더링 전 - 스코어 없음
+      return '';
+    };
+
+    const games = [];
+
+    if (baseSno !== null) {
+      // baseSno ±8 범위 병렬 fetch
+      const snos = [];
+      for (let i = baseSno - 8; i <= baseSno + 8; i++) if (i > 0) snos.push(i);
+
+      const fetchGame = async (sno) => {
+        try {
+          const url = `https://en.cpbl.com.tw/box?Year=${yr}&KindCode=A&GameSno=${sno}`;
+          const html = await fetch(`${PROXY}${encodeURIComponent(url)}`,
+            {signal: AbortSignal.timeout(8000)}).then(r => r.text());
+          const g = extractGame(html);
+          if (g && g.date === targetDate) return { ...g, sno };
+        } catch(_) {}
+        return null;
+      };
+
+      const fetched = await Promise.allSettled(snos.map(fetchGame));
+      for (const r of fetched) {
+        if (r.status === 'fulfilled' && r.value) {
+          games.push(r.value);
+        }
+      }
+      // sno 순 정렬 + 중복 제거
+      const seenPairs = new Set();
+      for (const g of games.sort((a,b)=>a.sno-b.sno)) {
+        const k = `${g.away}-${g.home}`;
+        if (!seenPairs.has(k)) { seenPairs.add(k); }
+      }
+    }
+
+    // 결과 렌더링
+    if (games.length) {
+      const gameObjects = games.map(g => ({
+        away: g.away, home: g.home, score: '', venue: '', status: '확인 필요'
+      }));
+      el.innerHTML = _renderScheduleTable(gameObjects, 'cpbl');
+    } else {
+      el.innerHTML = `<div class="sbox">
+        <p>🏟️ ${dateStr} CPBL 경기 정보</p>
+        <p style="font-size:.8rem;color:var(--mu);margin-top:6px;">스케줄/점수는 공식 사이트에서 확인하세요</p>
+        <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정 보기</a>
+      </div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">
+      <p>⚠️ CPBL 스케줄을 불러오지 못했습니다.</p>
+      <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정 바로가기</a>
+    </div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   ★ CPBL 순위 (en.cpbl.com.tw/standings/season HTML 파싱)
+══════════════════════════════════════════════════════ */
+async function loadCpblStandings(el) {
+  const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
+  try {
+    const url = 'https://en.cpbl.com.tw/standings/season';
+    const html = await fetch(`${PROXY}${encodeURIComponent(url)}`,
+      {signal: AbortSignal.timeout(12000)}).then(r => r.text());
+
+    // 첫 번째 테이블 파싱 (팀 순위)
+    const tableM = html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
+    if (!tableM) throw new Error('No table');
+
+    const rows = [];
+    const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+    let m;
+    while ((m = rowRe.exec(tableM[1])) !== null) {
+      const cells = [];
+      const cellRe = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g;
+      let cm;
+      while ((cm = cellRe.exec(m[1])) !== null) {
+        cells.push(cm[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,'').trim());
+      }
+      if (cells.length >= 5) rows.push(cells);
+    }
+
+    if (rows.length < 2) throw new Error('No data');
+
+    // 헤더 건너뛰고 팀 데이터 파싱
+    const teams = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      // r[0]: "1\nDRAGONS", r[1]: G, r[2]: W-T-L, r[3]: PCT, r[4]: GB, ...
+      const rankTeam = r[0].replace(/\s+/g,' ').trim();
+      const rankM = rankTeam.match(/^(\d+)\s+(.+)/);
+      if (!rankM) continue;
+      const rank = parseInt(rankM[1]);
+      const team = rankM[2].trim();
+      const g    = r[1] || '-';
+      const wtl  = r[2] || '';
+      const pct  = r[3] || '-';
+      const gb   = r[4] || '-';
+      const strk = r[rows[i].length-1] || '';
+      // W-T-L 파싱: "21-0-13"
+      const wtlM = wtl.match(/(\d+)-(\d+)-(\d+)/);
+      const w = wtlM ? wtlM[1] : '-';
+      const d = wtlM ? wtlM[2] : '0';
+      const l = wtlM ? wtlM[3] : '-';
+      const pctVal = parseFloat(pct);
+      teams.push({ rank, team, g, w, l, d, pct: isNaN(pctVal)?pct:pctVal.toFixed(3), gb, streak: strk });
+    }
+
+    if (!teams.length) throw new Error('No teams');
+    el.innerHTML = _renderStandingsTable(teams, 'cpbl');
+  } catch(e) {
+    el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.cpbl.extStd}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 순위 바로가기</a></div>`;
+  }
 }
 
 function escH(s){
