@@ -227,7 +227,7 @@
 .lg-tbl .tm-name{text-align:left;font-weight:700;font-size:.83rem;color:var(--tx);padding-left:14px;}
 .lg-tbl .rank-cell{font-weight:800;font-size:.88rem;color:var(--ac);}
 .lg-tbl .score-cell{font-size:.95rem;font-weight:800;color:var(--ac);letter-spacing:1px;}
-.lg-tbl .team-away,.lg-tbl .team-home{font-weight:700;font-size:.83rem;}
+.lg-tbl .team-away,.lg-tbl .team-home{font-weight:700;font-size:.83rem;text-align:left;padding-left:14px;}
 .team-logo{width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:6px;display:inline-block;flex-shrink:0;background:#fff;border-radius:5px;padding:2px;box-shadow:0 1px 3px rgba(0,0,0,.25);}
 .st-final{background:rgba(46,200,122,.12);color:var(--gn);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
 .st-live{background:var(--rd);color:#fff;padding:2px 9px;border-radius:4px;font-size:.7rem;font-weight:800;animation:livePulse 1.4s ease-in-out infinite;letter-spacing:.4px;}
@@ -8568,7 +8568,7 @@ function _renderScheduleTable(games, lg) {
   return `<div class="lg-tbl-wrap">
     <table class="lg-tbl">
       <thead><tr>
-        <th>원정팀</th><th>스코어</th><th>홈팀</th><th>구장</th><th>상태</th>
+        <th style="text-align:left;padding-left:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>구장</th><th>상태</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -9325,7 +9325,7 @@ async function loadCpblSchedule(el) {
 
     el.innerHTML = `<div class="lg-tbl-wrap"><table class="lg-tbl">
       <thead><tr>
-        <th>원정팀</th><th>스코어</th><th>홈팀</th><th>상태</th>
+        <th style="text-align:left;padding-left:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>상태</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
