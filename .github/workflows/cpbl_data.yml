@@ -36,21 +36,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 네트워크 진단 (CPBL 접근 확인)
-        run: |
-          echo "=== curl 상태 코드 ==="
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
-            -H "Accept: text/html" \
-            --max-time 15 \
-            "https://en.cpbl.com.tw/schedule")
-          echo "HTTP Status: $CODE"
-          echo "=== curl 응답 헤더 ==="
-          curl -s -I \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0" \
-            --max-time 15 \
-            "https://en.cpbl.com.tw/schedule" | head -20
-
       - name: CPBL 스케줄 수집
         if: ${{ github.event.inputs.target != 'stats' }}
         run: |
