@@ -36,11 +36,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Playwright 설치
-        run: |
-          pip install playwright
-          playwright install chromium --with-deps
-
       - name: CPBL 스케줄 수집
         if: ${{ github.event.inputs.target != 'stats' }}
         run: |

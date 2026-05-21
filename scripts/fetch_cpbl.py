@@ -1,91 +1,95 @@
 #!/usr/bin/env python3
 """
-CPBL 선수 연도별 기록 + 시즌 스케줄 수집 스크립트 (Playwright 버전)
-- Cloudflare WAF를 통과하기 위해 실제 Chromium 브라우저 사용
+CPBL 선수 연도별 기록 + 시즌 스케줄 수집 스크립트 (curl 버전)
+- Python urllib/requests는 Cloudflare WAF에 차단되지만 curl은 정상 통과
 - 선수 기록: data/cpbl_stats.json
 - 시즌 스케줄: data/cpbl_schedule_{year}.json
 
 실행: python3 scripts/fetch_cpbl.py [--stats] [--schedule] [--year 2026]
-아무 옵션 없이 실행하면 둘 다 수집.
 """
-import json, re, time, sys, os, argparse
+import json, re, time, sys, os, argparse, subprocess, tempfile
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 
-# ── Playwright 기반 공통 헬퍼 ──────────────────────────────
-def make_browser(p):
-    """Cloudflare를 통과할 수 있는 브라우저 컨텍스트 반환"""
-    browser = p.chromium.launch(
-        headless=True,
-        args=['--no-sandbox', '--disable-setuid-sandbox',
-              '--disable-blink-features=AutomationControlled']
+CURL_UA = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/124.0.0.0 Safari/537.36'
+)
+
+# ── curl 헬퍼 ─────────────────────────────────────────────
+def curl_get(url) -> tuple[str, str]:
+    """
+    curl로 페이지 GET → (html, __RequestVerificationToken cookie값) 반환
+    """
+    with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as tf:
+        tmp = tf.name
+
+    # -D - 로 응답 헤더를 stdout에, 본문은 파일에 저장
+    result = subprocess.run(
+        [
+            'curl', '-s', '-L',
+            '-D', '-',          # 헤더를 stdout으로
+            '-o', tmp,          # 본문은 파일로
+            '-H', f'User-Agent: {CURL_UA}',
+            '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            '-H', 'Accept-Language: zh-TW,zh;q=0.9,en;q=0.8',
+            '--max-time', '30',
+            '--connect-timeout', '15',
+            url,
+        ],
+        capture_output=True, text=True, timeout=40
     )
-    ctx = browser.new_context(
-        user_agent=(
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/124.0.0.0 Safari/537.36'
-        ),
-        locale='zh-TW',
-        timezone_id='Asia/Taipei',
-        viewport={'width': 1280, 'height': 800},
-        extra_http_headers={
-            'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
-        }
+
+    headers = result.stdout  # -D - → 헤더가 stdout
+    cookie_val = ''
+    for line in headers.splitlines():
+        if 'set-cookie' in line.lower():
+            m = re.search(r'__RequestVerificationToken=([^;,\s]+)', line)
+            if m:
+                cookie_val = m.group(1)
+
+    with open(tmp, 'r', encoding='utf-8', errors='replace') as f:
+        html = f.read()
+    os.unlink(tmp)
+    return html, cookie_val
+
+
+def extract_js_tokens(html: str) -> list[str]:
+    return re.findall(r"RequestVerificationToken\s*:\s*['\"]([^'\"]{30,})['\"]", html)
+
+
+def curl_post_json(api_url: str, body_dict: dict, token: str,
+                   cookie: str, referer: str) -> dict:
+    """
+    curl로 CSRF 인증 POST → JSON 파싱 결과 반환
+    """
+    body = '&'.join(f'{k}={v}' for k, v in body_dict.items())
+    result = subprocess.run(
+        [
+            'curl', '-s',
+            '-X', 'POST',
+            '-H', 'Content-Type: application/x-www-form-urlencoded',
+            '-H', 'X-Requested-With: XMLHttpRequest',
+            '-H', f'RequestVerificationToken: {token}',
+            '-H', f'Cookie: __RequestVerificationToken={cookie}',
+            '-H', f'Origin: https://en.cpbl.com.tw',
+            '-H', f'Referer: {referer}',
+            '-H', f'User-Agent: {CURL_UA}',
+            '-H', 'Accept: application/json, */*',
+            '--max-time', '30',
+            '--data', body,
+            api_url,
+        ],
+        capture_output=True, text=True, timeout=40
     )
-    return browser, ctx
+    return json.loads(result.stdout)
 
-def wait_cf(page, timeout=15000):
-    """Cloudflare 챌린지 통과 대기"""
-    try:
-        page.wait_for_load_state('networkidle', timeout=timeout)
-    except Exception:
-        pass
-    time.sleep(1.5)  # JS 렌더링 여유
-
-def get_csrf(page):
-    """현재 페이지에서 CSRF 토큰 + 쿠키 추출"""
-    html = page.content()
-    tokens = re.findall(r"RequestVerificationToken\s*:\s*['\"]([^'\"]{30,})['\"]", html)
-    # hidden input 방식도 시도
-    hidden = re.findall(r'name="__RequestVerificationToken"[^>]*value="([^"]{30,})"', html)
-    hidden += re.findall(r'value="([^"]{30,})"[^>]*name="__RequestVerificationToken"', html)
-    all_tokens = list(dict.fromkeys(tokens + hidden))
-
-    cookies = page.context.cookies()
-    cookie_val = next(
-        (c['value'] for c in cookies if c['name'] == '__RequestVerificationToken'),
-        ''
-    )
-    return all_tokens, cookie_val
-
-def post_api(page, api_url, body: dict, token: str, referer: str):
-    """페이지 컨텍스트에서 XHR POST — 쿠키·헤더 자동 포함"""
-    body_str = '&'.join(f'{k}={v}' for k, v in body.items())
-    result = page.evaluate(f"""
-        async () => {{
-            const resp = await fetch({json.dumps(api_url)}, {{
-                method: 'POST',
-                headers: {{
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'RequestVerificationToken': {json.dumps(token)},
-                    'Referer': {json.dumps(referer)},
-                }},
-                body: {json.dumps(body_str)},
-                credentials: 'same-origin',
-            }});
-            return await resp.text();
-        }}
-    """)
-    return json.loads(result)
 
 # ── 선수 연도별 기록 수집 ────────────────────────────────
-def fetch_all_stats(index_html_path):
-    from playwright.sync_api import sync_playwright
-
-    print('📊 CPBL 선수 기록 수집 시작 (Playwright)...')
+def fetch_all_stats(index_html_path: str) -> dict:
+    print('📊 CPBL 선수 기록 수집 시작 (curl)...')
     with open(index_html_path, 'r', encoding='utf-8') as f:
         src = f.read()
 
@@ -98,91 +102,73 @@ def fetch_all_stats(index_html_path):
     stats_db = {}
     success = fail = 0
 
-    with sync_playwright() as p:
-        browser, ctx = make_browser(p)
-        page = ctx.new_page()
+    for acnt, name, pos in players:
+        is_batter = 'pitcher' not in pos.lower()
+        ptype = 'bat' if is_batter else 'pit'
+        print(f'  [{acnt}] {name} ({ptype})', end=' ... ', flush=True)
 
-        for acnt, name, pos in players:
-            is_batter = 'pitcher' not in pos.lower()
-            ptype = 'bat' if is_batter else 'pit'
-            print(f'  [{acnt}] {name} ({ptype})', end=' ... ', flush=True)
+        try:
+            page_url = f'https://en.cpbl.com.tw/team/person?Acnt={acnt}'
+            html, cookie = curl_get(page_url)
+            tokens = extract_js_tokens(html)
 
-            try:
-                page_url = f'https://en.cpbl.com.tw/team/person?Acnt={acnt}'
-                page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
-                wait_cf(page)
+            if not tokens or not cookie:
+                print(f'토큰 없음 (t={len(tokens)}, c={bool(cookie)})')
+                fail += 1
+                continue
 
-                all_tokens, cookie_val = get_csrf(page)
-                if not all_tokens or not cookie_val:
-                    print(f'토큰 없음 (t={len(all_tokens)}, c={bool(cookie_val)})')
-                    fail += 1
-                    continue
+            token = tokens[1] if (not is_batter and len(tokens) > 1) else tokens[0]
+            api_url = ('https://en.cpbl.com.tw/team/getpitchscore'
+                       if not is_batter else
+                       'https://en.cpbl.com.tw/team/getbattingscore')
 
-                # 투수: 두 번째 토큰, 타자: 첫 번째
-                token = all_tokens[1] if (not is_batter and len(all_tokens) > 1) else all_tokens[0]
-                api_url = ('https://en.cpbl.com.tw/team/getpitchscore'
-                           if not is_batter else
-                           'https://en.cpbl.com.tw/team/getbattingscore')
+            result = curl_post_json(api_url,
+                                    {'acnt': acnt, 'kindCode': 'A'},
+                                    token, cookie, page_url)
 
-                result = post_api(page, api_url,
-                                  {'acnt': acnt, 'kindCode': 'A'},
-                                  token, page_url)
-
-                if result.get('Success'):
-                    raw_key = 'BattingScore' if is_batter else 'PitchScore'
-                    raw_val = result.get(raw_key) or result.get('Data') or '[]'
-                    seasons = json.loads(raw_val) if isinstance(raw_val, str) else raw_val
-                    if seasons:
-                        stats_db[acnt] = {ptype: seasons}
-                        print(f'✅ {len(seasons)}시즌')
-                        success += 1
-                    else:
-                        print('데이터 없음')
-                        fail += 1
+            if result.get('Success'):
+                raw_key = 'BattingScore' if is_batter else 'PitchScore'
+                raw_val = result.get(raw_key) or result.get('Data') or '[]'
+                seasons = json.loads(raw_val) if isinstance(raw_val, str) else raw_val
+                if seasons:
+                    stats_db[acnt] = {ptype: seasons}
+                    print(f'✅ {len(seasons)}시즌')
+                    success += 1
                 else:
-                    print(f'응답 이상: {str(result)[:80]}')
+                    print('데이터 없음')
                     fail += 1
-
-            except Exception as e:
-                print(f'오류: {e}')
+            else:
+                print(f'응답 이상: {str(result)[:80]}')
                 fail += 1
 
-            time.sleep(0.5)
+        except Exception as e:
+            print(f'오류: {e}')
+            fail += 1
 
-        browser.close()
+        time.sleep(0.5)
 
     print(f'\n  완료: 성공 {success}명 / 실패 {fail}명')
     return stats_db
 
+
 # ── 시즌 스케줄 수집 ──────────────────────────────────────
-def fetch_schedule(year):
-    from playwright.sync_api import sync_playwright
-
-    print(f'📅 CPBL {year} 스케줄 수집 (Playwright)...')
+def fetch_schedule(year: int):
+    print(f'📅 CPBL {year} 스케줄 수집 (curl)...')
     try:
-        with sync_playwright() as p:
-            browser, ctx = make_browser(p)
-            page = ctx.new_page()
+        html, cookie = curl_get('https://en.cpbl.com.tw/schedule')
+        tokens = extract_js_tokens(html)
 
-            page.goto('https://en.cpbl.com.tw/schedule',
-                      wait_until='domcontentloaded', timeout=30000)
-            wait_cf(page)
+        if not tokens or not cookie:
+            print(f'  ⚠️  토큰 없음 (t={len(tokens)}, c={bool(cookie)})')
+            return None
 
-            all_tokens, cookie_val = get_csrf(page)
-            if not all_tokens or not cookie_val:
-                print(f'  ⚠️  토큰 없음 (t={len(all_tokens)}, c={bool(cookie_val)})')
-                browser.close()
-                return None
-
-            token = all_tokens[1] if len(all_tokens) > 1 else all_tokens[0]
-            result = post_api(
-                page,
-                'https://en.cpbl.com.tw/schedule/getgamedatas',
-                {'calendar': f'{year}/01/01', 'location': '', 'kindCode': 'A'},
-                token,
-                'https://en.cpbl.com.tw/schedule'
-            )
-            browser.close()
+        token = tokens[1] if len(tokens) > 1 else tokens[0]
+        result = curl_post_json(
+            'https://en.cpbl.com.tw/schedule/getgamedatas',
+            {'calendar': f'{year}/01/01', 'location': '', 'kindCode': 'A'},
+            token, cookie,
+            'https://en.cpbl.com.tw/schedule'
+        )
 
         if result.get('Success'):
             raw_val = result.get('GameDatas') or result.get('Data') or '[]'
@@ -196,6 +182,7 @@ def fetch_schedule(year):
     except Exception as e:
         print(f'  오류: {e}')
         return None
+
 
 # ── 메인 ────────────────────────────────────────────────
 def main():
@@ -229,6 +216,7 @@ def main():
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(games, f, ensure_ascii=False, separators=(',', ':'))
             print(f'💾 저장: {out_path} ({os.path.getsize(out_path)//1024}KB)')
+
 
 if __name__ == '__main__':
     main()
