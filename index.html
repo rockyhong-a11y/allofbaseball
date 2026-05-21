@@ -228,6 +228,7 @@
 .lg-tbl .rank-cell{font-weight:800;font-size:.88rem;color:var(--ac);}
 .lg-tbl .score-cell{font-size:.95rem;font-weight:800;color:var(--ac);letter-spacing:1px;}
 .lg-tbl .team-away,.lg-tbl .team-home{font-weight:700;font-size:.83rem;}
+.team-logo{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:5px;display:inline-block;flex-shrink:0;}
 .st-final{background:rgba(46,200,122,.12);color:var(--gn);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
 .st-live{background:var(--rd);color:#fff;padding:2px 9px;border-radius:4px;font-size:.7rem;font-weight:800;animation:livePulse 1.4s ease-in-out infinite;letter-spacing:.4px;}
 @keyframes livePulse{0%,100%{opacity:1;}50%{opacity:.45;}}
@@ -8455,6 +8456,91 @@ async function loadNpbStandings(el) {
 }
 
 
+/* ── 팀 로고 맵 & 헬퍼 ── */
+const TEAM_LOGO = {
+  // KBO
+  'KIA 타이거즈':'logos/kbo-KIA.png','LG 트윈스':'logos/kbo-LG.png',
+  '두산 베어스':'logos/kbo-Doosan.png','SSG 랜더스':'logos/kbo-SSG.png',
+  'KT 위즈':'logos/kbo-KT.png','롯데 자이언츠':'logos/kbo-Lotte.png',
+  'NC 다이노스':'logos/kbo-NC.png','삼성 라이온즈':'logos/kbo-Samsung.png',
+  '한화 이글스':'logos/kbo-Hanwha.png','키움 히어로즈':'logos/kbo-Kiwoom.png',
+  // NPB 스케줄 (단축)
+  '야쿠르트':'logos/npb-Swallows.png','히로시마':'logos/npb-Carp.png',
+  '요미우리':'logos/npb-Giants.png','주니치':'logos/npb-Dragons.png',
+  'DeNA 베이스타즈':'logos/npb-DeNA.png','한신':'logos/npb-Tigers.png',
+  '소프트뱅크':'logos/npb-Hawks.png','닛폰햄':'logos/npb-Fighters.png',
+  '라쿠텐':'logos/npb-Eagles.png','롯데':'logos/npb-Marines.png',
+  '오릭스':'logos/npb-Buffaloes.png','세이부':'logos/npb-Lions.png',
+  // NPB 순위 (풀이름)
+  '야쿠르트 스왈로즈':'logos/npb-Swallows.png','히로시마 카프':'logos/npb-Carp.png',
+  '요미우리 자이언츠':'logos/npb-Giants.png','주니치 드래곤즈':'logos/npb-Dragons.png',
+  '한신 타이거스':'logos/npb-Tigers.png','소프트뱅크 호크스':'logos/npb-Hawks.png',
+  '닛폰햄 파이터즈':'logos/npb-Fighters.png','라쿠텐 이글스':'logos/npb-Eagles.png',
+  '롯데 마린즈':'logos/npb-Marines.png','ORIX 버팔로즈':'logos/npb-Buffaloes.png',
+  '세이부 라이온즈':'logos/npb-Lions.png',
+  // CPBL
+  'Brothers':'logos/cpbl-Brothers.png','Dragons':'logos/cpbl-Dragons.png','DRAGONS':'logos/cpbl-Dragons.png',
+  'Guardians':'logos/cpbl-Guardians.png','Monkeys':'logos/cpbl-Monkeys.png',
+  'TSG Hawks':'logos/cpbl-Hawks.png','U-Lions':'logos/cpbl-UniLions.png',
+  // MLB 스케줄 (단축 한글)
+  '볼티모어':'//www.mlbstatic.com/team-logos/110.svg',
+  '보스턴':'//www.mlbstatic.com/team-logos/111.svg',
+  '뉴욕 양키스':'//www.mlbstatic.com/team-logos/147.svg',
+  '탬파베이':'//www.mlbstatic.com/team-logos/139.svg',
+  '토론토':'//www.mlbstatic.com/team-logos/141.svg',
+  '시카고 화이트삭스':'//www.mlbstatic.com/team-logos/145.svg',
+  '클리블랜드':'//www.mlbstatic.com/team-logos/114.svg',
+  '디트로이트':'//www.mlbstatic.com/team-logos/116.svg',
+  '캔자스시티':'//www.mlbstatic.com/team-logos/118.svg',
+  '미네소타':'//www.mlbstatic.com/team-logos/142.svg',
+  '휴스턴':'//www.mlbstatic.com/team-logos/117.svg',
+  'LA 에인절스':'//www.mlbstatic.com/team-logos/108.svg',
+  '오클랜드 애슬레틱스':'//www.mlbstatic.com/team-logos/133.svg',
+  '애슬레틱스':'//www.mlbstatic.com/team-logos/133.svg',
+  '시애틀':'//www.mlbstatic.com/team-logos/136.svg',
+  '텍사스':'//www.mlbstatic.com/team-logos/140.svg',
+  '애틀랜타':'//www.mlbstatic.com/team-logos/144.svg',
+  '마이애미':'//www.mlbstatic.com/team-logos/146.svg',
+  '뉴욕 메츠':'//www.mlbstatic.com/team-logos/121.svg',
+  '필라델피아':'//www.mlbstatic.com/team-logos/143.svg',
+  '워싱턴':'//www.mlbstatic.com/team-logos/120.svg',
+  '시카고 컵스':'//www.mlbstatic.com/team-logos/112.svg',
+  '신시내티':'//www.mlbstatic.com/team-logos/113.svg',
+  '밀워키':'//www.mlbstatic.com/team-logos/158.svg',
+  '피츠버그':'//www.mlbstatic.com/team-logos/134.svg',
+  '세인트루이스':'//www.mlbstatic.com/team-logos/138.svg',
+  '애리조나':'//www.mlbstatic.com/team-logos/109.svg',
+  '콜로라도':'//www.mlbstatic.com/team-logos/115.svg',
+  'LA 다저스':'//www.mlbstatic.com/team-logos/119.svg',
+  '샌디에이고':'//www.mlbstatic.com/team-logos/135.svg',
+  '샌프란시스코':'//www.mlbstatic.com/team-logos/137.svg',
+  // MLB 순위 (풀 한글)
+  '볼티모어 오리올스':'//www.mlbstatic.com/team-logos/110.svg',
+  '보스턴 레드삭스':'//www.mlbstatic.com/team-logos/111.svg',
+  '탬파베이 레이스':'//www.mlbstatic.com/team-logos/139.svg',
+  '토론토 블루제이스':'//www.mlbstatic.com/team-logos/141.svg',
+  '클리블랜드 가디언스':'//www.mlbstatic.com/team-logos/114.svg',
+  '디트로이트 타이거스':'//www.mlbstatic.com/team-logos/116.svg',
+  '캔자스시티 로열스':'//www.mlbstatic.com/team-logos/118.svg',
+  '미네소타 트윈스':'//www.mlbstatic.com/team-logos/142.svg',
+  '휴스턴 애스트로스':'//www.mlbstatic.com/team-logos/117.svg',
+  '시애틀 매리너스':'//www.mlbstatic.com/team-logos/136.svg',
+  '텍사스 레인저스':'//www.mlbstatic.com/team-logos/140.svg',
+  '애틀랜타 브레이브스':'//www.mlbstatic.com/team-logos/144.svg',
+  '마이애미 말린스':'//www.mlbstatic.com/team-logos/146.svg',
+  '필라델피아 필리스':'//www.mlbstatic.com/team-logos/143.svg',
+  '워싱턴 내셔널스':'//www.mlbstatic.com/team-logos/120.svg',
+  '신시내티 레즈':'//www.mlbstatic.com/team-logos/113.svg',
+  '밀워키 브루어스':'//www.mlbstatic.com/team-logos/158.svg',
+  '피츠버그 파이리츠':'//www.mlbstatic.com/team-logos/134.svg',
+  '세인트루이스 카디널스':'//www.mlbstatic.com/team-logos/138.svg',
+  '애리조나 다이아몬드백스':'//www.mlbstatic.com/team-logos/109.svg',
+  '콜로라도 로키스':'//www.mlbstatic.com/team-logos/115.svg',
+  '샌디에이고 파드리스':'//www.mlbstatic.com/team-logos/135.svg',
+  '샌프란시스코 자이언츠':'//www.mlbstatic.com/team-logos/137.svg',
+};
+function tmLogo(n){const s=TEAM_LOGO[n];return s?`<img src="${s}" class="team-logo" alt="" loading="lazy">`:''}
+
 /* ── 공통 렌더러: 스케줄 테이블 ── */
 function _renderScheduleTable(games, lg) {
   if (!games.length) return `<div class="sbox"><p>경기 없음</p></div>`;
@@ -8471,9 +8557,9 @@ function _renderScheduleTable(games, lg) {
     else if (status === '연기' || status === '취소') statusHtml = `<span class="st-cancel">${escH(status)}</span>`;
     else statusHtml = `<span class="st-sched">${escH(status)}</span>`;
     return `<tr>
-      <td class="team-away ${aWin?'hg':''}">${escH(g.away||'')}</td>
+      <td class="team-away ${aWin?'hg':''}">${tmLogo(g.away)}${escH(g.away||'')}</td>
       <td class="score-cell">${score ? `${aScore} <span style="color:var(--mu);font-weight:400">:</span> ${hScore}` : '<span style="color:var(--mu)">vs</span>'}</td>
-      <td class="team-home ${hWin?'hg':''}">${escH(g.home||'')}</td>
+      <td class="team-home ${hWin?'hg':''}">${tmLogo(g.home)}${escH(g.home||'')}</td>
       <td>${escH(g.venue||'')}</td>
       <td>${statusHtml}</td>
     </tr>`;
@@ -8515,7 +8601,7 @@ function _renderStandingsTableWithDivisions(divData, lg) {
       const pctDisp = isNaN(pctVal) ? (t.pct||'-') : pctVal.toFixed(3);
       html += `<tr>
         <td class="rank-cell">${t.rank}</td>
-        <td class="tm-name">${escH(t.team)}</td>
+        <td class="tm-name">${tmLogo(t.team)}${escH(t.team)}</td>
         <td>${t.g}</td>
         <td><strong style="color:var(--gn)">${t.w}</strong></td>
         <td><strong style="color:var(--rd)">${t.l}</strong></td>
@@ -9221,17 +9307,17 @@ async function loadCpblSchedule(el) {
 
       if (isDone) {
         rows += `<tr>
-          <td class="team-away ${awayWin?'hg':''}">${escH(away)}</td>
+          <td class="team-away ${awayWin?'hg':''}">${tmLogo(away)}${escH(away)}</td>
           <td class="score-cell">${g.VisitingScore} <span style="color:var(--mu);font-weight:400">:</span> ${g.HomeScore}</td>
-          <td class="team-home ${homeWin?'hg':''}">${escH(home)}</td>
+          <td class="team-home ${homeWin?'hg':''}">${tmLogo(home)}${escH(home)}</td>
           <td><span class="st-final">종료</span></td>
         </tr>`;
       } else {
         const timeStr = _fmtSchedTime(g.PreExeDate || '');
         rows += `<tr>
-          <td class="team-away">${escH(away)}</td>
+          <td class="team-away">${tmLogo(away)}${escH(away)}</td>
           <td class="score-cell"><span style="color:var(--mu);font-weight:400">vs</span></td>
-          <td class="team-home">${escH(home)}</td>
+          <td class="team-home">${tmLogo(home)}${escH(home)}</td>
           <td><span class="st-sched">${timeStr}</span></td>
         </tr>`;
       }
