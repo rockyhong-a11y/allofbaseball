@@ -8535,7 +8535,7 @@ function _renderStandingsTableWithDivisions(divData, lg) {
 
 
 /* ══════════════════════════════════════════════════════
-   ★ CPBL 선수 데이터 (165명 전체 로스터)
+   ★ CPBL 선수 데이터 (197명 전체 로스터)
       en.cpbl.com.tw 스크랩: 바이오 + 사진 임베드
 ══════════════════════════════════════════════════════ */
 const CPBL_PLAYERS = {
@@ -8704,6 +8704,38 @@ const CPBL_PLAYERS = {
 '0000005340':{n:'WANG Po Hsuan',j:'6',t:'TSG Hawks',tc:'AKP',p:'Right-Fielder',bt:'R/L',hw:'184(CM) / 86(KG)',b:'2000/04/01',d:'2024/04/04',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N062494325095917865/6王博玄2025.jpg',zh:'王博玄'},
 '0000000935':{n:'WANG Po Jung',j:'9',t:'TSG Hawks',tc:'AKP',p:'Left-Fielder',bt:'R/L',hw:'182(CM) / 91(KG)',b:'1993/09/09',d:'2015/09/02',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087782008861716695/9王柏融2025.jpg',zh:'王柏融'},
 '0000006929':{n:'JI Qing Ran',j:'24',t:'TSG Hawks',tc:'AKP',p:'Center-Fielder',bt:'R/L',hw:'177(CM) / 80(KG)',b:'2002/04/24',d:'2024/04/06',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N062494578175240837/24紀慶然2025.jpg',zh:'紀慶然'},
+'0000000363':{n:'CHEN Shih Peng',j:'81',t:'Guardians',tc:'AEO',p:'Pitcher',bt:'L/L',hw:'179(CM) / 88(KG)',b:'1997/09/20',d:'2017/10/07',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087781915793341123/81陳仕朋2026.jpg',zh:'陳仕朋'},
+'0000000368':{n:'YU Ting Wei',j:'80',t:'Guardians',tc:'AEO',p:'Pitcher',bt:'R/R',hw:'178(CM) / 81(KG)',b:'1997/10/11',d:'2019/06/09',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087781916872199278/80游霆崴2026.jpg',zh:'游霆崴'},
+'0000000998':{n:'CHIU Hao Chun',j:'37',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'R/R',hw:'180(CM) / 70(KG)',b:'1990/12/29',d:'2015/03/22',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087782014312948154/37邱浩鈞2026.jpg',zh:'邱浩鈞'},
+'0000001118':{n:'KAO Kuo Lin',j:'98',t:'Guardians',tc:'AEO',p:'First-Base Man',bt:'R/R',hw:'183(CM) / 102(KG)',b:'1993/01/02',d:'2016/04/01',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087782016679544153/98高國麟2026.jpg',zh:'高國麟'},
+'0000001260':{n:'KUO Chun Lin',j:'75',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'R/R',hw:'175(CM) / 75(KG)',b:'1992/02/02',d:'2021/11/09',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087782014477482711/75郭俊麟.jpg',zh:'郭俊麟'},
+'0000001412':{n:'CHIANG Shao Ching',j:'76',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'R/R',hw:'183(CM) / 94(KG)',b:'1993/11/10',d:'2021/08/25',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L090428114162413381/76江少慶.jpg',zh:'江少慶'},
+'0000001603':{n:'WANG Wei Chung',j:'62',t:'TSG Hawks',tc:'AKP',p:'Pitcher',bt:'L/L',hw:'188(CM) / 83(KG)',b:'1992/04/25',d:'2021/03/14',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087782025464643241/T54124王維中.jpg',zh:'王維中'},
+'0000001719':{n:'HU Chih Wei',j:'58',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'R/R',hw:'182(CM) / 90(KG)',b:'1993/11/04',d:'2021/08/29',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L090427017999453841/胡智爲2026.jpg',zh:'胡智爲'},
+'0000003211':{n:'WANG Sheng Wei（Haro Ngayaw）',j:'3',t:'Guardians',tc:'AEO',p:'Shortstop',bt:'R/R',hw:'180(CM) / 87(KG)',b:'1984/04/01',d:'2008/03/19',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L087782119710866768/3王勝偉2026.jpg',zh:'王勝偉'},
+'0000003608':{n:'TSENG Jen Ho',j:'55',t:'Dragons',tc:'AAA',p:'Pitcher',bt:'R/L',hw:'186(CM) / 91(KG)',b:'1994/10/03',d:'2021/09/16',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L280404317508900250/55曾仁和.jpg',zh:'曾仁和'},
+'0000005541':{n:'KUO Yu Cheng',j:'17',t:'Dragons',tc:'AAA',p:'Pitcher',bt:'R/R',hw:'187(CM) / 94(KG)',b:'1997/12/01',d:'2021/07/18',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L088847736471637771/17郭郁政.jpg',zh:'郭郁政'},
+'0000005553':{n:'CHANG Yu Ming',j:'34',t:'Dragons',tc:'AAA',p:'Right-Fielder',bt:'R/L',hw:'180(CM) / 86(KG)',b:'1997/03/15',d:'2021/04/09',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L088847399842647268/34張祐銘.jpg',zh:'張祐銘'},
+'0000005572':{n:'WEI Shuo Cheng',j:'14',t:'Brothers',tc:'ACN',p:'Pitcher',bt:'L/L',hw:'182(CM) / 85(KG)',b:'1997/06/17',d:'2020/08/12',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L088843337216103214/魏碩成2024.png',zh:'魏碩成'},
+'0000005604':{n:'Mario SANCHEZ',j:'30',t:'Brothers',tc:'ACN',p:'Pitcher',bt:'R/R',hw:'185(CM) / 95(KG)',b:'1994/10/31',d:'2023/04/30',nt:'Venezuela',ph:'https://en.cpbl.com.tw/files/atts/0P114644839361412029/勝騎士.jpg',zh:'勝騎士'},
+'0000006229':{n:'YEH Tzu Ting',j:'6',t:'Guardians',tc:'AEO',p:'Shortstop',bt:'R/R',hw:'170(CM) / 72(KG)',b:'1998/01/07',d:'2021/04/10',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0L088858339256448022/6葉子霆2026.jpg',zh:'葉子霆'},
+'0000006497':{n:'Andrew GAGNON',j:'37',t:'Dragons',tc:'AAA',p:'Pitcher',bt:'R/R',hw:'193(CM) / 97(KG)',b:'1990/06/26',d:'2021/04/08',nt:'America',ph:'https://en.cpbl.com.tw/files/atts/0L088850493829401912/37鋼龍2025.jpg',zh:'鋼龍'},
+'0000006507':{n:'Bradin HAGENS',j:'40',t:'TSG Hawks',tc:'AKP',p:'Pitcher',bt:'R/R',hw:'190(CM) / 95(KG)',b:'1989/05/12',d:'2021/03/25',nt:'America',ph:'https://en.cpbl.com.tw/files/atts/0L088836205009344702/40後勁2025.jpg',zh:'後勁'},
+'0000006767':{n:'HSU Yu Ming',j:'74',t:'TSG Hawks',tc:'AKP',p:'Pitcher',bt:'L/L',hw:'180(CM) / 82(KG)',b:'1998/09/25',d:'2024/04/13',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N062485779951425770/74許育銘2025.jpg',zh:'許育銘'},
+'0000006848':{n:'LIN Shao En',j:'74',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'L/L',hw:'177(CM) / 69(KG)',b:'2004/02/13',d:'2023/08/12',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N066402463339970593/74林詔恩.jpg',zh:'林詔恩'},
+'0000006851':{n:'LIN Pei Wei',j:'25',t:'U-Lions',tc:'ADD',p:'First-Base Man',bt:'R/R',hw:'188(CM) / 93(KG)',b:'2004/01/26',d:'2023/08/06',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N066406714406937119/25林培緯2026.jpg',zh:'林培緯'},
+'0000006860':{n:'LIU Chia Hsiang',j:'18',t:'Monkeys',tc:'AJL',p:'Pitcher',bt:'R/R',hw:'181(CM) / 83(KG)',b:'2003/10/07',d:'2024/10/10',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N062545956389459369/18劉家翔2025.jpg',zh:'劉家翔'},
+'0000007049':{n:'LIN Huei Sheng',j:'12',t:'Brothers',tc:'ACN',p:'Pitcher',bt:'R/R',hw:'188(CM) / 93(KG)',b:'1998/10/09',d:'2023/10/23',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N247636005470428080/12_林暉盛.png',zh:'林暉盛'},
+'0000007061':{n:'XIN Jun Sheng',j:'69',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'L/L',hw:'190(CM) / 100(KG)',b:'2004/06/22',d:'2024/04/03',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0N329410587377690026/69辛俊昇.jpg',zh:'辛俊昇'},
+'0000007276':{n:'WU Li Chen',j:'83',t:'Brothers',tc:'ACN',p:'Pitcher',bt:'R/R',hw:'179(CM) / 80(KG)',b:'2002/03/06',d:'2025/03/29',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0P064569981891996880/伍立辰2025.jpg',zh:'伍立辰'},
+'0000007281':{n:'YOU Jun You',j:'27',t:'Brothers',tc:'ACN',p:'Pitcher',bt:'L/L',hw:'175(CM) / 81(KG)',b:'2003/07/02',d:'2025/10/05',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0O326633970904242355/游竣宥2025.jpg',zh:'游竣宥'},
+'0000007288':{n:'HO Pin Shih Jung',j:'66',t:'Monkeys',tc:'AJL',p:'Left-Fielder',bt:'R/L',hw:'183(CM) / 79(KG)',b:'2005/09/08',d:'2025/10/04',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0P070530701785517620/66何品室融2025.jpg',zh:'何品室融'},
+'0000007290':{n:'CHANG Yu Chien',j:'16',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'R/R',hw:'180(CM) / 68(KG)',b:'2006/07/01',d:'2025/08/31',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0P064613420474509858/16張宥謙2026.jpg',zh:'張宥謙'},
+'0000007299':{n:'CHEN Ping Hong',j:'10',t:'Guardians',tc:'AEO',p:'Pitcher',bt:'L/R',hw:'183(CM) / 85(KG)',b:'2005/01/13',d:'2024/10/08',nt:'R.O.C.(TAIWAN)',ph:'https://en.cpbl.com.tw/files/atts/0O282694019737772611/10陳品宏2026.jpg',zh:'陳品宏'},
+'0000007778':{n:'Jordan BALAZOVIC',j:'87',t:'U-Lions',tc:'ADD',p:'Pitcher',bt:'R/R',hw:'196(CM) / 97(KG)',b:'1998/09/17',d:'2026/04/03',nt:'Canada',ph:'https://en.cpbl.com.tw/files/atts/0Q071652851460336585/87喬登.jpg',zh:'喬登'},
+'0000007782':{n:'Aaron WILKERSON',j:'49',t:'Guardians',tc:'AEO',p:'Pitcher',bt:'R/R',hw:'188(CM) / 104(KG)',b:'1989/05/24',d:'2026/03/29',nt:'America',ph:'https://en.cpbl.com.tw/files/atts/0Q068560046542134683/49威戈神2026.jpg',zh:'威戈神'},
+'0000007787':{n:'Nick NELSON',j:'18',t:'Brothers',tc:'ACN',p:'Pitcher',bt:'R/R',hw:'185(CM) / 92(KG)',b:'1995/12/05',d:'2026/03/29',nt:'America',ph:'https://en.cpbl.com.tw/files/atts/0Q070614801623007317/黎克2026.jpg',zh:'黎克'},
+'0000007789':{n:'Morgan MCSWEENEY',j:'20',t:'Monkeys',tc:'AJL',p:'Pitcher',bt:'R/R',hw:'193(CM) / 95(KG)',b:'1997/09/21',d:'2026/04/01',nt:'America',ph:'https://en.cpbl.com.tw/files/atts/0Q075604570341729492/20麥斯威尼.jpg',zh:'麥斯威尼'},
 };
 
 // 이름 → acnt 인덱스 (검색용)
@@ -8822,6 +8854,9 @@ const CPBL_KO_MAP = {
   '린저빈':'LIN Ze Bin','린쉰지에':'LIN Hsin Jie','린샤오청':'LIN Xiao Cheng',
   '쉬팅룬':'HSU Ting Lun','쉬쥔양':'HSU Chun Yang','존간트':'John GANT',
   '잭슨스티븐스':'Jackson STEPHENS','마리오산체스':'Mario SANCHEZ',
+  '앤드류개뇽':'Andrew GAGNON','브레이든헤이건스':'Bradin HAGENS',
+  '조던발라조빅':'Jordan BALAZOVIC','에런윌커슨':'Aaron WILKERSON',
+  '닉넬슨':'Nick NELSON','모건맥스위니':'Morgan MCSWEENEY',
 };
 
 
