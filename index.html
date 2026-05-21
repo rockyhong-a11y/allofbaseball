@@ -227,8 +227,11 @@
 .lg-tbl .tm-name{text-align:left;font-weight:700;font-size:.83rem;color:var(--tx);padding-left:14px;}
 .lg-tbl .rank-cell{font-weight:800;font-size:.88rem;color:var(--ac);}
 .lg-tbl .score-cell{font-size:.95rem;font-weight:800;color:var(--ac);letter-spacing:1px;}
-.lg-tbl .team-away,.lg-tbl .team-home{font-weight:700;font-size:.83rem;text-align:left;padding-left:14px;}
-.team-logo{width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:6px;display:inline-block;flex-shrink:0;background:#fff;border-radius:5px;padding:2px;box-shadow:0 1px 3px rgba(0,0,0,.25);}
+.lg-tbl .team-away{font-weight:700;font-size:.83rem;text-align:right;padding-right:14px;padding-left:6px;}
+.lg-tbl .team-home{font-weight:700;font-size:.83rem;text-align:left;padding-left:14px;padding-right:6px;}
+.team-logo{width:24px;height:24px;object-fit:contain;vertical-align:middle;display:inline-block;flex-shrink:0;background:#fff;border-radius:5px;padding:2px;box-shadow:0 1px 3px rgba(0,0,0,.25);}
+.team-away .team-logo{margin-left:6px;margin-right:0;}
+.team-home .team-logo{margin-right:6px;margin-left:0;}
 .st-final{background:rgba(46,200,122,.12);color:var(--gn);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
 .st-live{background:var(--rd);color:#fff;padding:2px 9px;border-radius:4px;font-size:.7rem;font-weight:800;animation:livePulse 1.4s ease-in-out infinite;letter-spacing:.4px;}
 @keyframes livePulse{0%,100%{opacity:1;}50%{opacity:.45;}}
@@ -8557,7 +8560,7 @@ function _renderScheduleTable(games, lg) {
     else if (status === '연기' || status === '취소') statusHtml = `<span class="st-cancel">${escH(status)}</span>`;
     else statusHtml = `<span class="st-sched">${escH(status)}</span>`;
     return `<tr>
-      <td class="team-away ${aWin?'hg':''}">${tmLogo(g.away)}${escH(g.away||'')}</td>
+      <td class="team-away ${aWin?'hg':''}">${escH(g.away||'')}${tmLogo(g.away)}</td>
       <td class="score-cell">${score ? `${aScore} <span style="color:var(--mu);font-weight:400">:</span> ${hScore}` : '<span style="color:var(--mu)">vs</span>'}</td>
       <td class="team-home ${hWin?'hg':''}">${tmLogo(g.home)}${escH(g.home||'')}</td>
       <td>${escH(g.venue||'')}</td>
@@ -8568,7 +8571,7 @@ function _renderScheduleTable(games, lg) {
   return `<div class="lg-tbl-wrap">
     <table class="lg-tbl">
       <thead><tr>
-        <th style="text-align:left;padding-left:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>구장</th><th>상태</th>
+        <th style="text-align:right;padding-right:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>구장</th><th>상태</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -9307,7 +9310,7 @@ async function loadCpblSchedule(el) {
 
       if (isDone) {
         rows += `<tr>
-          <td class="team-away ${awayWin?'hg':''}">${tmLogo(away)}${escH(away)}</td>
+          <td class="team-away ${awayWin?'hg':''}">${escH(away)}${tmLogo(away)}</td>
           <td class="score-cell">${g.VisitingScore} <span style="color:var(--mu);font-weight:400">:</span> ${g.HomeScore}</td>
           <td class="team-home ${homeWin?'hg':''}">${tmLogo(home)}${escH(home)}</td>
           <td><span class="st-final">종료</span></td>
@@ -9315,7 +9318,7 @@ async function loadCpblSchedule(el) {
       } else {
         const timeStr = _fmtSchedTime(g.PreExeDate || '');
         rows += `<tr>
-          <td class="team-away">${tmLogo(away)}${escH(away)}</td>
+          <td class="team-away">${escH(away)}${tmLogo(away)}</td>
           <td class="score-cell"><span style="color:var(--mu);font-weight:400">vs</span></td>
           <td class="team-home">${tmLogo(home)}${escH(home)}</td>
           <td><span class="st-sched">${timeStr}</span></td>
@@ -9325,7 +9328,7 @@ async function loadCpblSchedule(el) {
 
     el.innerHTML = `<div class="lg-tbl-wrap"><table class="lg-tbl">
       <thead><tr>
-        <th style="text-align:left;padding-left:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>상태</th>
+        <th style="text-align:right;padding-right:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>상태</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
