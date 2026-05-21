@@ -2,11 +2,14 @@ name: CPBL 데이터 자동 수집
 
 on:
   schedule:
-    # 스케줄: 매일 KST 06:00 (UTC 21:00 전날) + 12:00 (UTC 03:00) + 18:00 (UTC 09:00) + 23:30 (UTC 14:30)
-    - cron: '0 21 * * *'   # KST 06:00
-    - cron: '0  3 * * *'   # KST 12:00
-    - cron: '0  9 * * *'   # KST 18:00
-    - cron: '30 14 * * *'  # KST 23:30 (경기 종료 후)
+    # KST 06:00 (UTC 21:00 전날) — 스케줄 + 선수 기록
+    - cron: '0 21 * * *'
+    # KST 12:00 (UTC 03:00) — 스케줄만
+    - cron: '0  3 * * *'
+    # KST 18:00 (UTC 09:00) — 스케줄만
+    - cron: '0  9 * * *'
+    # KST 23:30 (UTC 14:30) — 스케줄만 (경기 종료 후)
+    - cron: '30 14 * * *'
   workflow_dispatch:
     inputs:
       target:
@@ -33,13 +36,21 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Playwright 설치
+        run: |
+          pip install playwright
+          playwright install chromium --with-deps
+
       - name: CPBL 스케줄 수집
         if: ${{ github.event.inputs.target != 'stats' }}
         run: |
           python3 scripts/fetch_cpbl.py --schedule --year ${{ github.event.inputs.year || '2026' }}
 
       - name: CPBL 선수 기록 수집
-        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'stats' || github.event_name == 'schedule' && (github.event.schedule == '0 21 * * *') }}
+        if: >
+          github.event.inputs.target == 'all' ||
+          github.event.inputs.target == 'stats' ||
+          (github.event_name == 'schedule' && github.event.schedule == '0 21 * * *')
         run: |
           python3 scripts/fetch_cpbl.py --stats --year ${{ github.event.inputs.year || '2026' }}
 

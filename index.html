@@ -9009,8 +9009,8 @@ function buildCpblCard(p) {
   const _int = v => (v == null || v === '') ? '---' : String(v);
 
   const hasStats = Array.isArray(p.careerStats) && p.careerStats.length > 0;
-  const seasons  = hasStats ? [...p.careerStats].sort((a,b) => Number(b.Year) - Number(a.Year)) : [];
-  const latest   = seasons[0] || null;
+  const seasons  = hasStats ? [...p.careerStats].sort((a,b) => Number(a.Year) - Number(b.Year)) : [];
+  const latest   = seasons.length ? seasons[seasons.length - 1] : null;
 
   let strip = '';
   let statsTable = '';
@@ -9309,11 +9309,9 @@ async function loadCpblStandings(el) {
     }
 
     if (!teams.length) throw new Error('No teams parsed');
-    el.innerHTML = _renderStandingsTable(teams, 'cpbl') +
-      `<div style="padding:6px 14px;"><a href="${LG_CFG.cpbl.extStd}" target="_blank" class="lg-ext-link" style="font-size:.72rem;">🔗 CPBL 공식 순위 바로가기</a></div>`;
+    el.innerHTML = _renderStandingsTable(teams, 'cpbl');
   } catch(e) {
-    el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.<br>
-      <a href="${LG_CFG.cpbl.extStd}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 순위 바로가기</a></div>`;
+    el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.</div>`;
   }
 }
 
