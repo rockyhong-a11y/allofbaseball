@@ -234,6 +234,7 @@
 .team-home .team-logo{margin-right:6px;margin-left:0;}
 .tm-name .team-logo{margin-right:6px;}
 .st-final{background:rgba(46,200,122,.12);color:var(--gn);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
+.venue-cell{font-size:.7rem;color:var(--mu2);white-space:nowrap;}
 .st-live{background:var(--rd);color:#fff;padding:2px 9px;border-radius:4px;font-size:.7rem;font-weight:800;animation:livePulse 1.4s ease-in-out infinite;letter-spacing:.4px;}
 @keyframes livePulse{0%,100%{opacity:1;}50%{opacity:.45;}}
 .st-sched{background:rgba(90,110,140,.15);color:var(--mu2);padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;}
@@ -8162,14 +8163,18 @@ function _parseNpbHtml(html, mm, dd) {
   const NPB_VENUE = {
     '神宮':'진구구장','明治神宮':'진구구장','バンテリンドーム':'반테린돔',
     '京セラD大阪':'교세라돔 오사카','京セラドーム':'교세라돔 오사카',
-    'エスコンフィールド':'에스콘 필드','エスコンF':'에스콘 필드',
+    'エスコンフィールド':'에스콘 필드','エスコンF':'에스콘 필드','エスコンＦ':'에스콘 필드',
     '楽天モバイルパーク':'라쿠텐 모바일파크','楽天モバイル':'라쿠텐 모바일파크',
     'ベルーナドーム':'벨루나돔','マツダスタジアム':'마쓰다 스타디움','マツダ':'마쓰다 스타디움',
     'ZoZoマリン':'조조마린 스타디움','ZOZOマリン':'조조마린 스타디움',
     '横浜スタジアム':'요코하마 스타디움','ハマスタ':'요코하마 스타디움',
     '阪神甲子園':'고시엔구장','甲子園':'고시엔구장',
-    'ペイペイドーム':'페이페이돔','PayPayドーム':'페이페이돔',
+    'みずほPayPay':'미즈호 페이페이돔','ペイペイドーム':'미즈호 페이페이돔','PayPayドーム':'미즈호 페이페이돔',
     '東京ドーム':'도쿄돔',
+    '県営大宮':'오미야 야구장',
+    'いわき':'이와키 그린 스타디움',
+    '倉敷':'구라시키 마스카트 스타디움',
+    '前橋':'마에바시 시키시마 야구장',
   };
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const dateId = `date${mm}${dd}`;
@@ -8212,12 +8217,16 @@ function _parsePacificLeagueHtml(html, yr, mm, dd) {
     '日本ハム':'닛폰햄','北海道日本ハム':'닛폰햄',
   };
   const PL_VENUE = {
-    'PayPayドーム':'페이페이돔','ペイペイドーム':'페이페이돔',
+    'みずほPayPay':'미즈호 페이페이돔','PayPayドーム':'미즈호 페이페이돔','ペイペイドーム':'미즈호 페이페이돔',
     'ZOZOマリン':'조조마린 스타디움','ZoZoマリン':'조조마린 스타디움',
     '楽天モバイルパーク':'라쿠텐 모바일파크',
     'ベルーナドーム':'벨루나돔',
-    'エスコンフィールド':'에스콘 필드','エスコンF':'에스콘 필드',
+    'エスコンフィールド':'에스콘 필드','エスコンF':'에스콘 필드','エスコンＦ':'에스콘 필드',
     '京セラドーム':'교세라돔 오사카','京セラD大阪':'교세라돔 오사카',
+    '県営大宮':'오미야 야구장',
+    'いわき':'이와키 그린 스타디움',
+    '倉敷':'구라시키 마스카트 스타디움',
+    '前橋':'마에바시 시키시마 야구장',
   };
 
   const games = [];
@@ -9308,6 +9317,20 @@ async function _loadCpblSchedData(year) {
   return games;
 }
 
+const CPBL_VENUE = {
+  'INT':'타이중 인터컨티넨탈',
+  'TPD':'타오위안 야구장',
+  'TYN':'타오위안 야구장',
+  'XZG':'신주 야구장',
+  'TTG':'타이난 야구장',
+  'CCL':'청칭후 야구장',
+  'CYC':'자이 야구장',
+  'DLU':'더우류 야구장',
+  'HLN':'화롄 야구장',
+  'TMU':'타이중 시립구장',
+  'API':'신좡 야구장',
+};
+
 async function loadCpblSchedule(el) {
   const yr = _lgDate.getFullYear();
   const mm = _lgDate.getMonth() + 1;
@@ -9337,12 +9360,14 @@ async function loadCpblSchedule(el) {
       const isDone = (Number(g.VisitingScore) > 0 || Number(g.HomeScore) > 0);
       const awayWin = isDone && Number(g.VisitingScore) > Number(g.HomeScore);
       const homeWin = isDone && Number(g.HomeScore) > Number(g.VisitingScore);
+      const venue = CPBL_VENUE[g.FieldAbbe] || g.FieldAbbe || '';
 
       if (isDone) {
         rows += `<tr>
           <td class="team-away ${awayWin?'hg':''}">${escH(away)}${tmLogo(away)}</td>
           <td class="score-cell">${g.VisitingScore} <span style="color:var(--mu);font-weight:400">:</span> ${g.HomeScore}</td>
           <td class="team-home ${homeWin?'hg':''}">${tmLogo(home)}${escH(home)}</td>
+          <td class="venue-cell">${escH(venue)}</td>
           <td><span class="st-final">종료</span></td>
         </tr>`;
       } else {
@@ -9351,6 +9376,7 @@ async function loadCpblSchedule(el) {
           <td class="team-away">${escH(away)}${tmLogo(away)}</td>
           <td class="score-cell"><span style="color:var(--mu);font-weight:400">vs</span></td>
           <td class="team-home">${tmLogo(home)}${escH(home)}</td>
+          <td class="venue-cell">${escH(venue)}</td>
           <td><span class="st-sched">${timeStr}</span></td>
         </tr>`;
       }
@@ -9358,7 +9384,7 @@ async function loadCpblSchedule(el) {
 
     el.innerHTML = `<div class="lg-tbl-wrap"><table class="lg-tbl">
       <thead><tr>
-        <th style="text-align:right;padding-right:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>상태</th>
+        <th style="text-align:right;padding-right:14px">원정팀</th><th>스코어</th><th style="text-align:left;padding-left:14px">홈팀</th><th>구장</th><th>상태</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
