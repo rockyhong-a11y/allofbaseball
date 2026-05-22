@@ -1,0 +1,6 @@
+# 로그 파일 (자동 실행마다 변경되므로 git 추적 제외)
+scripts/cpbl_run.log
+scripts/*.log
+
+# macOS
+.DS_Store
