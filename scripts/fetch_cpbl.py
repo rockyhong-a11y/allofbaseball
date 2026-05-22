@@ -8,6 +8,7 @@ CPBL 선수 연도별 기록 + 시즌 스케줄 수집 스크립트 (curl 버전
 실행: python3 scripts/fetch_cpbl.py [--stats] [--schedule] [--year 2026]
 """
 import json, re, time, sys, os, argparse, subprocess, tempfile
+from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
@@ -197,6 +198,16 @@ def main():
 
     os.makedirs(DATA_DIR, exist_ok=True)
 
+    # cpbl_meta.json 읽기 (기존 값 유지 후 갱신)
+    meta_path = os.path.join(DATA_DIR, 'cpbl_meta.json')
+    try:
+        with open(meta_path, encoding='utf-8') as f:
+            meta = json.load(f)
+    except Exception:
+        meta = {}
+
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M KST')
+
     if do_stats:
         idx_path = os.path.join(BASE_DIR, 'index.html')
         if not os.path.exists(idx_path):
@@ -208,6 +219,7 @@ def main():
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(stats, f, ensure_ascii=False, separators=(',', ':'))
             print(f'💾 저장: {out_path} ({os.path.getsize(out_path)//1024}KB)')
+            meta['stats_updated'] = now_str
 
     if do_sched:
         games = fetch_schedule(args.year)
@@ -216,6 +228,11 @@ def main():
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(games, f, ensure_ascii=False, separators=(',', ':'))
             print(f'💾 저장: {out_path} ({os.path.getsize(out_path)//1024}KB)')
+            meta['schedule_updated'] = now_str
+
+    # meta 저장
+    with open(meta_path, 'w', encoding='utf-8') as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
 
 
 if __name__ == '__main__':

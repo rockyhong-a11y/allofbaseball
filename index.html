@@ -9019,8 +9019,33 @@ function cpblAcSearch(q) {
 ══════════════════════════════════════════════════════ */
 // CPBL 통계 DB (GitHub Actions 수집 → raw.githubusercontent.com)
 const CPBL_STATS_RAW = 'https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_stats.json';
+const CPBL_META_RAW  = 'https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_meta.json';
 let _cpblStatsDbCache = null;  // 전체 DB 캐시 (1회만 fetch)
 let _cpblCareerCache = {};     // acnt별 캐시
+let _cpblMetaCache = null;
+
+async function _loadCpblMeta() {
+  if (_cpblMetaCache) return _cpblMetaCache;
+  try {
+    const resp = await fetch(CPBL_META_RAW + '?_=' + Date.now(), { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return null;
+    _cpblMetaCache = await resp.json();
+    return _cpblMetaCache;
+  } catch(_) { return null; }
+}
+
+function _cpblUpdatedBadge(type) {
+  // type: 'stats' | 'schedule'
+  return `<span id="cpbl-meta-${type}" style="font-size:.68rem;color:var(--mu2);float:right;margin-left:auto;">🔄 갱신 확인 중…</span>`;
+}
+
+async function _fillCpblMeta(type) {
+  const meta = await _loadCpblMeta();
+  const el = document.getElementById(`cpbl-meta-${type}`);
+  if (!el) return;
+  const key = type === 'stats' ? 'stats_updated' : 'schedule_updated';
+  el.textContent = meta?.[key] ? `🔄 ${meta[key]}` : '';
+}
 
 async function _loadCpblStatsDb() {
   if (_cpblStatsDbCache) return _cpblStatsDbCache;
@@ -9258,8 +9283,10 @@ async function runCpbl(query) {
   main.innerHTML = `<div class="rhead">
     <h3>🔍 "${escH(query)}" — CPBL</h3>
     <span>🇹🇼 대만 프로야구</span>
-  </div><div id="cards"></div>`;
+  </div><div id="cards"></div>
+  <div style="padding:4px 14px 10px;text-align:right;">${_cpblUpdatedBadge('stats')}</div>`;
   document.getElementById('cards').insertAdjacentHTML('beforeend', buildCpblCard(data));
+  _fillCpblMeta('stats');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -9332,9 +9359,11 @@ async function loadCpblSchedule(el) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div style="padding:6px 14px;font-size:.72rem;color:var(--mu2);">
-      🏟️ 출처: <a href="https://en.cpbl.com.tw/schedule" target="_blank" style="color:var(--cpbl);">CPBL 공식 일정</a>
+    <div style="padding:6px 14px;font-size:.72rem;color:var(--mu2);display:flex;align-items:center;justify-content:space-between;">
+      <span>🏟️ 출처: <a href="https://en.cpbl.com.tw/schedule" target="_blank" style="color:var(--cpbl);">CPBL 공식 일정</a></span>
+      ${_cpblUpdatedBadge('schedule')}
     </div></div>`;
+    _fillCpblMeta('schedule');
 
   } catch(e) {
     el.innerHTML = `<div class="lg-err">
@@ -9434,6 +9463,15 @@ async function loadCpblStandings(el) {
 
     if (!teams.length) throw new Error('No teams parsed');
     el.innerHTML = _renderStandingsTable(teams, 'cpbl');
+    // 갱신 시각 배지 — 순위는 스케줄 기반
+    const footer = el.querySelector('.lg-tbl-wrap > div:last-child');
+    if (footer) {
+      footer.style.display = 'flex';
+      footer.style.alignItems = 'center';
+      footer.style.justifyContent = 'space-between';
+      footer.insertAdjacentHTML('beforeend', _cpblUpdatedBadge('schedule'));
+      _fillCpblMeta('schedule');
+    }
   } catch(e) {
     el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.</div>`;
   }
