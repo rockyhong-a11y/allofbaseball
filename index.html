@@ -9255,9 +9255,12 @@ function buildCpblCard(p) {
     </div>
     ${statsTable}
     ${noStatsMsg}
-    <a href="${escH(p.pageUrl)}" target="_blank" rel="noopener" class="src-tag src-api" style="background:rgba(232,70,30,.1);color:var(--cpbl);text-decoration:none;cursor:pointer;">
-      🇹🇼 en.cpbl.com.tw · 통산 기록
-    </a>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:2px;">
+      <a href="${escH(p.pageUrl)}" target="_blank" rel="noopener" class="src-tag src-api" style="background:rgba(232,70,30,.1);color:var(--cpbl);text-decoration:none;cursor:pointer;margin:0;">
+        🇹🇼 en.cpbl.com.tw · 통산 기록
+      </a>
+      ${_cpblUpdatedBadge('stats')}
+    </div>
   </div>`;
 }
 
@@ -9283,8 +9286,7 @@ async function runCpbl(query) {
   main.innerHTML = `<div class="rhead">
     <h3>🔍 "${escH(query)}" — CPBL</h3>
     <span>🇹🇼 대만 프로야구</span>
-  </div><div id="cards"></div>
-  <div style="padding:4px 14px 10px;text-align:right;">${_cpblUpdatedBadge('stats')}</div>`;
+  </div><div id="cards"></div>`;
   document.getElementById('cards').insertAdjacentHTML('beforeend', buildCpblCard(data));
   _fillCpblMeta('stats');
 }
