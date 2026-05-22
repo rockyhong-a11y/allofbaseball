@@ -15,7 +15,7 @@
 #   0 18 * * * /bin/bash "/Users/rockyhong/Documents/AI 연구/allofbaseball/scripts/run_local_cpbl.sh" >> "/Users/rockyhong/Documents/AI 연구/allofbaseball/scripts/cpbl_run.log" 2>&1
 #   30 23 * * * /bin/bash "/Users/rockyhong/Documents/AI 연구/allofbaseball/scripts/run_local_cpbl.sh" >> "/Users/rockyhong/Documents/AI 연구/allofbaseball/scripts/cpbl_run.log" 2>&1
 
-REPO="/Users/rockyhong/Documents/AI 연구/allofbaseball"
+REPO="$HOME/allofbaseball"
 PYTHON="/Library/Frameworks/Python.framework/Versions/3.13/bin/python3"
 YEAR=2026
 MODE="${1:---schedule}"
