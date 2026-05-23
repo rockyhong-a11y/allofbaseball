@@ -19,9 +19,20 @@
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:'KBO Dia Gothic','Apple SD Gothic Neo','Malgun Gothic','Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;}
 
-    .hdr{background:linear-gradient(180deg,#0c1525,#070c18);border-bottom:1px solid var(--bd);padding:22px 16px 16px;text-align:center;}
+    .hdr{background:linear-gradient(180deg,#0c1525,#070c18);border-bottom:1px solid var(--bd);padding:22px 16px 16px;text-align:center;position:relative;}
     .hdr h1{font-size:1.85rem;font-weight:800;letter-spacing:-.4px;background:linear-gradient(90deg,#3b9eff,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
     .hdr p{margin-top:5px;color:var(--mu);font-size:.8rem;}
+    .theme-btn{position:absolute;top:14px;right:16px;background:var(--c2);border:1px solid var(--bd2);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:1rem;line-height:1;transition:all .15s;z-index:10;}
+    .theme-btn:hover{background:var(--c3);border-color:var(--ac);}
+    body.light{--bg:#f0f4f8;--c1:#ffffff;--c2:#f5f7fa;--c3:#e8ecf2;--bd:#d0d9e8;--bd2:#b8c5d9;--tx:#1a2a40;--mu:#5a6e8c;--mu2:#3d5270;--ac:#1a7fd4;--gn:#18a057;--yw:#c49a0a;--rd:#cc2222;--kbo:#2d6fd4;--mlb:#cc1a10;--npb:#c01040;--cpbl:#c02a00;}
+    body.light .hdr{background:linear-gradient(180deg,#e4ecf8,#f0f4fc);}
+    body.light .hdr h1{background:linear-gradient(90deg,#1a7fd4,#5b6af0,#9c40cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    body.light thead th{background:rgba(0,0,0,.03);}
+    body.light tbody tr:hover td{background:rgba(0,0,0,.02);}
+    body.light .lg-tbl th{background:rgba(0,0,0,.03);}
+    body.light .lg-tbl tr:hover td{background:rgba(0,0,0,.015);}
+    body.light .crw td{background:rgba(26,127,212,.06)!important;}
+    body.light .photo{background:linear-gradient(135deg,#c8d8f0,#d0c8f0);}
 
     
 
@@ -248,6 +259,7 @@
 </head>
 <body>
 <div class="hdr">
+  <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="테마 전환">☀️</button>
   <h1>⚾ 야구 선수 기록 검색기</h1>
   <p>KBO · MLB · NPB · CPBL 전현직 선수 — 사진 · 바이오 · 시즌별 기록 통합 조회</p>
 </div>
@@ -1202,7 +1214,17 @@ function detectLeague(q) {
 ══════════════════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('si').focus();
+  if(localStorage.getItem('theme') === 'light') {
+    document.body.classList.add('light');
+    document.getElementById('theme-btn').textContent = '🌙';
+  }
 });
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('theme-btn').textContent = isLight ? '🌙' : '☀️';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
 
 function setLeague(l) {
   _selectedLeague = l;
