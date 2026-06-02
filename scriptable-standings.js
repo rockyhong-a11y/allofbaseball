@@ -388,13 +388,172 @@ async function buildWidget() {
   return widget;
 }
 
+// ── 전리그 올인원 (파라미터: all) ────────────────────────
+
+async function fetchMlbAll() {
+  const ML_ABB = {
+    'Baltimore Orioles':'BAL','Boston Red Sox':'BOS','New York Yankees':'NYY',
+    'Tampa Bay Rays':'TB','Toronto Blue Jays':'TOR',
+    'Chicago White Sox':'CWS','Cleveland Guardians':'CLE',
+    'Detroit Tigers':'DET','Kansas City Royals':'KC','Minnesota Twins':'MIN',
+    'Houston Astros':'HOU','Los Angeles Angels':'LAA','Athletics':'OAK',
+    'Seattle Mariners':'SEA','Texas Rangers':'TEX',
+    'Atlanta Braves':'ATL','Miami Marlins':'MIA','New York Mets':'NYM',
+    'Philadelphia Phillies':'PHI','Washington Nationals':'WSH',
+    'Chicago Cubs':'CHC','Cincinnati Reds':'CIN','Milwaukee Brewers':'MIL',
+    'Pittsburgh Pirates':'PIT','St. Louis Cardinals':'STL',
+    'Arizona Diamondbacks':'ARI','Colorado Rockies':'COL',
+    'Los Angeles Dodgers':'LAD','San Diego Padres':'SD','San Francisco Giants':'SF',
+  };
+  const AL_DIVS = new Set([
+    'American League East','American League Central','American League West',
+  ]);
+  const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${YEAR}&standingsTypes=regularSeason&hydrate=team,league,division`;
+  const req = new Request(url);
+  req.timeoutInterval = 15;
+  const data = await req.loadJSON();
+
+  const al = [], nl = [];
+  for (const rec of (data.records || [])) {
+    const isAL = AL_DIVS.has(rec.division?.name || '');
+    for (const tr of (rec.teamRecords || [])) {
+      (isAL ? al : nl).push({
+        team: ML_ABB[tr.team?.name] || tr.team?.name?.slice(0, 5) || '',
+        w:    tr.wins || 0,
+        l:    tr.losses || 0,
+        pct:  tr.winningPercentage || '-',
+      });
+    }
+  }
+  const rank = arr =>
+    arr.sort((a, b) => parseFloat(b.pct || 0) - parseFloat(a.pct || 0))
+       .map((t, i) => ({ ...t, rank: i + 1 }));
+  return { al: rank(al), nl: rank(nl) };
+}
+
+// 하나의 리그 컬럼 렌더링 (VStack)
+function addLeagueColumn(parent, labelText, color, sections) {
+  const col = parent.addStack();
+  col.layoutVertically();
+
+  // 리그 레이블
+  const lbl = col.addText(labelText);
+  lbl.font      = Font.boldSystemFont(10);
+  lbl.textColor = color;
+  col.addSpacer(5);
+
+  for (let si = 0; si < sections.length; si++) {
+    const { section, teams } = sections[si];
+    if (section) {
+      if (si > 0) col.addSpacer(4);
+      const secEl = col.addText(section);
+      secEl.font      = Font.boldSystemFont(8);
+      secEl.textColor = color;
+      col.addSpacer(3);
+    }
+    for (let i = 0; i < teams.length; i++) {
+      const team = teams[i];
+      const row = col.addStack();
+      row.layoutHorizontally();
+      row.centerAlignContent();
+
+      const rEl = row.addText(String(team.rank));
+      rEl.font      = Font.boldSystemFont(10);
+      rEl.textColor = team.rank <= 3 ? color : C.mu;
+      row.addSpacer(4);
+
+      const tEl = row.addText(team.team);
+      tEl.font               = Font.systemFont(10);
+      tEl.textColor          = C.tx;
+      tEl.lineLimit          = 1;
+      tEl.minimumScaleFactor = 0.65;
+      row.addSpacer();
+
+      const pEl = row.addText(fmtPct(team.pct));
+      pEl.font      = Font.boldSystemFont(10);
+      pEl.textColor = C.mu2;
+
+      if (i < teams.length - 1) col.addSpacer(3);
+    }
+  }
+  col.addSpacer();
+}
+
+async function buildAllWidget() {
+  const widget = new ListWidget();
+  widget.backgroundColor = C.bg;
+  widget.setPadding(10, 12, 8, 12);
+
+  // 헤더
+  const hdr = widget.addStack();
+  hdr.layoutHorizontally();
+  hdr.centerAlignContent();
+  const titleEl = hdr.addText('⚾ 전리그 순위');
+  titleEl.font      = Font.boldSystemFont(12);
+  titleEl.textColor = C.tx;
+  hdr.addSpacer();
+  const dateEl = hdr.addText(`${NOW.getMonth()+1}/${NOW.getDate()}`);
+  dateEl.font      = Font.systemFont(10);
+  dateEl.textColor = C.mu;
+
+  widget.addSpacer(8);
+
+  try {
+    const [kboTeams, npbGroups, mlbAll] = await Promise.all([
+      fetchKbo(),
+      fetchNpb('npb'),
+      fetchMlbAll(),
+    ]);
+
+    // NPB 섹션 레이블 단축 (セ / パ)
+    const npbSections = npbGroups.map(g => ({
+      section: g.section === '센트럴리그' ? 'セ리그' : g.section === '퍼시픽리그' ? 'パ리그' : g.section,
+      teams:   g.teams,
+    }));
+
+    // 4컬럼 HStack
+    const content = widget.addStack();
+    content.layoutHorizontally();
+
+    addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }]);
+    content.addSpacer(8);
+    addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSections);
+    content.addSpacer(8);
+    addLeagueColumn(content, '🇺🇸 NL',  C.mlb, [{ section: null, teams: mlbAll.nl }]);
+    content.addSpacer(8);
+    addLeagueColumn(content, 'AL',       C.mlb, [{ section: null, teams: mlbAll.al }]);
+
+  } catch (err) {
+    widget.addSpacer(4);
+    const errEl = widget.addText('⚠️ 로드 실패\n' + err.message);
+    errEl.font               = Font.systemFont(11);
+    errEl.textColor          = C.mu;
+    errEl.minimumScaleFactor = 0.7;
+  }
+
+  widget.addSpacer();
+
+  const ft = widget.addStack();
+  ft.layoutHorizontally();
+  ft.centerAlignContent();
+  const siteEl = ft.addText('allofbaseball');
+  siteEl.font      = Font.systemFont(8);
+  siteEl.textColor = C.mu;
+  ft.addSpacer();
+  const timeEl = ft.addText(NOW.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
+  timeEl.font      = Font.systemFont(8);
+  timeEl.textColor = C.mu;
+
+  return widget;
+}
+
 // ── 실행 ─────────────────────────────────────────────────
-const widget = await buildWidget();
+const widget = PARAM === 'all' ? await buildAllWidget() : await buildWidget();
 if (config.runInWidget) {
   Script.setWidget(widget);
 } else {
-  // 앱 내 프리뷰 (크기 선택)
-  if      (config.widgetFamily === 'small')  await widget.presentSmall();
+  if      (PARAM === 'all')                  await widget.presentLarge();
+  else if (config.widgetFamily === 'small')  await widget.presentSmall();
   else if (config.widgetFamily === 'large')  await widget.presentLarge();
   else                                       await widget.presentMedium();
 }
