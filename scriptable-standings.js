@@ -24,10 +24,11 @@ const ESPN  = 'https://a.espncdn.com/i/teamlogos/mlb/500/';
 // ── 색상 ────────────────────────────────────────────────
 const C = {
   bg:   Color.dynamic(new Color('#f0f4f8'), new Color('#070c18')),
+  card: Color.dynamic(new Color('#dce5f2'), new Color('#0d1928')),
   tx:   Color.dynamic(new Color('#1a2a40'), new Color('#dde4f0')),
   mu:   Color.dynamic(new Color('#5a6e8c'), new Color('#5a6e8c')),
   mu2:  Color.dynamic(new Color('#3d5270'), new Color('#8496b0')),
-  div:  Color.dynamic(new Color('#d0d9e8'), new Color('#1c2b45')),
+  div:  Color.dynamic(new Color('#c6d3e8'), new Color('#1a2840')),
   kbo:  Color.dynamic(new Color('#2d6fd4'), new Color('#4f8ef7')),
   mlb:  Color.dynamic(new Color('#cc1a10'), new Color('#e8352a')),
   npb:  Color.dynamic(new Color('#c01040'), new Color('#e83060')),
@@ -351,28 +352,51 @@ function addCell(parent, team, leagueColor, logoCache) {
   statEl.textColor = C.mu2;
 }
 
-// 전리그 위젯용 컬럼 셀 (로고+PCT, 행 높이 최소화)
+// 전리그 위젯용 컬럼 카드 (로고+PCT, 리그별 카드 배경 + 행 구분선)
 function addLeagueColumn(parent, labelText, color, sections, logoCache) {
-  const col = parent.addStack();
-  col.layoutVertically();
+  const card = parent.addStack();
+  card.layoutVertically();
+  card.backgroundColor = C.card;
+  card.cornerRadius = 7;
+  card.setPadding(6, 6, 6, 6);
 
-  const lbl = col.addText(labelText);
+  const lbl = card.addText(labelText);
   lbl.font = Font.boldSystemFont(10);
   lbl.textColor = color;
-  col.addSpacer(5);
+  card.addSpacer(4);
 
+  let firstRow = true;
   for (let si = 0; si < sections.length; si++) {
     const { section, teams } = sections[si];
     if (section) {
-      if (si > 0) col.addSpacer(4);
-      const secEl = col.addText(section);
+      if (si > 0) {
+        // 섹션 구분선
+        card.addSpacer(3);
+        const dl = card.addStack();
+        dl.backgroundColor = C.div;
+        dl.size = new Size(0, 1);
+        card.addSpacer(3);
+      }
+      const secEl = card.addText(section);
       secEl.font = Font.boldSystemFont(8);
       secEl.textColor = color;
-      col.addSpacer(3);
+      card.addSpacer(3);
+      firstRow = true;
     }
     for (let i = 0; i < teams.length; i++) {
       const team = teams[i];
-      const row = col.addStack();
+
+      // 행 구분선 (첫 행 제외)
+      if (!firstRow) {
+        card.addSpacer(2);
+        const rl = card.addStack();
+        rl.backgroundColor = C.div;
+        rl.size = new Size(0, 1);
+        card.addSpacer(2);
+      }
+      firstRow = false;
+
+      const row = card.addStack();
       row.layoutHorizontally();
       row.centerAlignContent();
 
@@ -401,11 +425,9 @@ function addLeagueColumn(parent, labelText, color, sections, logoCache) {
       const pEl = row.addText(fmtPct(team.pct));
       pEl.font = Font.boldSystemFont(10);
       pEl.textColor = C.mu2;
-
-      if (i < teams.length - 1) col.addSpacer(2);
     }
   }
-  col.addSpacer();
+  card.addSpacer();
 }
 
 // ── 개별 리그 위젯 (2컬럼 그리드) ───────────────────────
@@ -535,11 +557,11 @@ async function buildAllWidget() {
     content.layoutHorizontally();
 
     addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }], lc);
-    content.addSpacer(8);
+    content.addSpacer(4);
     addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSec, lc);
-    content.addSpacer(8);
+    content.addSpacer(4);
     addLeagueColumn(content, '🇺🇸 NL',  C.mlb, mlbAll.nl, lc);
-    content.addSpacer(8);
+    content.addSpacer(4);
     addLeagueColumn(content, 'AL',       C.mlb, mlbAll.al, lc);
 
   } catch (err) {
