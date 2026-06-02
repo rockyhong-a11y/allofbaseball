@@ -324,14 +324,14 @@ function addLeagueColumn(parent, labelText, color, sections) {
       row.centerAlignContent();
 
       const rEl = row.addText(String(team.rank));
-      rEl.font = Font.boldSystemFont(10);
+      rEl.font = Font.boldSystemFont(12);
       rEl.textColor = team.rank <= 3 ? color : C.mu;
       row.addSpacer(3);
 
-      const tEl = row.addText((team.team || '').slice(0, 4));
-      tEl.font = Font.boldSystemFont(11);
+      const tEl = row.addText((team.team || '').slice(0, 5));
+      tEl.font = Font.boldSystemFont(14);
       tEl.textColor = C.tx;
-      tEl.minimumScaleFactor = 0.7;
+      tEl.minimumScaleFactor = 0.65;
     }
   }
   card.addSpacer();
