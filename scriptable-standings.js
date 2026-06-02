@@ -18,8 +18,6 @@ const YEAR  = new Date().getFullYear();
 const NOW   = new Date();
 const CF    = 'https://kbo-proxy.rockyhong.workers.dev';
 const CTABS = 'https://api.codetabs.com/v1/proxy/?quest=';
-const S     = 'https://rockyhong-a11y.github.io/allofbaseball/';
-const ESPN  = 'https://a.espncdn.com/i/teamlogos/mlb/500/';
 
 // ── 색상 ────────────────────────────────────────────────
 const C = {
@@ -35,44 +33,6 @@ const C = {
   cpbl: Color.dynamic(new Color('#c02a00'), new Color('#e8461e')),
 };
 
-// ── 팀 로고 URL 맵 ──────────────────────────────────────
-const LOGO = {
-  // KBO
-  'KIA': S+'logos/kbo-KIA.png',    'LG':  S+'logos/kbo-LG.png',
-  '키움': S+'logos/kbo-Kiwoom.png', 'SSG': S+'logos/kbo-SSG.png',
-  '두산': S+'logos/kbo-Doosan.png', '삼성': S+'logos/kbo-Samsung.png',
-  '롯데(KBO)': S+'logos/kbo-Lotte.png', 'NC':  S+'logos/kbo-NC.png',
-  'KT':  S+'logos/kbo-KT.png',     '한화': S+'logos/kbo-Hanwha.png',
-  // NPB
-  '야쿠르트': S+'logos/npb-Swallows.png', '히로시마': S+'logos/npb-Carp.png',
-  '요미우리':  S+'logos/npb-Giants.png',   '주니치':   S+'logos/npb-Dragons.png',
-  'DeNA':      S+'logos/npb-DeNA.png',     '한신':     S+'logos/npb-Tigers.png',
-  '소프트뱅크': S+'logos/npb-Hawks.png',   '닛폰햄':  S+'logos/npb-Fighters.png',
-  '라쿠텐':   S+'logos/npb-Eagles.png',    '롯데(NPB)': S+'logos/npb-Marines.png',
-  'ORIX':     S+'logos/npb-Buffaloes.png', '세이부':   S+'logos/npb-Lions.png',
-  // CPBL
-  'Brothers':  S+'logos/cpbl-Brothers.png',
-  'Dragons':   S+'logos/cpbl-Dragons.png',
-  'DRAGONS':   S+'logos/cpbl-Dragons.png',
-  'Guardians': S+'logos/cpbl-Guardians.png',
-  'Monkeys':   S+'logos/cpbl-Monkeys.png',
-  'TSG Hawks': S+'logos/cpbl-Hawks.png',
-  'U-Lions':   S+'logos/cpbl-UniLions.png',
-  // MLB (ESPN PNG)
-  'BAL':ESPN+'bal.png','BOS':ESPN+'bos.png','NYY':ESPN+'nyy.png',
-  'TB': ESPN+'tb.png', 'TOR':ESPN+'tor.png',
-  'CWS':ESPN+'chw.png','CLE':ESPN+'cle.png','DET':ESPN+'det.png',
-  'KC': ESPN+'kc.png', 'MIN':ESPN+'min.png',
-  'HOU':ESPN+'hou.png','LAA':ESPN+'laa.png','OAK':ESPN+'oak.png',
-  'SEA':ESPN+'sea.png','TEX':ESPN+'tex.png',
-  'ATL':ESPN+'atl.png','MIA':ESPN+'mia.png','NYM':ESPN+'nym.png',
-  'PHI':ESPN+'phi.png','WSH':ESPN+'wsh.png',
-  'CHC':ESPN+'chc.png','CIN':ESPN+'cin.png','MIL':ESPN+'mil.png',
-  'PIT':ESPN+'pit.png','STL':ESPN+'stl.png',
-  'ARI':ESPN+'ari.png','COL':ESPN+'col.png','LAD':ESPN+'lad.png',
-  'SD': ESPN+'sd.png', 'SF': ESPN+'sf.png',
-};
-
 // ── 리그 메타 ────────────────────────────────────────────
 function leagueMeta(p) {
   if (p === 'kbo')         return { label: '🇰🇷 KBO', color: C.kbo };
@@ -82,27 +42,9 @@ function leagueMeta(p) {
   return { label: '⚾', color: C.mu };
 }
 
-// ── 로고 일괄 프리페치 ───────────────────────────────────
-async function loadLogos(groups) {
-  const urls = new Set();
-  for (const { teams } of groups)
-    for (const t of teams)
-      if (t.logoKey && LOGO[t.logoKey]) urls.add(LOGO[t.logoKey]);
-  const cache = {};
-  await Promise.all([...urls].map(async url => {
-    try { cache[url] = await new Request(url).loadImage(); }
-    catch { cache[url] = null; }
-  }));
-  return cache;
-}
-
 // ── 데이터 페치 ──────────────────────────────────────────
 
 async function fetchKbo() {
-  const KBO_KEY = {
-    'KIA':'KIA','LG':'LG','키움':'키움','SSG':'SSG','두산':'두산',
-    '삼성':'삼성','롯데':'롯데(KBO)','NC':'NC','KT':'KT','한화':'한화',
-  };
   const req = new Request(`${CF}/ws/Main.asmx/GetTeamRank?leId=1&srId=0&seasonId=${YEAR}`);
   req.timeoutInterval = 15;
   const data = await req.loadJSON();
@@ -112,9 +54,8 @@ async function fetchKbo() {
     const raw = row[1]?.Text || '';
     const m   = raw.match(/>([^<]+)</);
     const short = m ? m[1].trim() : raw.replace(/<[^>]+>/g, '').trim();
-    const key = KBO_KEY[short] || short;
     return {
-      rank: i + 1, team: short, logoKey: key,
+      rank: i + 1, team: short,
       w: parseInt(row[3]?.Text) || 0, l: parseInt(row[4]?.Text) || 0,
       d: parseInt(row[5]?.Text) || 0, pct: row[6]?.Text || '-', gb: row[7]?.Text || '-',
     };
@@ -168,7 +109,7 @@ async function fetchMlb(divFilter) {
     const teams = (rec.teamRecords || []).map((tr, i) => ({
       rank: i + 1,
       team: ML_KO[tr.team?.name] || tr.team?.name || '',
-      logoKey: ML_ABB[tr.team?.name] || '',
+      abbr: ML_ABB[tr.team?.name] || '',
       w: tr.wins || 0, l: tr.losses || 0, d: 0,
       pct: tr.winningPercentage || '-', gb: tr.gamesBack || '-',
     }));
@@ -181,9 +122,8 @@ async function fetchMlb(divFilter) {
 async function fetchNpb(leagueFilter) {
   const NPB_KO = {
     'ヤクルト':'야쿠르트','広島':'히로시마','読売':'요미우리','中日':'주니치','DeNA':'DeNA','阪神':'한신',
-    'ソフトバンク':'소프트뱅크','日本ハム':'닛폰햄','楽天':'라쿠텐','ロッテ':'롯데(NPB)','オリックス':'ORIX','西武':'세이부',
+    'ソフトバンク':'소프트뱅크','日本ハム':'닛폰햄','楽天':'라쿠텐','ロッテ':'롯데','オリックス':'ORIX','西武':'세이부',
   };
-  const DISPLAY = { '롯데(NPB)':'롯데' }; // 표시명은 롯데
   const parseHtml = (html) => {
     const rows = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
     const teams = [];
@@ -193,10 +133,9 @@ async function fetchNpb(leagueFilter) {
       if (cells.length < 6) continue;
       const koKey = Object.keys(NPB_KO).find(k => cells[0].includes(k));
       if (!koKey) continue;
-      const logoKey = NPB_KO[koKey];
-      const display = DISPLAY[logoKey] || logoKey;
+      const team = NPB_KO[koKey];
       teams.push({
-        rank: teams.length + 1, team: display, logoKey,
+        rank: teams.length + 1, team,
         w: parseInt(cells[2]) || 0, l: parseInt(cells[3]) || 0, d: parseInt(cells[4]) || 0,
         pct: cells[5] || '-', gb: teams.length === 0 ? '-' : (cells[6] || '-'),
       });
@@ -248,7 +187,7 @@ async function fetchCpbl() {
       if (!team) continue;
       const wtl=iWTL>=0?r[iWTL]:r[3]||''; const pct=iPCT>=0?r[iPCT]:(r[4]||'-'); const gb=iGB>=0?r[iGB]:(r[5]||'-');
       const wtlM=wtl.match(/(\d+)-(\d+)-(\d+)/);
-      teams.push({ rank, team, logoKey: team, w:wtlM?parseInt(wtlM[1]):0, l:wtlM?parseInt(wtlM[3]):0,
+      teams.push({ rank, team, w:wtlM?parseInt(wtlM[1]):0, l:wtlM?parseInt(wtlM[3]):0,
         d:wtlM?parseInt(wtlM[2]):0, pct, gb });
     }
     if (teams.length) return [{ section: null, teams }];
@@ -290,8 +229,7 @@ async function fetchMlbAll() {
     const target = dm.lg === 'al' ? al : nl;
     target[dm.sec] = (rec.teamRecords || []).map((tr, i) => ({
       rank: i + 1,
-      team: ML_ABB[tr.team?.name] || tr.team?.name?.slice(0,5) || '',
-      logoKey: ML_ABB[tr.team?.name] || '',
+      team: ML_ABB[tr.team?.name] || tr.team?.name?.slice(0,3) || '',
       w: tr.wins || 0, l: tr.losses || 0, d: 0,
       pct: tr.winningPercentage || '-',
     }));
@@ -314,7 +252,7 @@ function addDivider(parent) {
 }
 
 // 개별 리그 위젯용 2컬럼 그리드 셀
-function addCell(parent, team, leagueColor, logoCache) {
+function addCell(parent, team, leagueColor) {
   const cell = parent.addStack();
   cell.layoutVertically();
 
@@ -327,19 +265,11 @@ function addCell(parent, team, leagueColor, logoCache) {
   rEl.textColor = team.rank <= 3 ? leagueColor : C.mu;
   top.addSpacer(6);
 
-  const logoUrl = team.logoKey && LOGO[team.logoKey];
-  const img = logoUrl && logoCache ? logoCache[logoUrl] : null;
-  if (img) {
-    const imgEl = top.addImage(img);
-    imgEl.imageSize = new Size(28, 28);
-    imgEl.cornerRadius = 4;
-  } else {
-    const tEl = top.addText(team.team);
-    tEl.font = Font.boldSystemFont(14);
-    tEl.textColor = C.tx;
-    tEl.lineLimit = 1;
-    tEl.minimumScaleFactor = 0.72;
-  }
+  const tEl = top.addText(team.team);
+  tEl.font = Font.boldSystemFont(14);
+  tEl.textColor = C.tx;
+  tEl.lineLimit = 1;
+  tEl.minimumScaleFactor = 0.72;
 
   cell.addSpacer(3);
 
@@ -352,8 +282,8 @@ function addCell(parent, team, leagueColor, logoCache) {
   statEl.textColor = C.mu2;
 }
 
-// 전리그 위젯용 컬럼 카드 (로고+PCT, 리그별 카드 배경 + 행 구분선)
-function addLeagueColumn(parent, labelText, color, sections, logoCache) {
+// 전리그 위젯용 컬럼 카드 (팀명+PCT, 리그별 카드 배경 + 행 구분선)
+function addLeagueColumn(parent, labelText, color, sections) {
   const card = parent.addStack();
   card.layoutVertically();
   card.backgroundColor = C.card;
@@ -370,7 +300,6 @@ function addLeagueColumn(parent, labelText, color, sections, logoCache) {
     const { section, teams } = sections[si];
     if (section) {
       if (si > 0) {
-        // 섹션 구분선
         card.addSpacer(3);
         const dl = card.addStack();
         dl.backgroundColor = C.div;
@@ -386,7 +315,6 @@ function addLeagueColumn(parent, labelText, color, sections, logoCache) {
     for (let i = 0; i < teams.length; i++) {
       const team = teams[i];
 
-      // 행 구분선 (첫 행 제외)
       if (!firstRow) {
         card.addSpacer(2);
         const rl = card.addStack();
@@ -400,28 +328,17 @@ function addLeagueColumn(parent, labelText, color, sections, logoCache) {
       row.layoutHorizontally();
       row.centerAlignContent();
 
-      // 순위
       const rEl = row.addText(String(team.rank));
       rEl.font = Font.boldSystemFont(10);
       rEl.textColor = team.rank <= 3 ? color : C.mu;
       row.addSpacer(3);
 
-      // 로고 또는 약어 fallback
-      const logoUrl = team.logoKey && LOGO[team.logoKey];
-      const img = logoUrl && logoCache ? logoCache[logoUrl] : null;
-      if (img) {
-        const imgEl = row.addImage(img);
-        imgEl.imageSize = new Size(16, 16);
-        imgEl.cornerRadius = 2;
-      } else {
-        const tEl = row.addText((team.team || '').slice(0, 4));
-        tEl.font = Font.systemFont(9);
-        tEl.textColor = C.tx;
-        tEl.minimumScaleFactor = 0.7;
-      }
+      const tEl = row.addText((team.team || '').slice(0, 4));
+      tEl.font = Font.systemFont(9);
+      tEl.textColor = C.tx;
+      tEl.minimumScaleFactor = 0.7;
       row.addSpacer(3);
 
-      // PCT
       const pEl = row.addText(fmtPct(team.pct));
       pEl.font = Font.boldSystemFont(10);
       pEl.textColor = C.mu2;
@@ -460,14 +377,6 @@ async function buildWidget() {
     else if (PARAM === 'cpbl')        groups = await fetchCpbl();
     else                              groups = [{ section: null, teams: await fetchKbo() }];
 
-    const logoCache = await loadLogos(groups.flatMap(g => g.teams).map(t => ({ teams: [t] })).flatMap(x => x.teams).reduce((a, t) => { a.push({ teams: [t] }); return a; }, []));
-    // simpler: just loadLogos with all groups
-    const allTeamsForLogos = groups.flatMap(g => g.teams);
-    const lc = {};
-    await Promise.all([...new Set(allTeamsForLogos.filter(t => t.logoKey && LOGO[t.logoKey]).map(t => LOGO[t.logoKey]))].map(async url => {
-      try { lc[url] = await new Request(url).loadImage(); } catch { lc[url] = null; }
-    }));
-
     const showSections = groups.length > 1;
     let shown = 0;
     for (let gi = 0; gi < groups.length; gi++) {
@@ -484,9 +393,9 @@ async function buildWidget() {
       for (let i = 0; i < show; i += 2) {
         const row = widget.addStack();
         row.layoutHorizontally();
-        addCell(row, teams[i], color, lc);
+        addCell(row, teams[i], color);
         row.addSpacer(8);
-        if (i + 1 < show) addCell(row, teams[i+1], color, lc);
+        if (i + 1 < show) addCell(row, teams[i+1], color);
         else row.addSpacer();
         if (i + 2 < show) widget.addSpacer(7);
         shown += i + 1 < show ? 2 : 1;
@@ -535,34 +444,21 @@ async function buildAllWidget() {
       fetchKbo(), fetchNpb('npb'), fetchMlbAll(),
     ]);
 
-    // NPB 섹션 레이블 단축
     const npbSec = npbGroups.map(g => ({
       section: g.section === '센트럴리그' ? 'セ' : g.section === '퍼시픽리그' ? 'パ' : g.section,
       teams: g.teams,
     }));
 
-    // 전체 팀 목록으로 로고 프리페치
-    const allTeams = [
-      ...kboTeams,
-      ...npbGroups.flatMap(g => g.teams),
-      ...mlbAll.al.flatMap(g => g.teams),
-      ...mlbAll.nl.flatMap(g => g.teams),
-    ];
-    const lc = {};
-    await Promise.all([...new Set(allTeams.filter(t => t.logoKey && LOGO[t.logoKey]).map(t => LOGO[t.logoKey]))].map(async url => {
-      try { lc[url] = await new Request(url).loadImage(); } catch { lc[url] = null; }
-    }));
-
     const content = widget.addStack();
     content.layoutHorizontally();
 
-    addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }], lc);
+    addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }]);
     content.addSpacer(4);
-    addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSec, lc);
+    addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSec);
     content.addSpacer(4);
-    addLeagueColumn(content, '🇺🇸 NL',  C.mlb, mlbAll.nl, lc);
+    addLeagueColumn(content, '🇺🇸 NL',  C.mlb, mlbAll.nl);
     content.addSpacer(4);
-    addLeagueColumn(content, 'AL',       C.mlb, mlbAll.al, lc);
+    addLeagueColumn(content, 'AL',       C.mlb, mlbAll.al);
 
   } catch (err) {
     widget.addSpacer(4);
