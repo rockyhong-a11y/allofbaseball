@@ -240,11 +240,6 @@ async function fetchMlbAll() {
 
 // ── 렌더링 헬퍼 ─────────────────────────────────────────
 
-function fmtPct(raw) {
-  const n = parseFloat(raw);
-  return isNaN(n) ? '-' : n.toFixed(3).replace(/^0\./, '.');
-}
-
 function addDivider(parent) {
   const line = parent.addStack();
   line.backgroundColor = C.div;
@@ -261,12 +256,12 @@ function addCell(parent, team, leagueColor) {
   top.centerAlignContent();
 
   const rEl = top.addText(String(team.rank));
-  rEl.font = Font.boldSystemFont(14);
+  rEl.font = Font.boldSystemFont(15);
   rEl.textColor = team.rank <= 3 ? leagueColor : C.mu;
   top.addSpacer(6);
 
   const tEl = top.addText(team.team);
-  tEl.font = Font.boldSystemFont(14);
+  tEl.font = Font.boldSystemFont(16);
   tEl.textColor = C.tx;
   tEl.lineLimit = 1;
   tEl.minimumScaleFactor = 0.72;
@@ -277,7 +272,7 @@ function addCell(parent, team, leagueColor) {
   bot.layoutHorizontally();
   bot.addSpacer(20);
   const wl = team.d > 0 ? `${team.w}-${team.l}-${team.d}` : `${team.w}-${team.l}`;
-  const statEl = bot.addText(`${wl}  ${fmtPct(team.pct)}`);
+  const statEl = bot.addText(wl);
   statEl.font = Font.systemFont(12);
   statEl.textColor = C.mu2;
 }
@@ -334,14 +329,9 @@ function addLeagueColumn(parent, labelText, color, sections) {
       row.addSpacer(3);
 
       const tEl = row.addText((team.team || '').slice(0, 4));
-      tEl.font = Font.systemFont(9);
+      tEl.font = Font.boldSystemFont(11);
       tEl.textColor = C.tx;
       tEl.minimumScaleFactor = 0.7;
-      row.addSpacer(3);
-
-      const pEl = row.addText(fmtPct(team.pct));
-      pEl.font = Font.boldSystemFont(10);
-      pEl.textColor = C.mu2;
     }
   }
   card.addSpacer();
