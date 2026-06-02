@@ -359,11 +359,11 @@ async function buildWidget() {
     for (let gi = 0; gi < groups.length; gi++) {
       const { section, teams } = groups[gi];
       if (showSections && section) {
-        if (gi > 0) { widget.addSpacer(3); addDivider(widget); widget.addSpacer(3); }
+        if (gi > 0) { widget.addSpacer(5); addDivider(widget); widget.addSpacer(5); }
         const secEl = widget.addText(section);
-        secEl.font      = Font.boldSystemFont(9);
+        secEl.font      = Font.boldSystemFont(11);
         secEl.textColor = color;
-        widget.addSpacer(3);
+        widget.addSpacer(4);
       }
       const limit = showSections ? rowsPerGroup : maxPerGroup;
       for (let i = 0; i < Math.min(teams.length, limit); i++) {
