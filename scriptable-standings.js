@@ -237,43 +237,48 @@ async function fetchCpbl() {
 
 // ── 위젯 렌더링 ──────────────────────────────────────────
 
+function fmtPct(raw) {
+  const n = parseFloat(raw);
+  if (isNaN(n)) return '-';
+  return n.toFixed(3).replace(/^0\./, '.');
+}
+
 function addRow(parent, team, leagueColor) {
   const row = parent.addStack();
   row.layoutHorizontally();
   row.centerAlignContent();
 
   // 순위
-  const rEl = row.addText(String(team.rank).padStart(2, ' '));
-  rEl.font   = Font.boldSystemFont(11);
+  const rEl = row.addText(String(team.rank));
+  rEl.font      = Font.boldSystemFont(15);
   rEl.textColor = team.rank <= 3 ? leagueColor : C.mu;
-  row.addSpacer(6);
+  row.addSpacer(10);
 
   // 팀명
   const tEl = row.addText(team.team);
-  tEl.font          = Font.mediumSystemFont(11);
-  tEl.textColor     = C.tx;
-  tEl.lineLimit     = 1;
-  tEl.minimumScaleFactor = 0.7;
+  tEl.font               = Font.boldSystemFont(14);
+  tEl.textColor          = C.tx;
+  tEl.lineLimit          = 1;
+  tEl.minimumScaleFactor = 0.75;
   row.addSpacer();
 
-  // W-L(-D)
+  // W-L
   const wl = team.d > 0 ? `${team.w}-${team.l}-${team.d}` : `${team.w}-${team.l}`;
   const wlEl = row.addText(wl);
-  wlEl.font      = Font.systemFont(10);
+  wlEl.font      = Font.systemFont(13);
   wlEl.textColor = C.mu2;
-  row.addSpacer(6);
+  row.addSpacer(10);
 
-  // PCT
-  const pctStr = typeof team.pct === 'string' ? team.pct.replace(/^0\./, '.') : String(team.pct);
-  const pEl = row.addText(pctStr || '-');
-  pEl.font      = Font.boldSystemFont(10);
+  // PCT (3자리)
+  const pEl = row.addText(fmtPct(team.pct));
+  pEl.font      = Font.boldSystemFont(13);
   pEl.textColor = C.tx;
-  row.addSpacer(6);
+  row.addSpacer(10);
 
   // GB
-  const gbStr = (team.gb === '0.0' || team.gb === '0') ? '-' : String(team.gb);
+  const gbStr = (!team.gb || team.gb === '0.0' || team.gb === '0') ? '-' : String(team.gb);
   const gEl = row.addText(gbStr);
-  gEl.font      = Font.systemFont(10);
+  gEl.font      = Font.systemFont(13);
   gEl.textColor = C.mu;
 }
 
@@ -291,7 +296,7 @@ async function buildWidget() {
 
   const { label, color } = leagueMeta(PARAM);
   const widgetFamily = config.widgetFamily || 'medium';
-  const maxPerGroup  = widgetFamily === 'small' ? 5 : widgetFamily === 'large' ? 13 : 8;
+  const maxPerGroup  = widgetFamily === 'small' ? 4 : widgetFamily === 'large' ? 11 : 6;
 
   // 헤더
   const hdr = widget.addStack();
@@ -311,15 +316,22 @@ async function buildWidget() {
   const ch = widget.addStack();
   ch.layoutHorizontally();
   ch.centerAlignContent();
-  [['#', 11], ['팀', null], ['W-L', null], ['PCT', null], ['GB', null]].forEach(([t, w], i) => {
-    if (i > 0) ch.addSpacer(i === 1 ? 6 : (i === 2 ? null : 6));
-    const el = ch.addText(t);
-    el.font      = Font.boldSystemFont(9);
-    el.textColor = C.mu;
-    if (i === 1) el.minimumScaleFactor = 0.7;
-  });
+  const chRank = ch.addText('#');
+  chRank.font = Font.boldSystemFont(11); chRank.textColor = C.mu;
+  ch.addSpacer(10);
+  const chTeam = ch.addText('팀');
+  chTeam.font = Font.boldSystemFont(11); chTeam.textColor = C.mu;
+  ch.addSpacer();
+  const chWL = ch.addText('W-L');
+  chWL.font = Font.boldSystemFont(11); chWL.textColor = C.mu;
+  ch.addSpacer(10);
+  const chPct = ch.addText('PCT');
+  chPct.font = Font.boldSystemFont(11); chPct.textColor = C.mu;
+  ch.addSpacer(10);
+  const chGb = ch.addText('GB');
+  chGb.font = Font.boldSystemFont(11); chGb.textColor = C.mu;
 
-  widget.addSpacer(4);
+  widget.addSpacer(5);
 
   // 데이터 로드 및 렌더
   try {
@@ -356,7 +368,7 @@ async function buildWidget() {
       const limit = showSections ? rowsPerGroup : maxPerGroup;
       for (let i = 0; i < Math.min(teams.length, limit); i++) {
         addRow(widget, teams[i], color);
-        if (i < Math.min(teams.length, limit) - 1) widget.addSpacer(3);
+        if (i < Math.min(teams.length, limit) - 1) widget.addSpacer(5);
         totalRows++;
       }
     }
