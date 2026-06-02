@@ -244,7 +244,7 @@ function addRow(parent, team, leagueColor) {
 
   // 순위
   const rEl = row.addText(String(team.rank).padStart(2, ' '));
-  rEl.font   = Font.boldMonospacedSystemFont(11);
+  rEl.font   = Font.boldSystemFont(11);
   rEl.textColor = team.rank <= 3 ? leagueColor : C.mu;
   row.addSpacer(6);
 
@@ -259,21 +259,21 @@ function addRow(parent, team, leagueColor) {
   // W-L(-D)
   const wl = team.d > 0 ? `${team.w}-${team.l}-${team.d}` : `${team.w}-${team.l}`;
   const wlEl = row.addText(wl);
-  wlEl.font      = Font.monospacedSystemFont(10);
+  wlEl.font      = Font.systemFont(10);
   wlEl.textColor = C.mu2;
   row.addSpacer(6);
 
   // PCT
   const pctStr = typeof team.pct === 'string' ? team.pct.replace(/^0\./, '.') : String(team.pct);
   const pEl = row.addText(pctStr || '-');
-  pEl.font      = Font.boldMonospacedSystemFont(10);
+  pEl.font      = Font.boldSystemFont(10);
   pEl.textColor = C.tx;
   row.addSpacer(6);
 
   // GB
   const gbStr = (team.gb === '0.0' || team.gb === '0') ? '-' : String(team.gb);
   const gEl = row.addText(gbStr);
-  gEl.font      = Font.monospacedSystemFont(10);
+  gEl.font      = Font.systemFont(10);
   gEl.textColor = C.mu;
 }
 
