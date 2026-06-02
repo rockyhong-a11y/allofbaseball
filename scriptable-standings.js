@@ -243,48 +243,43 @@ function fmtPct(raw) {
   return n.toFixed(3).replace(/^0\./, '.');
 }
 
-function addRow(parent, team, leagueColor) {
-  const row = parent.addStack();
-  row.layoutHorizontally();
-  row.centerAlignContent();
+// 그리드 셀 하나: 순위+팀명(윗줄) / W-L·PCT(아랫줄)
+function addCell(parent, team, leagueColor) {
+  const cell = parent.addStack();
+  cell.layoutVertically();
 
-  // 순위
-  const rEl = row.addText(String(team.rank));
-  rEl.font      = Font.boldSystemFont(15);
+  // 윗줄: 순위 + 팀명
+  const top = cell.addStack();
+  top.layoutHorizontally();
+  top.centerAlignContent();
+
+  const rEl = top.addText(String(team.rank));
+  rEl.font      = Font.boldSystemFont(14);
   rEl.textColor = team.rank <= 3 ? leagueColor : C.mu;
-  row.addSpacer(10);
+  top.addSpacer(6);
 
-  // 팀명
-  const tEl = row.addText(team.team);
+  const tEl = top.addText(team.team);
   tEl.font               = Font.boldSystemFont(14);
   tEl.textColor          = C.tx;
   tEl.lineLimit          = 1;
-  tEl.minimumScaleFactor = 0.75;
-  row.addSpacer();
+  tEl.minimumScaleFactor = 0.72;
 
-  // W-L
+  cell.addSpacer(3);
+
+  // 아랫줄: W-L · PCT
+  const bot = cell.addStack();
+  bot.layoutHorizontally();
+  bot.centerAlignContent();
+  bot.addSpacer(20); // rank 너비만큼 indent
+
   const wl = team.d > 0 ? `${team.w}-${team.l}-${team.d}` : `${team.w}-${team.l}`;
-  const wlEl = row.addText(wl);
-  wlEl.font      = Font.systemFont(13);
-  wlEl.textColor = C.mu2;
-  row.addSpacer(10);
-
-  // PCT (3자리)
-  const pEl = row.addText(fmtPct(team.pct));
-  pEl.font      = Font.boldSystemFont(13);
-  pEl.textColor = C.tx;
-  row.addSpacer(10);
-
-  // GB
-  const gbStr = (!team.gb || team.gb === '0.0' || team.gb === '0') ? '-' : String(team.gb);
-  const gEl = row.addText(gbStr);
-  gEl.font      = Font.systemFont(13);
-  gEl.textColor = C.mu;
+  const statEl = bot.addText(`${wl}  ${fmtPct(team.pct)}`);
+  statEl.font      = Font.systemFont(12);
+  statEl.textColor = C.mu2;
 }
 
 function addDivider(parent) {
   const line = parent.addStack();
-  line.layoutHorizontally();
   line.backgroundColor = Color.dynamic(new Color('#d0d9e8'), new Color('#1c2b45'));
   line.size = new Size(0, 1);
 }
@@ -296,7 +291,8 @@ async function buildWidget() {
 
   const { label, color } = leagueMeta(PARAM);
   const widgetFamily = config.widgetFamily || 'medium';
-  const maxPerGroup  = widgetFamily === 'small' ? 4 : widgetFamily === 'large' ? 11 : 6;
+  // 그리드 기준 최대 표시 팀 수 (2팀/행)
+  const maxTeams = widgetFamily === 'small' ? 6 : widgetFamily === 'large' ? 20 : 10;
 
   // 헤더
   const hdr = widget.addStack();
@@ -310,30 +306,9 @@ async function buildWidget() {
   dateEl.font      = Font.systemFont(10);
   dateEl.textColor = C.mu;
 
-  widget.addSpacer(5);
+  widget.addSpacer(8);
 
-  // 컬럼 헤더
-  const ch = widget.addStack();
-  ch.layoutHorizontally();
-  ch.centerAlignContent();
-  const chRank = ch.addText('#');
-  chRank.font = Font.boldSystemFont(11); chRank.textColor = C.mu;
-  ch.addSpacer(10);
-  const chTeam = ch.addText('팀');
-  chTeam.font = Font.boldSystemFont(11); chTeam.textColor = C.mu;
-  ch.addSpacer();
-  const chWL = ch.addText('W-L');
-  chWL.font = Font.boldSystemFont(11); chWL.textColor = C.mu;
-  ch.addSpacer(10);
-  const chPct = ch.addText('PCT');
-  chPct.font = Font.boldSystemFont(11); chPct.textColor = C.mu;
-  ch.addSpacer(10);
-  const chGb = ch.addText('GB');
-  chGb.font = Font.boldSystemFont(11); chGb.textColor = C.mu;
-
-  widget.addSpacer(5);
-
-  // 데이터 로드 및 렌더
+  // 데이터 로드 및 2컬럼 그리드 렌더
   try {
     let groups = [];
 
@@ -350,34 +325,49 @@ async function buildWidget() {
     }
 
     const showSections = groups.length > 1;
-    // 전체 rows 제한 계산
-    let totalRows = 0;
-    const rowsPerGroup = showSections
-      ? Math.floor(maxPerGroup / groups.length)
-      : maxPerGroup;
+    let teamsShown = 0;
 
     for (let gi = 0; gi < groups.length; gi++) {
       const { section, teams } = groups[gi];
+
       if (showSections && section) {
-        if (gi > 0) { widget.addSpacer(5); addDivider(widget); widget.addSpacer(5); }
+        if (gi > 0) { widget.addSpacer(6); addDivider(widget); widget.addSpacer(6); }
         const secEl = widget.addText(section);
         secEl.font      = Font.boldSystemFont(11);
         secEl.textColor = color;
-        widget.addSpacer(4);
+        widget.addSpacer(5);
       }
-      const limit = showSections ? rowsPerGroup : maxPerGroup;
-      for (let i = 0; i < Math.min(teams.length, limit); i++) {
-        addRow(widget, teams[i], color);
-        if (i < Math.min(teams.length, limit) - 1) widget.addSpacer(5);
-        totalRows++;
+
+      // 그룹당 최대 팀 수
+      const groupMax = showSections
+        ? Math.floor(maxTeams / groups.length)
+        : maxTeams;
+      const show = Math.min(teams.length, groupMax, maxTeams - teamsShown);
+
+      // 2팀씩 한 행에 배치
+      for (let i = 0; i < show; i += 2) {
+        const row = widget.addStack();
+        row.layoutHorizontally();
+
+        addCell(row, teams[i], color);
+        row.addSpacer(8);
+
+        if (i + 1 < show) {
+          addCell(row, teams[i + 1], color);
+        } else {
+          row.addSpacer(); // 홀수 팀일 때 오른쪽 빈칸
+        }
+
+        if (i + 2 < show) widget.addSpacer(7);
+        teamsShown += i + 1 < show ? 2 : 1;
       }
     }
 
   } catch (err) {
     widget.addSpacer(4);
     const errEl = widget.addText('⚠️ 데이터 로드 실패\n' + err.message);
-    errEl.font             = Font.systemFont(11);
-    errEl.textColor        = C.mu;
+    errEl.font               = Font.systemFont(11);
+    errEl.textColor          = C.mu;
     errEl.minimumScaleFactor = 0.7;
   }
 
