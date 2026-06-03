@@ -541,6 +541,7 @@ async function buildWidget() {
     errEl.minimumScaleFactor = 0.7;
   }
 
+  widget.url = `scriptable:///run/${encodeURIComponent(Script.name())}`;
   widget.addSpacer();
   const ft = widget.addStack();
   ft.layoutHorizontally();
@@ -550,6 +551,10 @@ async function buildWidget() {
   ft.addSpacer();
   const s2 = ft.addText(NOW.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }));
   s2.font = Font.systemFont(8); s2.textColor = C.mu;
+  ft.addSpacer(4);
+  const rfEl = ft.addText('↺');
+  rfEl.font = Font.systemFont(11);
+  rfEl.textColor = C.mu;
   return widget;
 }
 
@@ -625,6 +630,7 @@ async function buildAllWidget() {
     errEl.minimumScaleFactor = 0.7;
   }
 
+  widget.url = `scriptable:///run/${encodeURIComponent(Script.name())}`;
   widget.addSpacer();
   const ft = widget.addStack();
   ft.layoutHorizontally();
@@ -634,6 +640,10 @@ async function buildAllWidget() {
   ft.addSpacer();
   const s2 = ft.addText(NOW.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }));
   s2.font = Font.systemFont(8); s2.textColor = C.mu;
+  ft.addSpacer(4);
+  const rfEl = ft.addText('↺');
+  rfEl.font = Font.systemFont(11);
+  rfEl.textColor = C.mu;
   return widget;
 }
 
