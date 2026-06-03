@@ -41,8 +41,12 @@ function parseStreakCode(code) {
 
 function parseKoreanStreak(text) {
   if (!text) return null;
-  const m = String(text).match(/(\d+)(연승|연패)/);
-  return m ? { type: m[2] === '연승' ? 'W' : 'L', count: parseInt(m[1]) } : null;
+  const s = String(text).trim();
+  // "3연승" / "3연패" (KBO API 형식)
+  const m = s.match(/(\d+)(연승|연패)/);
+  if (m) return { type: m[2] === '연승' ? 'W' : 'L', count: parseInt(m[1]) };
+  // NPB computeNpbStreaks 출력 형식도 동일하므로 여기서 함께 처리
+  return null;
 }
 
 function extractStreaks(teams, min = 5) {
@@ -179,18 +183,17 @@ async function fetchNpb(leagueFilter) {
   return groups;
 }
 
-// NPB 연승/연패: 월간 스케줄 HTML 파싱
+// NPB 연승/연패: 웹앱 _computeNpbStreaks 로직을 regex로 재구현
 async function computeNpbStreaks() {
-  const NPB_JP = ['ヤクルト','広島','読売','中日','DeNA','阪神',
-                  'ソフトバンク','日本ハム','楽天','ロッテ','オリックス','西武'];
+  const NORM = { '巨人':'読売','ORIX':'オリックス','スワローズ':'ヤクルト','読売ジャイアンツ':'読売' };
   const NPB_KO = {
     'ヤクルト':'야쿠르트','広島':'히로시마','読売':'요미우리','中日':'주니치',
     'DeNA':'DeNA','阪神':'한신','ソフトバンク':'소프트뱅크','日本ハム':'닛폰햄',
     '楽天':'라쿠텐','ロッテ':'롯데','オリックス':'ORIX','西武':'세이부',
   };
-  const month    = String(NOW.getMonth() + 1).padStart(2, '0');
-  const prevM    = NOW.getMonth() === 0 ? 12 : NOW.getMonth();
-  const prevY    = NOW.getMonth() === 0 ? YEAR - 1 : YEAR;
+  const month   = String(NOW.getMonth() + 1).padStart(2, '0');
+  const prevM   = NOW.getMonth() === 0 ? 12 : NOW.getMonth();
+  const prevY   = NOW.getMonth() === 0 ? YEAR - 1 : YEAR;
   const prevMStr = String(prevM).padStart(2, '0');
 
   const fetchHtml = async url => {
@@ -201,35 +204,51 @@ async function computeNpbStreaks() {
     } catch { return ''; }
   };
 
-  const [h1, h2] = await Promise.all([
+  const htmls = await Promise.all([
     fetchHtml(`https://npb.jp/games/${prevY}/schedule_${prevMStr}_detail.html`),
     fetchHtml(`https://npb.jp/games/${YEAR}/schedule_${month}_detail.html`),
   ]);
 
-  const combined = h1 + h2;
-  const teamRes = {};
-  for (const t of NPB_JP) teamRes[t] = [];
+  const games = [];
 
-  for (const [, row] of [...combined.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]) {
-    const text = row.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!text.includes('○') && !text.includes('●')) continue;
-    const found = NPB_JP.filter(t => text.includes(t));
-    if (found.length < 2) continue;
-    for (const team of found) {
-      const idx = text.indexOf(team);
-      const ctx = text.slice(Math.max(0, idx - 8), idx + team.length + 8);
-      if (ctx.includes('○')) teamRes[team].push('W');
-      else if (ctx.includes('●')) teamRes[team].push('L');
+  for (let idx = 0; idx < htmls.length; idx++) {
+    const html = htmls[idx];
+    if (!html) continue;
+    // <tr id="date{MMDD}"> 패턴 — 웹앱의 doc.querySelectorAll('tr[id]') 대응
+    for (const [, trId, trBody] of [...html.matchAll(/<tr\b[^>]*\bid="date(\d{4})"[^>]*>([\s\S]*?)<\/tr>/gi)]) {
+      const byClass = cls => {
+        const m = trBody.match(new RegExp(`class="[^"]*\\b${cls}\\b[^"]*"[^>]*>([\\s\\S]*?)<\\/`, 'i'));
+        return m ? m[1].replace(/<[^>]+>/g, '').trim() : '';
+      };
+      let t1 = byClass('team1'), t2 = byClass('team2');
+      const s1s = byClass('score1'), s2s = byClass('score2');
+      if (!t1 || !t2 || !/^\d+$/.test(s1s) || !/^\d+$/.test(s2s)) continue;
+      t1 = NORM[t1] || t1;
+      t2 = NORM[t2] || t2;
+      const mm = parseInt(trId.slice(0, 2)), dd = parseInt(trId.slice(2, 4));
+      games.push({ dateKey: idx * 10000 + mm * 100 + dd, t1, t2, s1: +s1s, s2: +s2s });
     }
   }
 
+  games.sort((a, b) => a.dateKey - b.dateKey);
+
+  const teamSeq = {};
+  for (const g of games) {
+    const r1 = g.s1 > g.s2 ? 'W' : g.s1 < g.s2 ? 'L' : 'D';
+    const r2 = g.s2 > g.s1 ? 'W' : g.s2 < g.s1 ? 'L' : 'D';
+    (teamSeq[g.t1] = teamSeq[g.t1] || []).push(r1);
+    (teamSeq[g.t2] = teamSeq[g.t2] || []).push(r2);
+  }
+
   const result = {};
-  for (const [jp, res] of Object.entries(teamRes)) {
-    if (!res.length) continue;
-    const last = res[res.length - 1];
+  for (const [jp, seq] of Object.entries(teamSeq)) {
+    if (!seq.length) continue;
+    const last = seq[seq.length - 1];
+    if (last === 'D') continue;
     let count = 0;
-    for (let i = res.length - 1; i >= 0 && res[i] === last; i--) count++;
-    if (count > 0) result[NPB_KO[jp]] = { count, type: last };
+    for (let i = seq.length - 1; i >= 0 && seq[i] === last; i--) count++;
+    const ko = NPB_KO[jp];
+    if (ko && count > 0) result[ko] = { count, type: last };
   }
   return result;
 }
