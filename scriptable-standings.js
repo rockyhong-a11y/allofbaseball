@@ -336,36 +336,66 @@ function addDivider(parent) {
   line.size = new Size(0, 1);
 }
 
-function addStreakFooter(parent, streaks) {
-  const { wins, losses } = streaks;
-  if (!wins.length && !losses.length) return;
-  parent.addSpacer(4);
-  const dl = parent.addStack();
-  dl.backgroundColor = C.div;
-  dl.size = new Size(0, 1);
-  parent.addSpacer(3);
-  for (const s of wins.slice(0, 1)) {
-    const row = parent.addStack();
-    row.layoutHorizontally();
-    row.centerAlignContent();
-    const ic = row.addText('🔥');
-    ic.font = Font.systemFont(9);
-    row.addSpacer(2);
-    const tx = row.addText(`${s.team.slice(0, 5)} ${s.count}연승`);
-    tx.font = Font.boldSystemFont(9);
-    tx.textColor = C.win;
+// 우측 연승/연패 컬럼 (all 위젯 전용)
+function addStreakColumn(parent, entries) {
+  const card = parent.addStack();
+  card.layoutVertically();
+  card.backgroundColor = C.card;
+  card.cornerRadius = 7;
+  card.setPadding(6, 5, 6, 5);
+
+  const hdr = card.addText('연속기록');
+  hdr.font = Font.boldSystemFont(9);
+  hdr.textColor = C.mu;
+  card.addSpacer(5);
+
+  if (!entries.length) {
+    const none = card.addText('5연속\n팀 없음');
+    none.font = Font.systemFont(9);
+    none.textColor = C.mu;
+    card.addSpacer();
+    return;
   }
-  for (const s of losses.slice(0, 1)) {
-    const row = parent.addStack();
-    row.layoutHorizontally();
-    row.centerAlignContent();
-    const ic = row.addText('💧');
-    ic.font = Font.systemFont(9);
-    row.addSpacer(2);
-    const tx = row.addText(`${s.team.slice(0, 5)} ${s.count}연패`);
-    tx.font = Font.boldSystemFont(9);
-    tx.textColor = C.lose;
+
+  let first = true;
+  for (const e of entries) {
+    if (!first) {
+      card.addSpacer(3);
+      const dl = card.addStack();
+      dl.backgroundColor = C.div;
+      dl.size = new Size(0, 1);
+      card.addSpacer(3);
+    }
+    first = false;
+
+    // 팀명 행
+    const r1 = card.addStack();
+    r1.layoutHorizontally();
+    r1.centerAlignContent();
+    const ic = r1.addText(e.type === 'W' ? '🔥' : '💧');
+    ic.font = Font.systemFont(10);
+    r1.addSpacer(2);
+    const tm = r1.addText(e.team.slice(0, 4));
+    tm.font = Font.boldSystemFont(11);
+    tm.textColor = C.tx;
+    tm.minimumScaleFactor = 0.75;
+    r1.addSpacer();
+
+    // 연승/연패 + 리그 행
+    const r2 = card.addStack();
+    r2.layoutHorizontally();
+    r2.centerAlignContent();
+    r2.addSpacer(14);
+    const cnt = r2.addText(`${e.count}${e.type === 'W' ? '연승' : '연패'}`);
+    cnt.font = Font.boldSystemFont(10);
+    cnt.textColor = e.type === 'W' ? C.win : C.lose;
+    r2.addSpacer(3);
+    const lg = r2.addText(e.league);
+    lg.font = Font.systemFont(8);
+    lg.textColor = C.mu;
   }
+
+  card.addSpacer();
 }
 
 function addCell(parent, team, leagueColor) {
@@ -393,7 +423,7 @@ function addCell(parent, team, leagueColor) {
   statEl.textColor = C.mu2;
 }
 
-function addLeagueColumn(parent, labelText, color, sections, streaks) {
+function addLeagueColumn(parent, labelText, color, sections) {
   const card = parent.addStack();
   card.layoutVertically();
   card.backgroundColor = C.card;
@@ -446,7 +476,6 @@ function addLeagueColumn(parent, labelText, color, sections, streaks) {
     }
   }
 
-  if (streaks) addStreakFooter(card, streaks);
   card.addSpacer();
 }
 
@@ -556,21 +585,37 @@ async function buildAllWidget() {
       teams: g.teams,
     }));
 
-    const kboS = extractStreaks(kboTeams);
-    const npbS = extractStreaks(npbGroups.flatMap(g => g.teams));
-    const nlS  = extractStreaks(mlbAll.nl.flatMap(g => g.teams));
-    const alS  = extractStreaks(mlbAll.al.flatMap(g => g.teams));
+    // 연속기록 5+ 수집 (연승 먼저, 연패 다음 / 각 league 내 count 내림차순)
+    const collectEntries = (teams, league) => {
+      const ws = [], ls = [];
+      for (const t of teams) {
+        if (!t.streak || t.streak.count < 5) continue;
+        const e = { team: t.team, count: t.streak.count, type: t.streak.type, league };
+        if (t.streak.type === 'W') ws.push(e); else ls.push(e);
+      }
+      ws.sort((a, b) => b.count - a.count);
+      ls.sort((a, b) => b.count - a.count);
+      return [...ws, ...ls];
+    };
+    const streakEntries = [
+      ...collectEntries(kboTeams, 'KBO'),
+      ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB'),
+      ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL'),
+      ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL'),
+    ];
 
     const content = widget.addStack();
     content.layoutHorizontally();
 
-    addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }], kboS);
+    addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }]);
     content.addSpacer(4);
-    addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSec, npbS);
+    addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSec);
     content.addSpacer(4);
-    addLeagueColumn(content, '🇺🇸 NL',  C.mlb, mlbAll.nl, nlS);
+    addLeagueColumn(content, '🇺🇸 NL',  C.mlb, mlbAll.nl);
     content.addSpacer(4);
-    addLeagueColumn(content, 'AL',       C.mlb, mlbAll.al, alS);
+    addLeagueColumn(content, 'AL',       C.mlb, mlbAll.al);
+    content.addSpacer(4);
+    addStreakColumn(content, streakEntries);
 
   } catch (err) {
     widget.addSpacer(4);
