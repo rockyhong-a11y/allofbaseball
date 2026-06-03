@@ -41,11 +41,13 @@ function parseStreakCode(code) {
 
 function parseKoreanStreak(text) {
   if (!text) return null;
-  const s = String(text).trim();
-  // "3연승" / "3연패" (KBO API 형식)
-  const m = s.match(/(\d+)(연승|연패)/);
+  const s = String(text).replace(/<[^>]+>/g, '').trim();
+  // "13연패" / "3연승" (count first)
+  let m = s.match(/(\d+)(연승|연패)/);
   if (m) return { type: m[2] === '연승' ? 'W' : 'L', count: parseInt(m[1]) };
-  // NPB computeNpbStreaks 출력 형식도 동일하므로 여기서 함께 처리
+  // "연패13" / "연승3" (type first)
+  m = s.match(/(연승|연패)(\d+)/);
+  if (m) return { type: m[1] === '연승' ? 'W' : 'L', count: parseInt(m[2]) };
   return null;
 }
 
@@ -74,11 +76,18 @@ async function fetchKbo() {
     const raw = row[1]?.Text || '';
     const m = raw.match(/>([^<]+)</);
     const short = m ? m[1].trim() : raw.replace(/<[^>]+>/g, '').trim();
+    const streakRaw = row[8]?.Text || '';
+    let streak = parseKoreanStreak(streakRaw);
+    if (!streak) {
+      const t = streakRaw.includes('연승') ? 'W' : streakRaw.includes('연패') ? 'L' : null;
+      const cnt = parseInt((row[9]?.Text || '').replace(/<[^>]+>/g, ''));
+      if (t && cnt > 0) streak = { type: t, count: cnt };
+    }
     return {
       rank: i + 1, team: short,
       w: parseInt(row[3]?.Text) || 0, l: parseInt(row[4]?.Text) || 0,
       d: parseInt(row[5]?.Text) || 0, pct: row[6]?.Text || '-', gb: row[7]?.Text || '-',
-      streak: parseKoreanStreak(row[8]?.Text || ''),
+      streak,
     };
   });
 }
