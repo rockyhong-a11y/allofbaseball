@@ -335,9 +335,22 @@ async function computeNpbStreaks() {
 }
 
 async function fetchCpbl() {
-  const req = new Request(`${CTABS}${encodeURIComponent('https://en.cpbl.com.tw/standings/season')}`);
-  req.timeoutInterval = 15;
-  const html = await req.loadString();
+  const CPBL_URL = 'https://en.cpbl.com.tw/standings/season';
+  const proxies = [
+    CPBL_URL,  // direct (Scriptable no CORS)
+    `${CTABS}${encodeURIComponent(CPBL_URL)}`,
+    `https://corsproxy.io/?${encodeURIComponent(CPBL_URL)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(CPBL_URL)}`,
+  ];
+  let html = '';
+  for (const url of proxies) {
+    try {
+      const req = new Request(url); req.timeoutInterval = 10;
+      const t = await req.loadString();
+      if (t && t.length > 500) { html = t; break; }
+    } catch {}
+  }
+  if (!html) throw new Error('CPBL fetch failed');
   const tables = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/gi)].map(m => m[1]);
   for (const tbl of tables) {
     const rows = [...tbl.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
