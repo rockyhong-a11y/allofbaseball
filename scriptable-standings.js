@@ -68,7 +68,7 @@ function extractStreaks(teams, min = 5) {
 
 async function fetchKbo() {
   const req = new Request(`${CF}/ws/Main.asmx/GetTeamRank?leId=1&srId=0&seasonId=${YEAR}&_t=${Date.now()}`);
-  req.timeoutInterval = 15;
+  req.timeoutInterval = 8;
   const data = await req.loadJSON();
   if (!data?.rows?.length) throw new Error('KBO 데이터 없음');
   return data.rows.map((rec, i) => {
@@ -128,7 +128,7 @@ async function fetchMlb(divFilter) {
     'nl-e':'NL East','nl-c':'NL Central','nl-w':'NL West',
   };
   const req = new Request(`https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${YEAR}&standingsTypes=regularSeason&hydrate=team,league,division`);
-  req.timeoutInterval = 15;
+  req.timeoutInterval = 8;
   const data = await req.loadJSON();
   const groups = [];
   for (const rec of (data.records || [])) {
@@ -176,7 +176,7 @@ async function fetchNpb(leagueFilter) {
   };
   const fetch1 = async slug => {
     const req = new Request(`${CTABS}${encodeURIComponent(`https://npb.jp/${slug}/`)}`);
-    req.timeoutInterval = 15;
+    req.timeoutInterval = 8;
     return parseHtml(await req.loadString());
   };
   const groups = [];
@@ -208,7 +208,7 @@ async function computeNpbStreaks() {
   const fetchHtml = async url => {
     try {
       const req = new Request(`${CTABS}${encodeURIComponent(url)}`);
-      req.timeoutInterval = 10;
+      req.timeoutInterval = 5;
       return await req.loadString();
     } catch { return ''; }
   };
@@ -604,11 +604,22 @@ async function buildAllWidget() {
   dateEl.textColor = C.mu;
   widget.addSpacer(8);
 
-  try {
-    const [kboTeams, npbGroups, mlbAll, npbStreakMap] = await Promise.all([
-      fetchKbo(), fetchNpb('npb'), fetchMlbAll(), computeNpbStreaks(),
-    ]);
+  const results = await Promise.allSettled([
+    fetchKbo(), fetchNpb('npb'), fetchMlbAll(), computeNpbStreaks(),
+  ]);
+  const kboTeams    = results[0].status === 'fulfilled' ? results[0].value : [];
+  const npbGroups   = results[1].status === 'fulfilled' ? results[1].value : [];
+  const mlbAll      = results[2].status === 'fulfilled' ? results[2].value : { nl: [], al: [] };
+  const npbStreakMap = results[3].status === 'fulfilled' ? results[3].value : {};
 
+  const anyLoaded = kboTeams.length || npbGroups.length || mlbAll.nl.length || mlbAll.al.length;
+  if (!anyLoaded) {
+    widget.addSpacer(4);
+    const errEl = widget.addText('⚠️ 로드 실패\n네트워크를 확인하세요');
+    errEl.font = Font.systemFont(11);
+    errEl.textColor = C.mu;
+    errEl.minimumScaleFactor = 0.7;
+  } else {
     for (const g of npbGroups)
       for (const t of g.teams)
         t.streak = npbStreakMap[t.team] || null;
@@ -618,7 +629,6 @@ async function buildAllWidget() {
       teams: g.teams,
     }));
 
-    // 연속기록 5+ 수집 (연승 먼저, 연패 다음 / 각 league 내 count 내림차순)
     const collectEntries = (teams, league) => {
       const ws = [], ls = [];
       for (const t of teams) {
@@ -649,13 +659,6 @@ async function buildAllWidget() {
     addLeagueColumn(content, 'AL',       C.mlb, mlbAll.al);
     content.addSpacer(4);
     addStreakColumn(content, streakEntries);
-
-  } catch (err) {
-    widget.addSpacer(4);
-    const errEl = widget.addText('⚠️ 로드 실패\n' + err.message);
-    errEl.font = Font.systemFont(11);
-    errEl.textColor = C.mu;
-    errEl.minimumScaleFactor = 0.7;
   }
 
   widget.url = `scriptable:///run/${encodeURIComponent(Script.name())}`;
