@@ -152,40 +152,62 @@ async function fetchMlb(divFilter) {
 
 async function fetchNpb(leagueFilter) {
   const NPB_KO = {
-    'ヤクルト':'야쿠르트','広島':'히로시마','読売':'요미우리','中日':'주니치',
-    'DeNA':'DeNA','阪神':'한신','ソフトバンク':'소프트뱅크','日本ハム':'닛폰햄',
-    '楽天':'라쿠텐','ロッテ':'롯데','オリックス':'ORIX','西武':'세이부',
+    'Yomiuri Giants':'요미우리','Hanshin Tigers':'한신',
+    'Hiroshima Toyo Carp':'히로시마','Tokyo Yakult Swallows':'야쿠르트',
+    'Yakult Swallows':'야쿠르트','DeNA BayStars':'DeNA',
+    'Yokohama DeNA BayStars':'DeNA','Chunichi Dragons':'주니치',
+    'Fukuoka SoftBank Hawks':'소프트뱅크','Orix Buffaloes':'ORIX',
+    'ORIX Buffaloes':'ORIX','Chiba Lotte Marines':'롯데',
+    'Tohoku Rakuten Golden Eagles':'라쿠텐','Rakuten Eagles':'라쿠텐',
+    'Hokkaido Nippon-Ham Fighters':'닛폰햄','Nippon-Ham Fighters':'닛폰햄',
+    'Saitama Seibu Lions':'세이부','Seibu Lions':'세이부',
   };
   const parseHtml = (html) => {
     const rows = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+    let iW = 1, iL = 2, iT = 3, iPct = 4, iGB = 5;
+    for (const [, row] of rows) {
+      const ths = [...row.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)]
+        .map(m => m[1].replace(/<[^>]+>/g, '').trim().toUpperCase());
+      if (ths.length >= 4 && (ths.includes('W') || ths.some(h => /^PCT$|^W%$/.test(h)))) {
+        const fi = s => ths.indexOf(s);
+        const wI = fi('W'), lI = fi('L'), tI = fi('T');
+        const pI = ths.findIndex(h => /^PCT$|^W%$/.test(h));
+        const gI = fi('GB');
+        if (wI >= 0) { iW = wI; iL = lI >= 0 ? lI : wI + 1; }
+        if (tI >= 0) iT = tI;
+        if (pI >= 0) iPct = pI;
+        if (gI >= 0) iGB = gI;
+        break;
+      }
+    }
     const teams = [];
     for (const [, row] of rows) {
       const cells = [...row.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)]
-        .map(m => m[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim());
-      if (cells.length < 6) continue;
+        .map(m => m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim());
+      if (cells.length < 5) continue;
       const koKey = Object.keys(NPB_KO).find(k => cells[0].includes(k));
       if (!koKey) continue;
       teams.push({
         rank: teams.length + 1, team: NPB_KO[koKey],
-        w: parseInt(cells[2]) || 0, l: parseInt(cells[3]) || 0, d: parseInt(cells[4]) || 0,
-        pct: cells[5] || '-', gb: teams.length === 0 ? '-' : (cells[6] || '-'),
+        w: parseInt(cells[iW]) || 0, l: parseInt(cells[iL]) || 0, d: parseInt(cells[iT]) || 0,
+        pct: cells[iPct] || '-', gb: teams.length === 0 ? '-' : (cells[iGB] || '-'),
         streak: null,
       });
     }
     return teams;
   };
-  const fetch1 = async slug => {
-    const req = new Request(`${CTABS}${encodeURIComponent(`https://npb.jp/${slug}/`)}`);
+  const fetch1 = async url => {
+    const req = new Request(`${CTABS}${encodeURIComponent(url)}`);
     req.timeoutInterval = 8;
     return parseHtml(await req.loadString());
   };
   const groups = [];
   if (leagueFilter !== 'npb-pl') {
-    const cl = await fetch1('cl');
+    const cl = await fetch1(`https://npb.jp/bis/eng/${YEAR}/stats/std_c.html`);
     if (cl.length) groups.push({ section: '센트럴리그', teams: cl });
   }
   if (leagueFilter !== 'npb-cl') {
-    const pl = await fetch1('pl');
+    const pl = await fetch1(`https://npb.jp/bis/eng/${YEAR}/stats/std_p.html`);
     if (pl.length) groups.push({ section: '퍼시픽리그', teams: pl });
   }
   if (!groups.length) throw new Error('NPB 데이터 없음');
