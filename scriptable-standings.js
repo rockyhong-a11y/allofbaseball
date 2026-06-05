@@ -152,19 +152,19 @@ async function fetchMlb(divFilter) {
 
 async function fetchNpb(leagueFilter) {
   const NPB_KO = {
-    'Yomiuri Giants':'요미우리','Hanshin Tigers':'한신',
-    'Hiroshima Toyo Carp':'히로시마','Tokyo Yakult Swallows':'야쿠르트',
-    'Yakult Swallows':'야쿠르트','DeNA BayStars':'DeNA',
-    'Yokohama DeNA BayStars':'DeNA','Chunichi Dragons':'주니치',
-    'Fukuoka SoftBank Hawks':'소프트뱅크','Orix Buffaloes':'ORIX',
-    'ORIX Buffaloes':'ORIX','Chiba Lotte Marines':'롯데',
-    'Tohoku Rakuten Golden Eagles':'라쿠텐','Rakuten Eagles':'라쿠텐',
-    'Hokkaido Nippon-Ham Fighters':'닛폰햄','Nippon-Ham Fighters':'닛폰햄',
-    'Saitama Seibu Lions':'세이부','Seibu Lions':'세이부',
-    'Yomiuri':'요미우리','Hanshin':'한신','Hiroshima':'히로시마',
-    'Yakult':'야쿠르트','BayStars':'DeNA','Chunichi':'주니치',
-    'SoftBank':'소프트뱅크','Orix':'ORIX','Lotte':'롯데',
-    'Rakuten':'라쿠텐','Nippon-Ham':'닛폰햄','Seibu':'세이부',
+    // Japanese full/short names → Korean short names
+    '読売ジャイアンツ':'요미우리','読売':'요미우리','巨人':'요미우리',
+    '阪神タイガース':'한신','阪神':'한신',
+    '広島東洋カープ':'히로시마','広島':'히로시마',
+    '東京ヤクルトスワローズ':'야쿠르트','ヤクルト':'야쿠르트','スワローズ':'야쿠르트',
+    '横浜DeNAベイスターズ':'DeNA','DeNA':'DeNA','ベイスターズ':'DeNA',
+    '中日ドラゴンズ':'주니치','中日':'주니치',
+    '福岡ソフトバンクホークス':'소프트뱅크','ソフトバンク':'소프트뱅크','ホークス':'소프트뱅크',
+    'オリックス・バファローズ':'ORIX','オリックス':'ORIX','ORIX':'ORIX',
+    '千葉ロッテマリーンズ':'롯데','ロッテ':'롯데',
+    '東北楽天ゴールデンイーグルス':'라쿠텐','楽天':'라쿠텐',
+    '北海道日本ハムファイターズ':'닛폰햄','日本ハム':'닛폰햄',
+    '埼玉西武ライオンズ':'세이부','西武':'세이부',
   };
   // Team sets for CL/PL classification
   const CL = new Set(['요미우리','한신','히로시마','야쿠르트','DeNA','주니치']);
@@ -172,20 +172,22 @@ async function fetchNpb(leagueFilter) {
 
   const parseTbl = (tblHtml) => {
     const rows = [...tblHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
-    // Confirmed page structure: Team | G | W | L | T | PCT | GB (W at index 2)
+    // Confirmed structure: Team(0) G(1) W(2) L(3) T(4) PCT(5) GB(6)
     let iW = 2, iL = 3, iT = 4, iPct = 5, iGB = 6;
     for (const [, row] of rows.slice(0, 3)) {
       const hdrs = [...row.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)]
-        .map(m => m[1].replace(/<[^>]+>/g, '').trim().toUpperCase());
-      if (!hdrs.some(h => h === 'W')) continue;
-      const fi = s => hdrs.indexOf(s);
-      const wI = fi('W'); if (wI < 0) continue;
-      iW = wI; iL = fi('L') >= 0 ? fi('L') : wI + 1;
-      const tI = hdrs.findIndex(h => h === 'T' || h === 'TIE');
+        .map(m => m[1].replace(/<[^>]+>/g, '').trim());
+      const hUP = hdrs.map(h => h.toUpperCase());
+      if (!hdrs.some(h => h === '勝' || h === 'W')) continue;
+      const wI = hdrs.findIndex(h => h === '勝' || h === 'W'); if (wI < 0) continue;
+      const lI = hdrs.findIndex(h => h === '敗' || h === '負' || h === 'L');
+      const tI = hdrs.findIndex(h => h === '分' || h === '引分' || h === 'T' || h === 'TIE');
+      const pI = hdrs.findIndex(h => h === '勝率' || /^PCT$|^W%$/.test(h));
+      const gI = hdrs.findIndex(h => h === 'G差' || h.includes('ゲーム差') || h === 'GB');
+      iW = wI; iL = lI >= 0 ? lI : wI + 1;
       iT = tI >= 0 ? tI : iL + 1;
-      const pI = hdrs.findIndex(h => /^PCT$|^W%$/.test(h));
       iPct = pI >= 0 ? pI : iT + 1;
-      const gI = fi('GB'); iGB = gI >= 0 ? gI : iPct + 1;
+      iGB = gI >= 0 ? gI : iPct + 1;
       break;
     }
     const teams = [];
@@ -236,7 +238,7 @@ async function fetchNpb(leagueFilter) {
 
   // Primary: main /stats/ page (has both leagues)
   try {
-    const html = await loadUrl(`https://npb.jp/bis/eng/${YEAR}/stats/`);
+    const html = await loadUrl(`https://npb.jp/bis/${YEAR}/stats/`);
     const { cl, pl } = parseHtml(html);
     clTeams = cl; plTeams = pl;
   } catch {}
@@ -244,14 +246,14 @@ async function fetchNpb(leagueFilter) {
   // Fallback: individual league pages
   if (!clTeams.length && leagueFilter !== 'npb-pl') {
     try {
-      const html = await loadUrl(`https://npb.jp/bis/eng/${YEAR}/stats/std_c.html`);
+      const html = await loadUrl(`https://npb.jp/bis/${YEAR}/stats/std_c.html`);
       const { cl } = parseHtml(html);
       clTeams = cl;
     } catch {}
   }
   if (!plTeams.length && leagueFilter !== 'npb-cl') {
     try {
-      const html = await loadUrl(`https://npb.jp/bis/eng/${YEAR}/stats/std_p.html`);
+      const html = await loadUrl(`https://npb.jp/bis/${YEAR}/stats/std_p.html`);
       const { pl } = parseHtml(html);
       plTeams = pl;
     } catch {}
