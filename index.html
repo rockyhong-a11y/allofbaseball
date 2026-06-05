@@ -7651,7 +7651,7 @@ const LG_CFG = {
   mlb: {badge:'MLB', badgeClass:'b-mlb', title:'🇺🇸 메이저리그', extSch:'https://www.mlb.com/schedule', extStd:'https://www.mlb.com/standings'},
   npb: {badge:'NPB', badgeClass:'b-npb', title:'🇯🇵 일본 프로야구',
     extSch:'https://pacificleague.com/game/search',
-    extStd:'https://npb.jp/standings/2026/'},
+    extStd:'https://npb.jp/bis/eng/2026/stats/'},
   cpbl: {badge:'CPBL', badgeClass:'b-cpbl', title:'🇹🇼 대만 프로야구',
     extSch:'https://hamivideo.hinet.net/main/606.do',
     extStd:'https://en.cpbl.com.tw/standings/season'},
@@ -8443,37 +8443,36 @@ function _computeNpbStreaks(htmlArr) {
   return streakMap;
 }
 
-/* ── NPB 순위 (CODETABS → npb.jp/bis/{year}/stats/) ── */
+/* ── NPB 순위 (CODETABS → npb.jp/bis/eng/{year}/stats/) ── */
 async function loadNpbStandings(el) {
   const NPB_KO = {
-    // Japanese full/short names → Korean full names
-    '読売ジャイアンツ':'요미우리 자이언츠','読売':'요미우리 자이언츠','巨人':'요미우리 자이언츠',
-    '阪神タイガース':'한신 타이거스','阪神':'한신 타이거스',
-    '広島東洋カープ':'히로시마 카프','広島':'히로시마 카프',
-    '東京ヤクルトスワローズ':'야쿠르트 스왈로즈','ヤクルト':'야쿠르트 스왈로즈','スワローズ':'야쿠르트 스왈로즈',
-    '横浜DeNAベイスターズ':'DeNA 베이스타즈','DeNA':'DeNA 베이스타즈','ベイスターズ':'DeNA 베이스타즈',
-    '中日ドラゴンズ':'주니치 드래곤즈','中日':'주니치 드래곤즈',
-    '福岡ソフトバンクホークス':'소프트뱅크 호크스','ソフトバンク':'소프트뱅크 호크스','ホークス':'소프트뱅크 호크스',
-    'オリックス・バファローズ':'ORIX 버팔로즈','オリックス':'ORIX 버팔로즈','ORIX':'ORIX 버팔로즈',
-    '千葉ロッテマリーンズ':'롯데 마린즈','ロッテ':'롯데 마린즈',
-    '東北楽天ゴールデンイーグルス':'라쿠텐 이글스','楽天':'라쿠텐 이글스',
-    '北海道日本ハムファイターズ':'닛폰햄 파이터즈','日本ハム':'닛폰햄 파이터즈',
-    '埼玉西武ライオンズ':'세이부 라이온즈','西武':'세이부 라이온즈',
+    'Yomiuri Giants':'요미우리 자이언츠','Hanshin Tigers':'한신 타이거스',
+    'Hiroshima Toyo Carp':'히로시마 카프','Tokyo Yakult Swallows':'야쿠르트 스왈로즈',
+    'Yakult Swallows':'야쿠르트 스왈로즈','DeNA BayStars':'DeNA 베이스타즈',
+    'Yokohama DeNA BayStars':'DeNA 베이스타즈','Chunichi Dragons':'주니치 드래곤즈',
+    'Fukuoka SoftBank Hawks':'소프트뱅크 호크스','Orix Buffaloes':'ORIX 버팔로즈',
+    'ORIX Buffaloes':'ORIX 버팔로즈','Chiba Lotte Marines':'롯데 마린즈',
+    'Tohoku Rakuten Golden Eagles':'라쿠텐 이글스','Rakuten Eagles':'라쿠텐 이글스',
+    'Hokkaido Nippon-Ham Fighters':'닛폰햄 파이터즈','Nippon-Ham Fighters':'닛폰햄 파이터즈',
+    'Saitama Seibu Lions':'세이부 라이온즈','Seibu Lions':'세이부 라이온즈',
+    'Yomiuri':'요미우리 자이언츠','Hanshin':'한신 타이거스','Hiroshima':'히로시마 카프',
+    'Yakult':'야쿠르트 스왈로즈','BayStars':'DeNA 베이스타즈','Chunichi':'주니치 드래곤즈',
+    'SoftBank':'소프트뱅크 호크스','Orix':'ORIX 버팔로즈','Lotte':'롯데 마린즈',
+    'Rakuten':'라쿠텐 이글스','Nippon-Ham':'닛폰햄 파이터즈','Seibu':'세이부 라이온즈',
   };
-  // JP variant → canonical JP key (matches _computeNpbStreaks teamSeq keys)
-  const JP_NORM = {
-    '読売ジャイアンツ':'読売','巨人':'読売',
-    '阪神タイガース':'阪神',
-    '広島東洋カープ':'広島',
-    '東京ヤクルトスワローズ':'ヤクルト','スワローズ':'ヤクルト',
-    '横浜DeNAベイスターズ':'DeNA','ベイスターズ':'DeNA',
-    '中日ドラゴンズ':'中日',
-    '福岡ソフトバンクホークス':'ソフトバンク','ホークス':'ソフトバンク',
-    'オリックス・バファローズ':'オリックス','ORIX':'オリックス',
-    '千葉ロッテマリーンズ':'ロッテ',
-    '東北楽天ゴールデンイーグルス':'楽天',
-    '北海道日本ハムファイターズ':'日本ハム',
-    '埼玉西武ライオンズ':'西武',
+  const EN_JP = {
+    'Yomiuri Giants':'読売','Hanshin Tigers':'阪神',
+    'Hiroshima Toyo Carp':'広島','Tokyo Yakult Swallows':'ヤクルト',
+    'Yakult Swallows':'ヤクルト','DeNA BayStars':'DeNA',
+    'Yokohama DeNA BayStars':'DeNA','Chunichi Dragons':'中日',
+    'Fukuoka SoftBank Hawks':'ソフトバンク','Orix Buffaloes':'オリックス',
+    'ORIX Buffaloes':'オリックス','Chiba Lotte Marines':'ロッテ',
+    'Tohoku Rakuten Golden Eagles':'楽天','Rakuten Eagles':'楽天',
+    'Hokkaido Nippon-Ham Fighters':'日本ハム','Nippon-Ham Fighters':'日本ハム',
+    'Saitama Seibu Lions':'西武','Seibu Lions':'西武',
+    'Yomiuri':'読売','Hanshin':'阪神','Hiroshima':'広島','Yakult':'ヤクルト',
+    'BayStars':'DeNA','Chunichi':'中日','SoftBank':'ソフトバンク','Orix':'オリックス',
+    'Lotte':'ロッテ','Rakuten':'楽天','Nippon-Ham':'日本ハム','Seibu':'西武',
   };
   const CL_SET = new Set(['요미우리 자이언츠','한신 타이거스','히로시마 카프','야쿠르트 스왈로즈','DeNA 베이스타즈','주니치 드래곤즈']);
   const PL_SET = new Set(['소프트뱅크 호크스','ORIX 버팔로즈','롯데 마린즈','라쿠텐 이글스','닛폰햄 파이터즈','세이부 라이온즈']);
@@ -8483,28 +8482,26 @@ async function loadNpbStandings(el) {
     // Confirmed structure: Team(0) G(1) W(2) L(3) T(4) PCT(5) GB(6)
     let iW = 2, iL = 3, iT = 4, iPct = 5, iGB = 6;
     for (const row of tbl.querySelectorAll('tr')) {
-      const cells = [...row.querySelectorAll('th,td')].map(c => c.textContent.trim());
-      if (!cells.some(c => c === '勝' || c === 'W')) continue;
-      const wI = cells.findIndex(c => c === '勝' || c === 'W');
+      const cells = [...row.querySelectorAll('th,td')].map(c => c.textContent.trim().toUpperCase());
+      if (!cells.some(c => c === 'W')) continue;
+      const fi = s => cells.indexOf(s);
+      const wI = fi('W');
       if (wI >= 0) {
-        iW = wI;
-        iL = cells.findIndex(c => c === '敗' || c === '負' || c === 'L');
-        if (iL < 0) iL = wI + 1;
-        const tI = cells.findIndex(c => c === '分' || c === '引分' || c === 'T' || c === 'TIE');
+        iW = wI; iL = fi('L') >= 0 ? fi('L') : wI + 1;
+        const tI = cells.findIndex(c => c === 'T' || c === 'TIE' || c === 'TIES');
         iT = tI >= 0 ? tI : iL + 1;
-        const pI = cells.findIndex(c => c === '勝率' || /^PCT$|^W%$/.test(c));
+        const pI = cells.findIndex(c => /^PCT$|^W%$|^WIN%$/.test(c));
         iPct = pI >= 0 ? pI : iT + 1;
-        const gI = cells.findIndex(c => c === 'G差' || c.includes('ゲーム差') || c === 'GB');
-        iGB = gI >= 0 ? gI : iPct + 1;
+        const gI = fi('GB'); iGB = gI >= 0 ? gI : iPct + 1;
       }
       break;
     }
     const teams = [...tbl.querySelectorAll('tr')].filter(r => r.querySelector('td')).map((tr, i) => {
       const cells = [...tr.querySelectorAll('td,th')].map(c => c.textContent.trim());
-      const jpName = Object.keys(NPB_KO).find(k => (cells[0]||'').includes(k));
-      if (!jpName) return null;
-      const koTeam = NPB_KO[jpName];
-      const jpKey = JP_NORM[jpName] || jpName;
+      const enName = Object.keys(NPB_KO).find(k => (cells[0]||'').includes(k));
+      if (!enName) return null;
+      const koTeam = NPB_KO[enName];
+      const jpKey = EN_JP[enName] || enName;
       const w = parseInt(cells[iW]), l = parseInt(cells[iL]);
       if (isNaN(w) || isNaN(l)) return null;
       const d = parseInt(cells[iT]) || 0;
@@ -8544,7 +8541,7 @@ async function loadNpbStandings(el) {
 
     // Primary: main /stats/ page (contains both CL and PL)
     try {
-      const html = await fetchPage(`https://npb.jp/bis/${yr}/stats/`);
+      const html = await fetchPage(`https://npb.jp/bis/eng/${yr}/stats/`);
       const { cl, pl } = parsePage(html);
       clTeams = cl; plTeams = pl;
     } catch {}
@@ -8552,13 +8549,13 @@ async function loadNpbStandings(el) {
     // Fallback: individual league pages
     if (!clTeams.length) {
       try {
-        const html = await fetchPage(`https://npb.jp/bis/${yr}/stats/std_c.html`);
+        const html = await fetchPage(`https://npb.jp/bis/eng/${yr}/stats/std_c.html`);
         clTeams = parsePage(html).cl;
       } catch {}
     }
     if (!plTeams.length) {
       try {
-        const html = await fetchPage(`https://npb.jp/bis/${yr}/stats/std_p.html`);
+        const html = await fetchPage(`https://npb.jp/bis/eng/${yr}/stats/std_p.html`);
         plTeams = parsePage(html).pl;
       } catch {}
     }
