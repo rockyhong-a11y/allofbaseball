@@ -162,8 +162,8 @@ async function fetchNpb(leagueFilter) {
     'Hokkaido Nippon-Ham Fighters':'닛폰햄','Nippon-Ham Fighters':'닛폰햄',
     'Saitama Seibu Lions':'세이부','Seibu Lions':'세이부',
     'Yomiuri':'요미우리','Hanshin':'한신','Hiroshima':'히로시마',
-    'Yakult':'야쿠르트','BayStars':'DeNA','Chunichi':'주니치',
-    'SoftBank':'소프트뱅크','Orix':'ORIX','Lotte':'롯데',
+    'Yakult':'야쿠르트','DeNA':'DeNA','BayStars':'DeNA','Chunichi':'주니치',
+    'SoftBank':'소프트뱅크','ORIX':'ORIX','Orix':'ORIX','Lotte':'롯데',
     'Rakuten':'라쿠텐','Nippon-Ham':'닛폰햄','Seibu':'세이부',
   };
   // Team sets for CL/PL classification
