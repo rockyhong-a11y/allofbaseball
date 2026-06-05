@@ -8455,6 +8455,11 @@ async function loadNpbStandings(el) {
     'Tohoku Rakuten Golden Eagles':'라쿠텐 이글스','Rakuten Eagles':'라쿠텐 이글스',
     'Hokkaido Nippon-Ham Fighters':'닛폰햄 파이터즈','Nippon-Ham Fighters':'닛폰햄 파이터즈',
     'Saitama Seibu Lions':'세이부 라이온즈','Seibu Lions':'세이부 라이온즈',
+    // Short forms (fallback)
+    'Yomiuri':'요미우리 자이언츠','Hanshin':'한신 타이거스','Hiroshima':'히로시마 카프',
+    'Yakult':'야쿠르트 스왈로즈','BayStars':'DeNA 베이스타즈','Chunichi':'주니치 드래곤즈',
+    'SoftBank':'소프트뱅크 호크스','Orix':'ORIX 버팔로즈','Lotte':'롯데 마린즈',
+    'Rakuten':'라쿠텐 이글스','Nippon-Ham':'닛폰햄 파이터즈','Seibu':'세이부 라이온즈',
   };
   // English name → Japanese key used by _fetchNpbStreaks (schedule page uses JP names)
   const EN_JP = {
@@ -8467,27 +8472,34 @@ async function loadNpbStandings(el) {
     'Tohoku Rakuten Golden Eagles':'楽天','Rakuten Eagles':'楽天',
     'Hokkaido Nippon-Ham Fighters':'日本ハム','Nippon-Ham Fighters':'日本ハム',
     'Saitama Seibu Lions':'西武','Seibu Lions':'西武',
+    'Yomiuri':'読売','Hanshin':'阪神','Hiroshima':'広島','Yakult':'ヤクルト',
+    'BayStars':'DeNA','Chunichi':'中日','SoftBank':'ソフトバンク','Orix':'オリックス',
+    'Lotte':'ロッテ','Rakuten':'楽天','Nippon-Ham':'日本ハム','Seibu':'西武',
   };
   let streakMap = {};
   const parseLeaguePage = (html) => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const tbl = [...doc.querySelectorAll('table')].find(t => {
       const txt = t.textContent;
-      return Object.keys(NPB_KO).filter(k => txt.includes(k)).length >= 3;
+      return Object.keys(NPB_KO).filter(k => txt.includes(k)).length >= 2;
     });
     if (!tbl) return [];
+    // Detect column indices from header (check both th and td)
     let iW = 1, iL = 2, iT = 3, iPct = 4, iGB = 5;
-    const hdrRow = tbl.querySelector('tr');
-    if (hdrRow) {
-      const ths = [...hdrRow.querySelectorAll('th')].map(th => th.textContent.trim().toUpperCase());
-      const fi = s => ths.indexOf(s);
-      const wI = fi('W'), lI = fi('L'), tI = fi('T');
-      const pI = ths.findIndex(h => /^PCT$|^W%$/.test(h));
+    for (const row of tbl.querySelectorAll('tr')) {
+      const cells = [...row.querySelectorAll('th,td')].map(c => c.textContent.trim().toUpperCase());
+      if (!cells.some(c => c === 'W' || /^PCT$|^W%$/.test(c))) continue;
+      const fi = s => cells.indexOf(s);
+      const wI = fi('W'), lI = fi('L');
+      const tI = cells.findIndex(c => c === 'T' || c === 'TIE' || c === 'TIES');
+      const pI = cells.findIndex(c => /^PCT$|^W%$|^WIN%$/.test(c));
       const gI = fi('GB');
-      if (wI >= 0) { iW = wI; iL = lI >= 0 ? lI : wI + 1; }
-      if (tI >= 0) iT = tI;
-      if (pI >= 0) iPct = pI;
-      if (gI >= 0) iGB = gI;
+      if (wI >= 0) {
+        iW = wI; iL = lI >= 0 ? lI : wI + 1;
+        iT = tI >= 0 ? tI : iL + 1; iPct = pI >= 0 ? pI : iL + 2;
+        iGB = gI >= 0 ? gI : iPct + 1;
+      }
+      break;
     }
     const teams = [...tbl.querySelectorAll('tr')].filter(r => r.querySelector('td')).map((tr, i) => {
       const cells = [...tr.querySelectorAll('td,th')].map(c => c.textContent.trim());
@@ -8495,7 +8507,9 @@ async function loadNpbStandings(el) {
       if (!enName) return null;
       const koTeam = NPB_KO[enName];
       const jpKey = EN_JP[enName] || enName;
-      const w = parseInt(cells[iW]) || 0, l = parseInt(cells[iL]) || 0, d = parseInt(cells[iT]) || 0;
+      const w = parseInt(cells[iW]), l = parseInt(cells[iL]);
+      if (isNaN(w) || isNaN(l)) return null;
+      const d = parseInt(cells[iT]) || 0;
       return {rank:i+1, team:koTeam,
               g:String(w+l+d), w:String(w), l:String(l), d:String(d),
               pct:cells[iPct]||'', gb:i===0?'-':(cells[iGB]||'-'),
