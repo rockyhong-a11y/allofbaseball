@@ -8384,12 +8384,20 @@ async function _fetchNpbStreaks(yr, mm) {
     `https://npb.jp/games/${prevYr}/schedule_${prevMmStr}_detail.html`,
     `https://npb.jp/games/${yr}/schedule_${mm}_detail.html`,
   ];
-  const htmls = await Promise.all(
-    urls.map(url =>
-      fetch(`${CODETABS}${encodeURIComponent(url)}`, {signal: AbortSignal.timeout(12000)})
-        .then(r => r.ok ? r.text() : '').catch(() => '')
-    )
-  );
+  const fetchWithFallback = async url => {
+    for (const pUrl of [
+      `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      `${CODETABS}${encodeURIComponent(url)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    ]) {
+      try {
+        const r = await fetch(pUrl, {signal: AbortSignal.timeout(10000)});
+        if (r.ok) { const t = await r.text(); if (t && t.length > 200) return t; }
+      } catch {}
+    }
+    return '';
+  };
+  const htmls = await Promise.all(urls.map(fetchWithFallback));
   return _computeNpbStreaks(htmls);
 }
 
@@ -8528,8 +8536,19 @@ async function loadNpbStandings(el) {
   };
 
   const fetchPage = async url => {
-    const r = await fetch(`${CODETABS}${encodeURIComponent(url)}`, {signal:AbortSignal.timeout(15000)});
-    return r.text();
+    for (const pUrl of [
+      `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      `${CODETABS}${encodeURIComponent(url)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    ]) {
+      try {
+        const r = await fetch(pUrl, {signal: AbortSignal.timeout(12000)});
+        if (!r.ok) continue;
+        const text = await r.text();
+        if (text && text.length > 500) return text;
+      } catch {}
+    }
+    throw new Error('All proxies failed');
   };
 
   try {
@@ -9509,10 +9528,22 @@ async function loadCpblSchedule(el) {
    ★ CPBL 순위 (en.cpbl.com.tw/standings/season HTML 파싱)
 ══════════════════════════════════════════════════════ */
 async function loadCpblStandings(el) {
-  const PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
+  const CPBL_URL = 'https://en.cpbl.com.tw/standings/season';
   try {
-    const html = await fetch(`${PROXY}${encodeURIComponent('https://en.cpbl.com.tw/standings/season')}`,
-      {signal: AbortSignal.timeout(12000)}).then(r => r.text());
+    let html = '';
+    for (const pUrl of [
+      `https://corsproxy.io/?${encodeURIComponent(CPBL_URL)}`,
+      `${CODETABS}${encodeURIComponent(CPBL_URL)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(CPBL_URL)}`,
+    ]) {
+      try {
+        const r = await fetch(pUrl, {signal: AbortSignal.timeout(12000)});
+        if (!r.ok) continue;
+        const t = await r.text();
+        if (t && t.length > 500) { html = t; break; }
+      } catch {}
+    }
+    if (!html) throw new Error('All proxies failed');
 
     // 선수 링크 없고 숫자+팀명 행이 있는 순위 테이블 찾기
     const tables = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)].map(m => m[1]);
