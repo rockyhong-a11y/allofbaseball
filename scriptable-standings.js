@@ -25,6 +25,84 @@ const C = {
   lose: Color.dynamic(new Color('#1060b0'), new Color('#4090e8')),
 };
 
+// ── Team logos ───────────────────────────────────────────
+const _LB = 'https://rockyhong-a11y.github.io/allofbaseball/logos/';
+const LOGO_URLS = {
+  'kbo:LG':_LB+'kbo-LG.png','kbo:KT':_LB+'kbo-KT.png',
+  'kbo:삼성':_LB+'kbo-Samsung.png','kbo:SSG':_LB+'kbo-SSG.png',
+  'kbo:두산':_LB+'kbo-Doosan.png','kbo:한화':_LB+'kbo-Hanwha.png',
+  'kbo:NC':_LB+'kbo-NC.png','kbo:롯데':_LB+'kbo-Lotte.png',
+  'kbo:KIA':_LB+'kbo-KIA.png','kbo:키움':_LB+'kbo-Kiwoom.png',
+  'npb:야쿠르트':_LB+'npb-Swallows.png','npb:한신':_LB+'npb-Tigers.png',
+  'npb:히로시마':_LB+'npb-Carp.png','npb:요미우리':_LB+'npb-Giants.png',
+  'npb:DeNA':_LB+'npb-DeNA.png','npb:주니치':_LB+'npb-Dragons.png',
+  'npb:소프트뱅크':_LB+'npb-Hawks.png','npb:ORIX':_LB+'npb-Buffaloes.png',
+  'npb:닛폰햄':_LB+'npb-Fighters.png','npb:세이부':_LB+'npb-Lions.png',
+  'npb:라쿠텐':_LB+'npb-Eagles.png','npb:롯데':_LB+'npb-Marines.png',
+  'cpbl:Brothers':_LB+'cpbl-Brothers.png','cpbl:Dragons':_LB+'cpbl-Dragons.png',
+  'cpbl:Guardians':_LB+'cpbl-Guardians.png','cpbl:Monkeys':_LB+'cpbl-Monkeys.png',
+  'cpbl:TSG Hawks':_LB+'cpbl-Hawks.png','cpbl:U-Lions':_LB+'cpbl-UniLions.png',
+  'mlb:BAL':'https://www.mlbstatic.com/team-logos/110.svg',
+  'mlb:BOS':'https://www.mlbstatic.com/team-logos/111.svg',
+  'mlb:NYY':'https://www.mlbstatic.com/team-logos/147.svg',
+  'mlb:TB': 'https://www.mlbstatic.com/team-logos/139.svg',
+  'mlb:TOR':'https://www.mlbstatic.com/team-logos/141.svg',
+  'mlb:CWS':'https://www.mlbstatic.com/team-logos/145.svg',
+  'mlb:CLE':'https://www.mlbstatic.com/team-logos/114.svg',
+  'mlb:DET':'https://www.mlbstatic.com/team-logos/116.svg',
+  'mlb:KC': 'https://www.mlbstatic.com/team-logos/118.svg',
+  'mlb:MIN':'https://www.mlbstatic.com/team-logos/142.svg',
+  'mlb:HOU':'https://www.mlbstatic.com/team-logos/117.svg',
+  'mlb:LAA':'https://www.mlbstatic.com/team-logos/108.svg',
+  'mlb:OAK':'https://www.mlbstatic.com/team-logos/133.svg',
+  'mlb:SEA':'https://www.mlbstatic.com/team-logos/136.svg',
+  'mlb:TEX':'https://www.mlbstatic.com/team-logos/140.svg',
+  'mlb:ATL':'https://www.mlbstatic.com/team-logos/144.svg',
+  'mlb:MIA':'https://www.mlbstatic.com/team-logos/146.svg',
+  'mlb:NYM':'https://www.mlbstatic.com/team-logos/121.svg',
+  'mlb:PHI':'https://www.mlbstatic.com/team-logos/143.svg',
+  'mlb:WSH':'https://www.mlbstatic.com/team-logos/120.svg',
+  'mlb:CHC':'https://www.mlbstatic.com/team-logos/112.svg',
+  'mlb:CIN':'https://www.mlbstatic.com/team-logos/113.svg',
+  'mlb:MIL':'https://www.mlbstatic.com/team-logos/158.svg',
+  'mlb:PIT':'https://www.mlbstatic.com/team-logos/134.svg',
+  'mlb:STL':'https://www.mlbstatic.com/team-logos/138.svg',
+  'mlb:ARI':'https://www.mlbstatic.com/team-logos/109.svg',
+  'mlb:COL':'https://www.mlbstatic.com/team-logos/115.svg',
+  'mlb:LAD':'https://www.mlbstatic.com/team-logos/119.svg',
+  'mlb:SD': 'https://www.mlbstatic.com/team-logos/135.svg',
+  'mlb:SF': 'https://www.mlbstatic.com/team-logos/137.svg',
+};
+
+const _logoMemCache = {};
+async function fetchLogo(url) {
+  if (!url) return null;
+  if (_logoMemCache[url] !== undefined) return _logoMemCache[url];
+  try {
+    const fm = FileManager.local();
+    const dir = fm.joinPath(fm.cacheDirectory(), 'bb_logos');
+    if (!fm.fileExists(dir)) fm.createDirectory(dir, true);
+    const key = url.replace(/[^a-z0-9]/gi, '_').slice(-60);
+    const path = fm.joinPath(dir, key);
+    if (fm.fileExists(path)) {
+      const age = Date.now() - fm.modificationDate(path).getTime();
+      if (age < 7 * 86400000) {
+        const img = fm.readImage(path);
+        _logoMemCache[url] = img || null;
+        return img || null;
+      }
+    }
+    const req = new Request(url); req.timeoutInterval = 5;
+    const img = await req.loadImage();
+    if (img) fm.writeImage(path, img);
+    _logoMemCache[url] = img || null;
+    return img || null;
+  } catch {
+    _logoMemCache[url] = null;
+    return null;
+  }
+}
+
 function leagueMeta(p) {
   if (p === 'kbo')         return { label: '🇰🇷 KBO', color: C.kbo };
   if (p.startsWith('mlb')) return { label: '🇺🇸 MLB', color: C.mlb };
@@ -519,39 +597,47 @@ function addStreakColumn(parent, entries) {
   let first = true;
   for (const e of entries) {
     if (!first) {
-      card.addSpacer(3);
+      card.addSpacer(2);
       const dl = card.addStack();
       dl.backgroundColor = C.div;
       dl.size = new Size(0, 1);
-      card.addSpacer(3);
+      card.addSpacer(2);
     }
     first = false;
 
-    // 팀명 행
-    const r1 = card.addStack();
-    r1.layoutHorizontally();
-    r1.centerAlignContent();
-    const ic = r1.addText(e.type === 'W' ? '🔥' : '💧');
-    ic.font = Font.systemFont(10);
-    r1.addSpacer(2);
-    const tm = r1.addText(e.team.slice(0, 4));
-    tm.font = Font.boldSystemFont(11);
-    tm.textColor = C.tx;
-    tm.minimumScaleFactor = 0.75;
-    r1.addSpacer();
+    const row = card.addStack();
+    row.layoutHorizontally();
+    row.centerAlignContent();
 
-    // 연승/연패 + 리그 행
-    const r2 = card.addStack();
-    r2.layoutHorizontally();
-    r2.centerAlignContent();
-    r2.addSpacer(14);
-    const cnt = r2.addText(`${e.count}${e.type === 'W' ? '연승' : '연패'}`);
+    // 연승/연패 아이콘
+    const ic = row.addText(e.type === 'W' ? '🔥' : '💧');
+    ic.font = Font.systemFont(9);
+    row.addSpacer(2);
+
+    // 팀 로고 or 팀명
+    if (e.logoImg) {
+      const imgEl = row.addImage(e.logoImg);
+      imgEl.imageSize = new Size(16, 16);
+      imgEl.cornerRadius = 2;
+    } else {
+      const tm = row.addText(e.team.slice(0, 4));
+      tm.font = Font.boldSystemFont(10);
+      tm.textColor = C.tx;
+      tm.minimumScaleFactor = 0.75;
+    }
+    row.addSpacer(3);
+
+    // 연승/연패 수
+    const cnt = row.addText(`${e.count}${e.type === 'W' ? '연승' : '연패'}`);
     cnt.font = Font.boldSystemFont(10);
     cnt.textColor = e.type === 'W' ? C.win : C.lose;
-    r2.addSpacer(3);
-    const lg = r2.addText(e.league);
+    row.addSpacer(2);
+
+    // 리그 태그
+    const lg = row.addText(e.league);
     lg.font = Font.systemFont(8);
     lg.textColor = C.mu;
+    row.addSpacer();
   }
 
   card.addSpacer();
@@ -582,55 +668,67 @@ function addCell(parent, team, leagueColor) {
   statEl.textColor = C.mu2;
 }
 
-function addLeagueColumn(parent, labelText, color, sections) {
+function addLeagueColumn(parent, labelText, color, sections, logoMap, leagueKey) {
   const card = parent.addStack();
   card.layoutVertically();
   card.backgroundColor = C.card;
   card.cornerRadius = 7;
-  card.setPadding(6, 6, 6, 6);
+  card.setPadding(6, 5, 6, 5);
 
   const lbl = card.addText(labelText);
   lbl.font = Font.boldSystemFont(10);
   lbl.textColor = color;
-  card.addSpacer(4);
+  card.addSpacer(3);
 
   let firstRow = true;
   for (let si = 0; si < sections.length; si++) {
     const { section, teams } = sections[si];
     if (section) {
       if (si > 0) {
-        card.addSpacer(3);
+        card.addSpacer(2);
         const dl = card.addStack();
         dl.backgroundColor = C.div;
         dl.size = new Size(0, 1);
-        card.addSpacer(3);
+        card.addSpacer(2);
       }
       const secEl = card.addText(section);
-      secEl.font = Font.boldSystemFont(8);
+      secEl.font = Font.boldSystemFont(7);
       secEl.textColor = color;
-      card.addSpacer(3);
+      card.addSpacer(2);
       firstRow = true;
     }
     for (const team of teams) {
       if (!firstRow) {
-        card.addSpacer(2);
+        card.addSpacer(1);
         const rl = card.addStack();
         rl.backgroundColor = C.div;
         rl.size = new Size(0, 1);
-        card.addSpacer(2);
+        card.addSpacer(1);
       }
       firstRow = false;
       const row = card.addStack();
       row.layoutHorizontally();
       row.centerAlignContent();
+
+      // Rank number
       const rEl = row.addText(String(team.rank));
-      rEl.font = Font.boldSystemFont(12);
+      rEl.font = Font.boldSystemFont(10);
       rEl.textColor = team.rank <= 3 ? color : C.mu;
-      row.addSpacer(3);
-      const tEl = row.addText((team.team || '').slice(0, 5));
-      tEl.font = Font.boldSystemFont(14);
-      tEl.textColor = C.tx;
-      tEl.minimumScaleFactor = 0.65;
+      row.addSpacer(2);
+
+      // Logo or text fallback
+      const logoKey = leagueKey ? leagueKey + ':' + team.team : null;
+      const logoImg = logoKey && logoMap ? logoMap[logoKey] : null;
+      if (logoImg) {
+        const imgEl = row.addImage(logoImg);
+        imgEl.imageSize = new Size(17, 17);
+        imgEl.cornerRadius = 2;
+      } else {
+        const tEl = row.addText((team.team || '').slice(0, 5));
+        tEl.font = Font.boldSystemFont(12);
+        tEl.textColor = C.tx;
+        tEl.minimumScaleFactor = 0.65;
+      }
       row.addSpacer();
     }
   }
@@ -761,11 +859,28 @@ async function buildAllWidget() {
       teams: g.teams,
     }));
 
-    const collectEntries = (teams, league) => {
+    // ── Pre-fetch all team logos in parallel ──────────────
+    const allTeamKeys = [
+      ...kboTeams.map(t => 'kbo:' + t.team),
+      ...npbGroups.flatMap(g => g.teams.map(t => 'npb:' + t.team)),
+      ...cpblGroups.flatMap(g => g.teams.map(t => 'cpbl:' + t.team)),
+      ...mlbAll.nl.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
+      ...mlbAll.al.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
+    ];
+    const urlsToFetch = [...new Set(allTeamKeys.map(k => LOGO_URLS[k]).filter(Boolean))];
+    await Promise.allSettled(urlsToFetch.map(url => fetchLogo(url)));
+    const logoMap = {};
+    for (const key of allTeamKeys) {
+      const url = LOGO_URLS[key];
+      if (url) logoMap[key] = _logoMemCache[url] || null;
+    }
+
+    const collectEntries = (teams, league, lKey) => {
       const ws = [], ls = [];
       for (const t of teams) {
-        if (!t.streak || t.streak.count < 3) continue;
-        const e = { team: t.team, count: t.streak.count, type: t.streak.type, league };
+        if (!t.streak || t.streak.count < 5) continue;
+        const logoImg = logoMap[lKey + ':' + t.team] || null;
+        const e = { team: t.team, count: t.streak.count, type: t.streak.type, league, logoImg };
         if (t.streak.type === 'W') ws.push(e); else ls.push(e);
       }
       ws.sort((a, b) => b.count - a.count);
@@ -773,26 +888,26 @@ async function buildAllWidget() {
       return [...ws, ...ls];
     };
     const streakEntries = [
-      ...collectEntries(kboTeams, 'KBO'),
-      ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB'),
-      ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL'),
-      ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL'),
-      ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL'),
+      ...collectEntries(kboTeams, 'KBO', 'kbo'),
+      ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB', 'npb'),
+      ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL', 'cpbl'),
+      ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL', 'mlb'),
+      ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL', 'mlb'),
     ];
 
     const content = widget.addStack();
     content.layoutHorizontally();
 
-    addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }]);
-    content.addSpacer(4);
-    addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSec);
-    content.addSpacer(4);
-    addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups);
-    content.addSpacer(4);
-    addLeagueColumn(content, '🇺🇸 NL',  C.mlb, mlbAll.nl);
-    content.addSpacer(4);
-    addLeagueColumn(content, 'AL',       C.mlb, mlbAll.al);
-    content.addSpacer(4);
+    addLeagueColumn(content, '🇰🇷 KBO',  C.kbo,  [{ section: null, teams: kboTeams }], logoMap, 'kbo');
+    content.addSpacer(3);
+    addLeagueColumn(content, '🇯🇵 NPB',  C.npb,  npbSec, logoMap, 'npb');
+    content.addSpacer(3);
+    addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups, logoMap, 'cpbl');
+    content.addSpacer(3);
+    addLeagueColumn(content, '🇺🇸 NL',   C.mlb,  mlbAll.nl, logoMap, 'mlb');
+    content.addSpacer(3);
+    addLeagueColumn(content, 'AL',        C.mlb,  mlbAll.al, logoMap, 'mlb');
+    content.addSpacer(3);
     addStreakColumn(content, streakEntries);
   }
 
