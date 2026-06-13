@@ -76,11 +76,13 @@ async function fetchKbo() {
     const raw = row[1]?.Text || '';
     const m = raw.match(/>([^<]+)</);
     const short = m ? m[1].trim() : raw.replace(/<[^>]+>/g, '').trim();
-    const streakRaw = row[8]?.Text || '';
-    let streak = parseKoreanStreak(streakRaw);
+    const raw8 = (row[8]?.Text || '').replace(/<[^>]+>/g, '').trim();
+    const raw9 = (row[9]?.Text || '').replace(/<[^>]+>/g, '').trim();
+    let streak = parseKoreanStreak(raw8) || parseKoreanStreak(raw9);
     if (!streak) {
-      const t = streakRaw.includes('연승') ? 'W' : streakRaw.includes('연패') ? 'L' : null;
-      const cnt = parseInt((row[9]?.Text || '').replace(/<[^>]+>/g, ''));
+      const combined = raw8 + raw9;
+      const t = combined.includes('연승') ? 'W' : combined.includes('연패') ? 'L' : null;
+      const cnt = parseInt(raw9) || parseInt(raw8);
       if (t && cnt > 0) streak = { type: t, count: cnt };
     }
     return {
@@ -734,14 +736,15 @@ async function buildAllWidget() {
   widget.addSpacer(8);
 
   const results = await Promise.allSettled([
-    fetchKbo(), fetchNpb('npb'), fetchMlbAll(), computeNpbStreaks(),
+    fetchKbo(), fetchNpb('npb'), fetchMlbAll(), computeNpbStreaks(), fetchCpbl(),
   ]);
   const kboTeams    = results[0].status === 'fulfilled' ? results[0].value : [];
   const npbGroups   = results[1].status === 'fulfilled' ? results[1].value : [];
   const mlbAll      = results[2].status === 'fulfilled' ? results[2].value : { nl: [], al: [] };
   const npbStreakMap = results[3].status === 'fulfilled' ? results[3].value : {};
+  const cpblGroups  = results[4].status === 'fulfilled' ? results[4].value : [];
 
-  const anyLoaded = kboTeams.length || npbGroups.length || mlbAll.nl.length || mlbAll.al.length;
+  const anyLoaded = kboTeams.length || npbGroups.length || mlbAll.nl.length || mlbAll.al.length || cpblGroups.length;
   if (!anyLoaded) {
     widget.addSpacer(4);
     const errEl = widget.addText('⚠️ 로드 실패\n네트워크를 확인하세요');
@@ -772,6 +775,7 @@ async function buildAllWidget() {
     const streakEntries = [
       ...collectEntries(kboTeams, 'KBO'),
       ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB'),
+      ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL'),
       ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL'),
       ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL'),
     ];
@@ -782,6 +786,8 @@ async function buildAllWidget() {
     addLeagueColumn(content, '🇰🇷 KBO', C.kbo, [{ section: null, teams: kboTeams }]);
     content.addSpacer(4);
     addLeagueColumn(content, '🇯🇵 NPB', C.npb, npbSec);
+    content.addSpacer(4);
+    addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups);
     content.addSpacer(4);
     addLeagueColumn(content, '🇺🇸 NL',  C.mlb, mlbAll.nl);
     content.addSpacer(4);
