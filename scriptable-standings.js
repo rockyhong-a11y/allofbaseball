@@ -278,11 +278,18 @@ async function computeNpbStreaks() {
   const prevMStr = String(prevM).padStart(2, '0');
 
   const fetchHtml = async url => {
-    try {
-      const req = new Request(`${CTABS}${encodeURIComponent(url)}`);
-      req.timeoutInterval = 5;
-      return await req.loadString();
-    } catch { return ''; }
+    for (const pUrl of [
+      `${CTABS}${encodeURIComponent(url)}`,
+      `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    ]) {
+      try {
+        const req = new Request(pUrl); req.timeoutInterval = 6;
+        const t = await req.loadString();
+        if (t && t.length > 200) return t;
+      } catch {}
+    }
+    return '';
   };
 
   const htmls = await Promise.all([
@@ -335,9 +342,46 @@ async function computeNpbStreaks() {
 }
 
 async function fetchCpbl() {
+  // Primary: compute from GitHub raw schedule JSON (no proxy/Cloudflare issues)
+  try {
+    const DATA_URL = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${YEAR}.json`;
+    const req = new Request(DATA_URL); req.timeoutInterval = 10;
+    const games = JSON.parse(await req.loadString());
+    const rec = {}, seq = {};
+    for (const g of games) {
+      if (g.PresentStatus !== 1) continue;
+      const vs = g.VisitingScore, hs = g.HomeScore;
+      if (typeof vs !== 'number' || typeof hs !== 'number') continue;
+      if (vs === 0 && hs === 0) continue;
+      const vt = g.VisitingTeamEnName, ht = g.HomeTeamEnName;
+      if (!rec[vt]) { rec[vt] = {w:0,l:0,d:0}; seq[vt] = []; }
+      if (!rec[ht]) { rec[ht] = {w:0,l:0,d:0}; seq[ht] = []; }
+      if (vs > hs) { rec[vt].w++; rec[ht].l++; seq[vt].push('W'); seq[ht].push('L'); }
+      else if (hs > vs) { rec[ht].w++; rec[vt].l++; seq[ht].push('W'); seq[vt].push('L'); }
+      else { rec[vt].d++; rec[ht].d++; seq[vt].push('D'); seq[ht].push('D'); }
+    }
+    const entries = Object.entries(rec);
+    if (entries.length >= 2) {
+      entries.sort((a,b) => (b[1].w/(b[1].w+b[1].l)||0) - (a[1].w/(a[1].w+a[1].l)||0));
+      const [,lr] = entries[0];
+      const teams = entries.map(([name,r],i) => {
+        const s = seq[name]||[], last = s[s.length-1];
+        let cnt=0; if(last&&last!=='D'){for(let j=s.length-1;j>=0&&s[j]===last;j--)cnt++;}
+        return {
+          rank:i+1, team:name, w:r.w, l:r.l, d:r.d,
+          pct:(r.w+r.l)?String((r.w/(r.w+r.l)).toFixed(3)):'.000',
+          gb: i===0?'-':String(((lr.w-r.w)+(r.l-lr.l))/2),
+          streak: (last&&last!=='D'&&cnt>0) ? {type:last,count:cnt} : null,
+        };
+      });
+      return [{ section: null, teams }];
+    }
+  } catch {}
+
+  // Fallback: scrape standings HTML via proxies
   const CPBL_URL = 'https://en.cpbl.com.tw/standings/season';
   const proxies = [
-    CPBL_URL,  // direct (Scriptable no CORS)
+    CPBL_URL,
     `${CTABS}${encodeURIComponent(CPBL_URL)}`,
     `https://corsproxy.io/?${encodeURIComponent(CPBL_URL)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(CPBL_URL)}`,
@@ -717,7 +761,7 @@ async function buildAllWidget() {
     const collectEntries = (teams, league) => {
       const ws = [], ls = [];
       for (const t of teams) {
-        if (!t.streak || t.streak.count < 5) continue;
+        if (!t.streak || t.streak.count < 3) continue;
         const e = { team: t.team, count: t.streak.count, type: t.streak.type, league };
         if (t.streak.type === 'W') ws.push(e); else ls.push(e);
       }

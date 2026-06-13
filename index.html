@@ -9525,118 +9525,75 @@ async function loadCpblSchedule(el) {
 }
 
 /* ══════════════════════════════════════════════════════
-   ★ CPBL 순위 (en.cpbl.com.tw/standings/season HTML 파싱)
+   ★ CPBL 순위 (GitHub raw schedule JSON → 직접 계산)
 ══════════════════════════════════════════════════════ */
 async function loadCpblStandings(el) {
-  const CPBL_URL = 'https://en.cpbl.com.tw/standings/season';
   try {
-    let html = '';
-    for (const pUrl of [
-      `https://corsproxy.io/?${encodeURIComponent(CPBL_URL)}`,
-      `${CODETABS}${encodeURIComponent(CPBL_URL)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(CPBL_URL)}`,
-    ]) {
-      try {
-        const r = await fetch(pUrl, {signal: AbortSignal.timeout(12000)});
-        if (!r.ok) continue;
-        const t = await r.text();
-        if (t && t.length > 500) { html = t; break; }
-      } catch {}
-    }
-    if (!html) throw new Error('All proxies failed');
+    const yr = _lgDate.getFullYear();
+    const DATA_URL = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${yr}.json`;
+    const games = await fetch(DATA_URL, {signal: AbortSignal.timeout(10000)}).then(r => {
+      if (!r.ok) throw new Error('fetch fail');
+      return r.json();
+    });
 
-    // 선수 링크 없고 숫자+팀명 행이 있는 순위 테이블 찾기
-    const tables = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)].map(m => m[1]);
-    let teams = [];
-
-    for (const tbl of tables) {
-      const rows = [...tbl.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)];
-      if (rows.length < 3) continue;
-
-      // 각 행의 td 값 추출
-      const parsed = rows.map(([, rh]) =>
-        [...rh.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)]
-          .map(m => m[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim())
-      ).filter(r => r.length >= 5);
-
-      if (!parsed.length) continue;
-
-      // 헤더 행 찾기
-      const hdrRow = parsed[0];
-      const hasRank = hdrRow.some(c => /rank/i.test(c) || c === '#');
-      const hasTeam = hdrRow.some(c => /team/i.test(c));
-      const hasW    = hdrRow.some(c => /^W/i.test(c) || c === 'W');
-      if (!hasW) continue; // 순위 테이블 아님
-
-      // 컬럼 인덱스 찾기
-      const hdr = hdrRow;
-      const iRank = hdr.findIndex(c => /rank/i.test(c) || c === '#' || c === 'RANK');
-      const iTeam = hdr.findIndex(c => /team/i.test(c));
-      const iG    = hdr.findIndex(c => c === 'G');
-      const iWTL  = hdr.findIndex(c => /W.T.L/i.test(c) || c === 'W-T-L');
-      const iPCT  = hdr.findIndex(c => /pct/i.test(c) || c === 'PCT');
-      const iGB   = hdr.findIndex(c => c === 'GB');
-      const iSTRK = hdr.findIndex(c => /strk/i.test(c));
-      const iL10  = hdr.findIndex(c => /l10/i.test(c) || c === 'L10');
-
-      for (let i = 1; i < parsed.length; i++) {
-        const r = parsed[i];
-        if (r.length < 4) continue;
-
-        // rank+team이 같은 셀인지 분리된 셀인지 처리
-        let rank = '', team = '';
-        if (iRank >= 0 && iTeam >= 0 && iRank !== iTeam) {
-          rank = parseInt(r[iRank]) || i;
-          team = r[iTeam];
-        } else {
-          // rank+team이 첫 셀에 합쳐져 있는 경우 (예: "1 DRAGONS")
-          const first = r[0];
-          const m = first.match(/^(\d+)\s+(.+)/);
-          if (m) { rank = parseInt(m[1]); team = m[2].trim(); }
-          else   { rank = i; team = first; }
-        }
-        if (!team) continue;
-
-        const g   = iG   >= 0 ? r[iG]   : r[2] || '-';
-        const wtl = iWTL >= 0 ? r[iWTL] : r[3] || '';
-        const pct = iPCT >= 0 ? r[iPCT] : r[4] || '-';
-        const gb  = iGB  >= 0 ? r[iGB]  : r[5] || '-';
-
-        // STRK: W4 / L1 / T1 형식
-        let strk = '-';
-        if (iSTRK >= 0 && r[iSTRK]) {
-          const sm = r[iSTRK].match(/[WLT]\d+/);
-          strk = sm ? sm[0] : r[iSTRK].trim();
-        } else {
-          // 뒤에서 두 번째 컬럼에서 WLT+숫자 찾기
-          const cand = r[Math.max(0, r.length-2)];
-          const sm = (cand||'').match(/[WLT]\d+/);
-          if (sm) strk = sm[0];
-        }
-
-        const wtlM = wtl.match(/(\d+)-(\d+)-(\d+)/);
-        const w = wtlM ? wtlM[1] : '-';
-        const t = wtlM ? wtlM[2] : '0';
-        const l = wtlM ? wtlM[3] : '-';
-        const pctVal = parseFloat(pct);
-        teams.push({ rank, team, g, w, l, d:t, pct: isNaN(pctVal)?pct:pctVal.toFixed(3), gb, streak:strk });
+    const rec = {};   // team → {w,l,d}
+    const seq = {};   // team → [W/L/D,...]  (date-ordered for streak)
+    for (const g of games) {
+      if (g.PresentStatus !== 1) continue;
+      const vs = g.VisitingScore, hs = g.HomeScore;
+      if (typeof vs !== 'number' || typeof hs !== 'number') continue;
+      if (vs === 0 && hs === 0) continue; // not yet played
+      const vt = g.VisitingTeamEnName, ht = g.HomeTeamEnName;
+      if (!rec[vt]) { rec[vt] = {w:0,l:0,d:0}; seq[vt] = []; }
+      if (!rec[ht]) { rec[ht] = {w:0,l:0,d:0}; seq[ht] = []; }
+      if (vs > hs) {
+        rec[vt].w++; rec[ht].l++;
+        seq[vt].push('W'); seq[ht].push('L');
+      } else if (hs > vs) {
+        rec[ht].w++; rec[vt].l++;
+        seq[ht].push('W'); seq[vt].push('L');
+      } else {
+        rec[vt].d++; rec[ht].d++;
+        seq[vt].push('D'); seq[ht].push('D');
       }
-      if (teams.length) break;
     }
+    const entries = Object.entries(rec);
+    if (entries.length < 2) throw new Error('No data');
 
-    if (!teams.length) throw new Error('No teams parsed');
+    entries.sort((a, b) => {
+      const pa = a[1].w / (a[1].w + a[1].l) || 0;
+      const pb = b[1].w / (b[1].w + b[1].l) || 0;
+      return pb - pa;
+    });
+    const [, lr] = entries[0];
+    const teams = entries.map(([name, r], i) => {
+      const g = r.w + r.l + r.d;
+      const pct = (r.w + r.l) > 0 ? (r.w / (r.w + r.l)).toFixed(3) : '.000';
+      const gb  = i === 0 ? '-' : (((lr.w - r.w) + (r.l - lr.l)) / 2).toFixed(1);
+      const s = seq[name] || [];
+      let streak = '-';
+      if (s.length) {
+        const last = s[s.length - 1];
+        if (last !== 'D') {
+          let cnt = 0;
+          for (let j = s.length - 1; j >= 0 && s[j] === last; j--) cnt++;
+          streak = last + cnt;
+        }
+      }
+      return {rank: i+1, team: name, g: String(g), w: String(r.w), l: String(r.l), d: String(r.d), pct, gb, streak};
+    });
+
     el.innerHTML = _renderStandingsTable(teams, 'cpbl');
-    // 갱신 시각 배지 — 순위는 스케줄 기반
     const footer = el.querySelector('.lg-tbl-wrap > div:last-child');
     if (footer) {
-      footer.style.display = 'flex';
-      footer.style.alignItems = 'center';
+      footer.style.display = 'flex'; footer.style.alignItems = 'center';
       footer.style.justifyContent = 'space-between';
       footer.insertAdjacentHTML('beforeend', _cpblUpdatedBadge('schedule'));
       _fillCpblMeta('schedule');
     }
   } catch(e) {
-    el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.</div>`;
+    el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.<br>
+      <a href="${LG_CFG.cpbl.extStd}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 순위 바로가기</a></div>`;
   }
 }
 
