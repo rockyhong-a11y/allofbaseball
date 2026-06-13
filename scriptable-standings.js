@@ -80,8 +80,8 @@ async function fetchLogo(url) {
   if (_logoMemCache[url] !== undefined) return _logoMemCache[url];
   try {
     const fm = FileManager.local();
-    const dir = fm.joinPath(fm.cacheDirectory(), 'bb_logos');
-    if (!fm.fileExists(dir)) fm.createDirectory(dir, true);
+    const dir = fm.joinPath(fm.documentsDirectory(), 'bb_logos');
+    if (!fm.fileExists(dir)) fm.createDirectory(dir);
     const key = url.replace(/[^a-z0-9]/gi, '_').slice(-60);
     const path = fm.joinPath(dir, key);
     if (fm.fileExists(path)) {
@@ -91,6 +91,11 @@ async function fetchLogo(url) {
         _logoMemCache[url] = img || null;
         return img || null;
       }
+    }
+    // Widget 배경 갱신 시 네트워크 다운로드 스킵 (타임아웃 방지)
+    if (config.runInWidget) {
+      _logoMemCache[url] = null;
+      return null;
     }
     const req = new Request(url); req.timeoutInterval = 5;
     const img = await req.loadImage();
@@ -843,72 +848,80 @@ async function buildAllWidget() {
   const cpblGroups  = results[4].status === 'fulfilled' ? results[4].value : [];
 
   const anyLoaded = kboTeams.length || npbGroups.length || mlbAll.nl.length || mlbAll.al.length || cpblGroups.length;
-  if (!anyLoaded) {
-    widget.addSpacer(4);
-    const errEl = widget.addText('⚠️ 로드 실패\n네트워크를 확인하세요');
-    errEl.font = Font.systemFont(11);
-    errEl.textColor = C.mu;
-    errEl.minimumScaleFactor = 0.7;
-  } else {
-    for (const g of npbGroups)
-      for (const t of g.teams)
-        t.streak = npbStreakMap[t.team] || null;
+  try {
+    if (!anyLoaded) {
+      widget.addSpacer(4);
+      const errEl = widget.addText('⚠️ 로드 실패\n네트워크를 확인하세요');
+      errEl.font = Font.systemFont(11);
+      errEl.textColor = C.mu;
+      errEl.minimumScaleFactor = 0.7;
+    } else {
+      for (const g of npbGroups)
+        for (const t of g.teams)
+          t.streak = npbStreakMap[t.team] || null;
 
-    const npbSec = npbGroups.map(g => ({
-      section: g.section === '센트럴리그' ? 'セ' : g.section === '퍼시픽리그' ? 'パ' : g.section,
-      teams: g.teams,
-    }));
+      const npbSec = npbGroups.map(g => ({
+        section: g.section === '센트럴리그' ? 'セ' : g.section === '퍼시픽리그' ? 'パ' : g.section,
+        teams: g.teams,
+      }));
 
-    // ── Pre-fetch all team logos in parallel ──────────────
-    const allTeamKeys = [
-      ...kboTeams.map(t => 'kbo:' + t.team),
-      ...npbGroups.flatMap(g => g.teams.map(t => 'npb:' + t.team)),
-      ...cpblGroups.flatMap(g => g.teams.map(t => 'cpbl:' + t.team)),
-      ...mlbAll.nl.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
-      ...mlbAll.al.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
-    ];
-    const urlsToFetch = [...new Set(allTeamKeys.map(k => LOGO_URLS[k]).filter(Boolean))];
-    await Promise.allSettled(urlsToFetch.map(url => fetchLogo(url)));
-    const logoMap = {};
-    for (const key of allTeamKeys) {
-      const url = LOGO_URLS[key];
-      if (url) logoMap[key] = _logoMemCache[url] || null;
-    }
-
-    const collectEntries = (teams, league, lKey) => {
-      const ws = [], ls = [];
-      for (const t of teams) {
-        if (!t.streak || t.streak.count < 5) continue;
-        const logoImg = logoMap[lKey + ':' + t.team] || null;
-        const e = { team: t.team, count: t.streak.count, type: t.streak.type, league, logoImg };
-        if (t.streak.type === 'W') ws.push(e); else ls.push(e);
+      // ── Pre-fetch all team logos (disk cache only when widget) ──
+      const allTeamKeys = [
+        ...kboTeams.map(t => 'kbo:' + t.team),
+        ...npbGroups.flatMap(g => g.teams.map(t => 'npb:' + t.team)),
+        ...cpblGroups.flatMap(g => g.teams.map(t => 'cpbl:' + t.team)),
+        ...mlbAll.nl.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
+        ...mlbAll.al.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
+      ];
+      const urlsToFetch = [...new Set(allTeamKeys.map(k => LOGO_URLS[k]).filter(Boolean))];
+      await Promise.allSettled(urlsToFetch.map(url => fetchLogo(url)));
+      const logoMap = {};
+      for (const key of allTeamKeys) {
+        const url = LOGO_URLS[key];
+        if (url) logoMap[key] = _logoMemCache[url] || null;
       }
-      ws.sort((a, b) => b.count - a.count);
-      ls.sort((a, b) => b.count - a.count);
-      return [...ws, ...ls];
-    };
-    const streakEntries = [
-      ...collectEntries(kboTeams, 'KBO', 'kbo'),
-      ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB', 'npb'),
-      ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL', 'cpbl'),
-      ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL', 'mlb'),
-      ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL', 'mlb'),
-    ];
 
-    const content = widget.addStack();
-    content.layoutHorizontally();
+      const collectEntries = (teams, league, lKey) => {
+        const ws = [], ls = [];
+        for (const t of teams) {
+          if (!t.streak || t.streak.count < 5) continue;
+          const logoImg = logoMap[lKey + ':' + t.team] || null;
+          const e = { team: t.team, count: t.streak.count, type: t.streak.type, league, logoImg };
+          if (t.streak.type === 'W') ws.push(e); else ls.push(e);
+        }
+        ws.sort((a, b) => b.count - a.count);
+        ls.sort((a, b) => b.count - a.count);
+        return [...ws, ...ls];
+      };
+      const streakEntries = [
+        ...collectEntries(kboTeams, 'KBO', 'kbo'),
+        ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB', 'npb'),
+        ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL', 'cpbl'),
+        ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL', 'mlb'),
+        ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL', 'mlb'),
+      ];
 
-    addLeagueColumn(content, '🇰🇷 KBO',  C.kbo,  [{ section: null, teams: kboTeams }], logoMap, 'kbo');
-    content.addSpacer(3);
-    addLeagueColumn(content, '🇯🇵 NPB',  C.npb,  npbSec, logoMap, 'npb');
-    content.addSpacer(3);
-    addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups, logoMap, 'cpbl');
-    content.addSpacer(3);
-    addLeagueColumn(content, '🇺🇸 NL',   C.mlb,  mlbAll.nl, logoMap, 'mlb');
-    content.addSpacer(3);
-    addLeagueColumn(content, 'AL',        C.mlb,  mlbAll.al, logoMap, 'mlb');
-    content.addSpacer(3);
-    addStreakColumn(content, streakEntries);
+      const content = widget.addStack();
+      content.layoutHorizontally();
+
+      addLeagueColumn(content, '🇰🇷 KBO',  C.kbo,  [{ section: null, teams: kboTeams }], logoMap, 'kbo');
+      content.addSpacer(3);
+      addLeagueColumn(content, '🇯🇵 NPB',  C.npb,  npbSec, logoMap, 'npb');
+      content.addSpacer(3);
+      addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups, logoMap, 'cpbl');
+      content.addSpacer(3);
+      addLeagueColumn(content, '🇺🇸 NL',   C.mlb,  mlbAll.nl, logoMap, 'mlb');
+      content.addSpacer(3);
+      addLeagueColumn(content, 'AL',        C.mlb,  mlbAll.al, logoMap, 'mlb');
+      content.addSpacer(3);
+      addStreakColumn(content, streakEntries);
+    }
+  } catch (renderErr) {
+    widget.addSpacer(4);
+    const errEl = widget.addText('⚠️ 렌더링 오류\n' + String(renderErr).slice(0, 80));
+    errEl.font = Font.systemFont(9);
+    errEl.textColor = C.mu;
+    errEl.minimumScaleFactor = 0.6;
   }
 
   widget.url = `scriptable:///run/${encodeURIComponent(Script.name())}`;
