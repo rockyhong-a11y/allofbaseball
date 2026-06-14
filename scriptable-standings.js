@@ -359,7 +359,12 @@ async function fetchNpb(leagueFilter) {
 
 // NPB 연승/연패: 웹앱 _computeNpbStreaks 로직을 regex로 재구현
 async function computeNpbStreaks() {
-  const NORM = { '巨人':'読売','ORIX':'オリックス','スワローズ':'ヤクルト','読売ジャイアンツ':'読売' };
+  const NORM = {
+    '巨人':'読売','ORIX':'オリックス','スワローズ':'ヤクルト','読売ジャイアンツ':'読売',
+    '北海道日本ハム':'日本ハム','ファイターズ':'日本ハム','ハム':'日本ハム',
+    'バファローズ':'オリックス','イーグルス':'楽天','マリーンズ':'ロッテ',
+    'ライオンズ':'西武','ホークス':'ソフトバンク',
+  };
   const NPB_KO = {
     'ヤクルト':'야쿠르트','広島':'히로시마','読売':'요미우리','中日':'주니치',
     'DeNA':'DeNA','阪神':'한신','ソフトバンク':'소프트뱅크','日本ハム':'닛폰햄',
@@ -371,7 +376,9 @@ async function computeNpbStreaks() {
   const prevMStr = String(prevM).padStart(2, '0');
 
   const fetchHtml = async url => {
+    // iOS widget has no CORS: try direct URL first, then proxies as fallback
     for (const pUrl of [
+      url,
       `${CTABS}${encodeURIComponent(url)}`,
       `https://corsproxy.io/?${encodeURIComponent(url)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
