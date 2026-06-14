@@ -75,37 +75,45 @@ const LOGO_URLS = {
 };
 
 const _logoMemCache = {};
-async function fetchLogo(url) {
+function logoSync(leagueKey, teamName) {
+  const url = LOGO_URLS[leagueKey + ':' + teamName];
   if (!url) return null;
   if (_logoMemCache[url] !== undefined) return _logoMemCache[url];
   try {
     const fm = FileManager.local();
-    const dir = fm.joinPath(fm.documentsDirectory(), 'bb_logos');
-    if (!fm.fileExists(dir)) fm.createDirectory(dir);
     const key = url.replace(/[^a-z0-9]/gi, '_').slice(-60);
-    const path = fm.joinPath(dir, key);
-    if (fm.fileExists(path)) {
-      const age = Date.now() - fm.modificationDate(path).getTime();
-      if (age < 7 * 86400000) {
-        const img = fm.readImage(path);
-        _logoMemCache[url] = img || null;
-        return img || null;
-      }
-    }
-    // Widget 배경 갱신 시 네트워크 다운로드 스킵 (타임아웃 방지)
-    if (config.runInWidget) {
-      _logoMemCache[url] = null;
-      return null;
-    }
-    const req = new Request(url); req.timeoutInterval = 5;
-    const img = await req.loadImage();
-    if (img) fm.writeImage(path, img);
+    const path = fm.joinPath(fm.documentsDirectory(), 'bb_logos', key);
+    if (!fm.fileExists(path)) { _logoMemCache[url] = null; return null; }
+    const age = Date.now() - fm.modificationDate(path).getTime();
+    if (age > 7 * 86400000) { _logoMemCache[url] = null; return null; }
+    const img = fm.readImage(path);
     _logoMemCache[url] = img || null;
     return img || null;
   } catch {
     _logoMemCache[url] = null;
     return null;
   }
+}
+
+async function downloadLogosIfApp(teamKeys) {
+  if (config.runInWidget) return;
+  try {
+    const fm = FileManager.local();
+    const dir = fm.joinPath(fm.documentsDirectory(), 'bb_logos');
+    if (!fm.fileExists(dir)) fm.createDirectory(dir);
+    for (const key of teamKeys) {
+      const url = LOGO_URLS[key];
+      if (!url) continue;
+      const cKey = url.replace(/[^a-z0-9]/gi, '_').slice(-60);
+      const path = fm.joinPath(dir, cKey);
+      if (fm.fileExists(path)) continue;
+      try {
+        const req = new Request(url); req.timeoutInterval = 6;
+        const img = await req.loadImage();
+        if (img) fm.writeImage(path, img);
+      } catch {}
+    }
+  } catch {}
 }
 
 function leagueMeta(p) {
@@ -673,7 +681,7 @@ function addCell(parent, team, leagueColor) {
   statEl.textColor = C.mu2;
 }
 
-function addLeagueColumn(parent, labelText, color, sections, logoMap, leagueKey) {
+function addLeagueColumn(parent, labelText, color, sections, logoFn, leagueKey) {
   const card = parent.addStack();
   card.layoutVertically();
   card.backgroundColor = C.card;
@@ -721,9 +729,8 @@ function addLeagueColumn(parent, labelText, color, sections, logoMap, leagueKey)
       rEl.textColor = team.rank <= 3 ? color : C.mu;
       row.addSpacer(2);
 
-      // Logo or text fallback
-      const logoKey = leagueKey ? leagueKey + ':' + team.team : null;
-      const logoImg = logoKey && logoMap ? logoMap[logoKey] : null;
+      // Logo or text fallback (logoFn = logoSync function)
+      const logoImg = (logoFn && leagueKey) ? logoFn(leagueKey, team.team) : null;
       if (logoImg) {
         const imgEl = row.addImage(logoImg);
         imgEl.imageSize = new Size(17, 17);
@@ -865,7 +872,7 @@ async function buildAllWidget() {
         teams: g.teams,
       }));
 
-      // ── Pre-fetch all team logos (disk cache only when widget) ──
+      // ── 팀 로고: 동기 디스크 캐시 읽기 (async 없음) ──────
       const allTeamKeys = [
         ...kboTeams.map(t => 'kbo:' + t.team),
         ...npbGroups.flatMap(g => g.teams.map(t => 'npb:' + t.team)),
@@ -873,19 +880,12 @@ async function buildAllWidget() {
         ...mlbAll.nl.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
         ...mlbAll.al.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
       ];
-      const urlsToFetch = [...new Set(allTeamKeys.map(k => LOGO_URLS[k]).filter(Boolean))];
-      await Promise.allSettled(urlsToFetch.map(url => fetchLogo(url)));
-      const logoMap = {};
-      for (const key of allTeamKeys) {
-        const url = LOGO_URLS[key];
-        if (url) logoMap[key] = _logoMemCache[url] || null;
-      }
 
       const collectEntries = (teams, league, lKey) => {
         const ws = [], ls = [];
         for (const t of teams) {
           if (!t.streak || t.streak.count < 5) continue;
-          const logoImg = logoMap[lKey + ':' + t.team] || null;
+          const logoImg = logoSync(lKey, t.team);
           const e = { team: t.team, count: t.streak.count, type: t.streak.type, league, logoImg };
           if (t.streak.type === 'W') ws.push(e); else ls.push(e);
         }
@@ -904,17 +904,20 @@ async function buildAllWidget() {
       const content = widget.addStack();
       content.layoutHorizontally();
 
-      addLeagueColumn(content, '🇰🇷 KBO',  C.kbo,  [{ section: null, teams: kboTeams }], logoMap, 'kbo');
+      addLeagueColumn(content, '🇰🇷 KBO',  C.kbo,  [{ section: null, teams: kboTeams }], logoSync, 'kbo');
       content.addSpacer(3);
-      addLeagueColumn(content, '🇯🇵 NPB',  C.npb,  npbSec, logoMap, 'npb');
+      addLeagueColumn(content, '🇯🇵 NPB',  C.npb,  npbSec, logoSync, 'npb');
       content.addSpacer(3);
-      addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups, logoMap, 'cpbl');
+      addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups, logoSync, 'cpbl');
       content.addSpacer(3);
-      addLeagueColumn(content, '🇺🇸 NL',   C.mlb,  mlbAll.nl, logoMap, 'mlb');
+      addLeagueColumn(content, '🇺🇸 NL',   C.mlb,  mlbAll.nl, logoSync, 'mlb');
       content.addSpacer(3);
-      addLeagueColumn(content, 'AL',        C.mlb,  mlbAll.al, logoMap, 'mlb');
+      addLeagueColumn(content, 'AL',        C.mlb,  mlbAll.al, logoSync, 'mlb');
       content.addSpacer(3);
       addStreakColumn(content, streakEntries);
+
+      // 앱 모드에서만 로고 백그라운드 다운로드 (await 없음 → 렌더링 블로킹 없음)
+      downloadLogosIfApp(allTeamKeys);
     }
   } catch (renderErr) {
     widget.addSpacer(4);
