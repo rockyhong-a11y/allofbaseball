@@ -24,7 +24,7 @@
     .hdr p{margin-top:5px;color:var(--mu);font-size:.8rem;}
     .theme-btn{position:absolute;top:14px;right:16px;background:var(--c2);border:1px solid var(--bd2);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:1rem;line-height:1;transition:all .15s;z-index:10;}
     .theme-btn:hover{background:var(--c3);border-color:var(--ac);}
-    .bbnews-btn{position:absolute;top:14px;left:16px;background:var(--c2);border:1px solid var(--bd2);border-radius:8px;padding:5px 10px;font-size:.75rem;font-weight:700;color:var(--tx);text-decoration:none;line-height:1.5;transition:all .15s;z-index:10;white-space:nowrap;}
+    .bbnews-btn{background:var(--c2);border:1px solid var(--bd2);border-radius:8px;padding:5px 11px;font-size:.75rem;font-weight:700;color:var(--mu2);text-decoration:none;line-height:1.5;transition:all .15s;white-space:nowrap;}
     .bbnews-btn:hover{background:var(--c3);border-color:var(--ac);color:var(--ac);}
     body.light{--bg:#f0f4f8;--c1:#ffffff;--c2:#f5f7fa;--c3:#e8ecf2;--bd:#d0d9e8;--bd2:#b8c5d9;--tx:#1a2a40;--mu:#5a6e8c;--mu2:#3d5270;--ac:#1a7fd4;--gn:#18a057;--yw:#c49a0a;--rd:#cc2222;--kbo:#2d6fd4;--mlb:#cc1a10;--npb:#c01040;--cpbl:#c02a00;}
     body.light .hdr{background:linear-gradient(180deg,#e4ecf8,#f0f4fc);}
@@ -263,18 +263,20 @@
 </head>
 <body>
 <div class="hdr">
-  <a href="https://rockyhong-a11y.github.io/BBNews/" target="_blank" class="bbnews-btn" title="이적/등록 정보">📋 BBNews</a>
   <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="테마 전환">☀️</button>
   <h1>⚾ 야구 선수 기록 검색기</h1>
   <p>KBO · MLB · NPB · CPBL 전현직 선수 — 사진 · 바이오 · 시즌별 기록 통합 조회</p>
 </div>
 
 <div class="srch-wrap">
-  <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;">
+    <a href="https://rockyhong-a11y.github.io/BBNews/" target="_blank" class="bbnews-btn" title="이적/등록 정보">📋 전체 리그 이적 등/말소 정보</a>
+    <div style="display:flex;gap:6px;">
     <button class="lg-nav-btn kbo-btn" data-league="kbo" onclick="toggleLeague('kbo')">KBO 스케줄/순위</button>
     <button class="lg-nav-btn mlb-btn" data-league="mlb" onclick="toggleLeague('mlb')">MLB 스케줄/순위</button>
     <button class="lg-nav-btn npb-btn" data-league="npb" onclick="toggleLeague('npb')">NPB 스케줄/순위</button>
     <button class="lg-nav-btn cpbl-btn" data-league="cpbl" onclick="toggleLeague('cpbl')">CPBL 스케줄/순위</button>
+    </div>
   </div>
   <div class="ac-wrap">
     <div class="srch-row">
