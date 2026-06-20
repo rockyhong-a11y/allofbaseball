@@ -607,7 +607,7 @@ function addStreakColumn(parent, entries) {
   card.addSpacer(5);
 
   if (!entries.length) {
-    const none = card.addText('5연속\n팀 없음');
+    const none = card.addText('연속기록\n없음');
     none.font = Font.systemFont(9);
     none.textColor = C.mu;
     card.addSpacer();
@@ -888,10 +888,10 @@ async function buildAllWidget() {
         ...mlbAll.al.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
       ];
 
-      const collectEntries = (teams, league, lKey) => {
+      const collectEntries = (teams, league, lKey, min) => {
         const ws = [], ls = [];
         for (const t of teams) {
-          if (!t.streak || t.streak.count < 5) continue;
+          if (!t.streak || t.streak.count < min) continue;
           const logoImg = logoSync(lKey, t.team);
           const e = { team: t.team, count: t.streak.count, type: t.streak.type, league, logoImg };
           if (t.streak.type === 'W') ws.push(e); else ls.push(e);
@@ -900,13 +900,16 @@ async function buildAllWidget() {
         ls.sort((a, b) => b.count - a.count);
         return [...ws, ...ls];
       };
-      const streakEntries = [
-        ...collectEntries(kboTeams, 'KBO', 'kbo'),
-        ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB', 'npb'),
-        ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL', 'cpbl'),
-        ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL', 'mlb'),
-        ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL', 'mlb'),
+      const gatherEntries = min => [
+        ...collectEntries(kboTeams, 'KBO', 'kbo', min),
+        ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB', 'npb', min),
+        ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL', 'cpbl', min),
+        ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL', 'mlb', min),
+        ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL', 'mlb', min),
       ];
+      // 5연속 없으면 3연속으로 자동 하향
+      let streakEntries = gatherEntries(5);
+      if (!streakEntries.length) streakEntries = gatherEntries(3);
 
       const content = widget.addStack();
       content.layoutHorizontally();
