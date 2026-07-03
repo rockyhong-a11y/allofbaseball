@@ -211,7 +211,9 @@
     }
 
 /* ── 리그 네비게이션 버튼 ── */
-.lg-nav-btn{padding:7px 15px;border:1.5px solid var(--bd2);background:var(--c1);color:var(--mu2);border-radius:9px;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;}
+.lg-nav-bar{display:flex;overflow-x:auto;gap:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.lg-nav-bar::-webkit-scrollbar{display:none;}
+.lg-nav-btn{flex-shrink:0;padding:7px 15px;border:1.5px solid var(--bd2);background:var(--c1);color:var(--mu2);border-radius:9px;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;}
 .lg-nav-btn:hover{border-color:var(--ac);color:var(--tx);background:var(--c2);}
 .lg-nav-btn.on.kbo-btn{background:var(--kbo);border-color:var(--kbo);color:#fff;}
 .lg-nav-btn.on.mlb-btn{background:#e8352a;border-color:#e8352a;color:#fff;}
@@ -269,14 +271,12 @@
 </div>
 
 <div class="srch-wrap">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;">
+  <div class="lg-nav-bar">
     <a href="https://rockyhong-a11y.github.io/BBNews/" target="_blank" class="bbnews-btn" title="이적/등록 정보">📋 전체 리그 이적 등/말소 정보</a>
-    <div style="display:flex;gap:6px;">
     <button class="lg-nav-btn kbo-btn" data-league="kbo" onclick="toggleLeague('kbo')">KBO 스케줄/순위</button>
     <button class="lg-nav-btn mlb-btn" data-league="mlb" onclick="toggleLeague('mlb')">MLB 스케줄/순위</button>
     <button class="lg-nav-btn npb-btn" data-league="npb" onclick="toggleLeague('npb')">NPB 스케줄/순위</button>
     <button class="lg-nav-btn cpbl-btn" data-league="cpbl" onclick="toggleLeague('cpbl')">CPBL 스케줄/순위</button>
-    </div>
   </div>
   <div class="ac-wrap">
     <div class="srch-row">
