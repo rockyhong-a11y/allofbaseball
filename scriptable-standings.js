@@ -663,7 +663,7 @@ function addStreakColumn(parent, entries) {
   card.addSpacer();
 }
 
-function addCell(parent, team, leagueColor) {
+function addCell(parent, team, leagueColor, leagueKey) {
   const cell = parent.addStack();
   cell.layoutVertically();
   const top = cell.addStack();
@@ -673,11 +673,20 @@ function addCell(parent, team, leagueColor) {
   rEl.font = Font.boldSystemFont(15);
   rEl.textColor = team.rank <= 3 ? leagueColor : C.mu;
   top.addSpacer(6);
-  const tEl = top.addText(team.team);
-  tEl.font = Font.boldSystemFont(16);
-  tEl.textColor = C.tx;
-  tEl.lineLimit = 1;
-  tEl.minimumScaleFactor = 0.72;
+  // MLB uses abbr for logo key; others use team name
+  const logoKey = leagueKey === 'mlb' ? (team.abbr || team.team) : team.team;
+  const logoImg = leagueKey ? logoSync(leagueKey, logoKey) : null;
+  if (logoImg) {
+    const imgEl = top.addImage(logoImg);
+    imgEl.imageSize = new Size(22, 22);
+    imgEl.cornerRadius = 3;
+  } else {
+    const tEl = top.addText(team.team);
+    tEl.font = Font.boldSystemFont(16);
+    tEl.textColor = C.tx;
+    tEl.lineLimit = 1;
+    tEl.minimumScaleFactor = 0.72;
+  }
   cell.addSpacer(3);
   const bot = cell.addStack();
   bot.layoutHorizontally();
@@ -779,11 +788,18 @@ async function buildWidget() {
 
   try {
     let groups = [];
-    if (PARAM === 'kbo')              groups = [{ section: null, teams: await fetchKbo() }];
-    else if (PARAM.startsWith('mlb')) groups = await fetchMlb(PARAM);
-    else if (PARAM.startsWith('npb')) groups = await fetchNpb(PARAM);
-    else if (PARAM === 'cpbl')        groups = await fetchCpbl();
-    else                              groups = [{ section: null, teams: await fetchKbo() }];
+    let leagueKey = null;
+    if (PARAM === 'kbo')              { groups = [{ section: null, teams: await fetchKbo() }]; leagueKey = 'kbo'; }
+    else if (PARAM.startsWith('mlb')) { groups = await fetchMlb(PARAM);  leagueKey = 'mlb'; }
+    else if (PARAM.startsWith('npb')) { groups = await fetchNpb(PARAM);  leagueKey = 'npb'; }
+    else if (PARAM === 'cpbl')        { groups = await fetchCpbl();      leagueKey = 'cpbl'; }
+    else                              { groups = [{ section: null, teams: await fetchKbo() }]; leagueKey = 'kbo'; }
+
+    // 앱 모드에서만 로고 백그라운드 다운로드 (렌더링 논블로킹)
+    const teamKeys = groups.flatMap(g => g.teams.map(t =>
+      leagueKey + ':' + (leagueKey === 'mlb' ? (t.abbr || t.team) : t.team)
+    ));
+    downloadLogosIfApp(teamKeys);
 
     const showSections = groups.length > 1;
     let shown = 0;
@@ -801,9 +817,9 @@ async function buildWidget() {
       for (let i = 0; i < show; i += 2) {
         const row = widget.addStack();
         row.layoutHorizontally();
-        addCell(row, teams[i], color);
+        addCell(row, teams[i], color, leagueKey);
         row.addSpacer(8);
-        if (i + 1 < show) addCell(row, teams[i+1], color);
+        if (i + 1 < show) addCell(row, teams[i+1], color, leagueKey);
         else row.addSpacer();
         if (i + 2 < show) widget.addSpacer(7);
         shown += i + 1 < show ? 2 : 1;
