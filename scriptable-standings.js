@@ -95,24 +95,27 @@ function logoSync(leagueKey, teamName) {
   }
 }
 
-async function downloadLogosIfApp(teamKeys) {
-  if (config.runInWidget) return;
+async function downloadMissingLogos(teamKeys) {
   try {
     const fm = FileManager.local();
     const dir = fm.joinPath(fm.documentsDirectory(), 'bb_logos');
     if (!fm.fileExists(dir)) fm.createDirectory(dir);
-    for (const key of teamKeys) {
+    const missing = [...new Set(teamKeys)].filter(key => {
       const url = LOGO_URLS[key];
-      if (!url) continue;
-      const cKey = url.replace(/[^a-z0-9]/gi, '_').slice(-60);
-      const path = fm.joinPath(dir, cKey);
-      if (fm.fileExists(path)) continue;
+      if (!url) return false;
+      const path = fm.joinPath(dir, url.replace(/[^a-z0-9]/gi, '_').slice(-60));
+      return !fm.fileExists(path);
+    });
+    if (!missing.length) return;
+    await Promise.all(missing.map(async key => {
+      const url = LOGO_URLS[key];
+      const path = fm.joinPath(dir, url.replace(/[^a-z0-9]/gi, '_').slice(-60));
       try {
         const req = new Request(url); req.timeoutInterval = 6;
         const img = await req.loadImage();
         if (img) fm.writeImage(path, img);
       } catch {}
-    }
+    }));
   } catch {}
 }
 
@@ -441,6 +444,8 @@ async function computeNpbStreaks() {
   return result;
 }
 
+const CPBL_NAME_FIX = { DRAGONS: 'Dragons' }; // API returns uppercase, logo key is title-case
+
 async function fetchCpbl() {
   // Primary: compute from GitHub raw schedule JSON (no proxy/Cloudflare issues)
   try {
@@ -453,7 +458,8 @@ async function fetchCpbl() {
       const vs = g.VisitingScore, hs = g.HomeScore;
       if (typeof vs !== 'number' || typeof hs !== 'number') continue;
       if (vs === 0 && hs === 0) continue;
-      const vt = g.VisitingTeamEnName, ht = g.HomeTeamEnName;
+      const vt = CPBL_NAME_FIX[g.VisitingTeamEnName] || g.VisitingTeamEnName;
+      const ht = CPBL_NAME_FIX[g.HomeTeamEnName] || g.HomeTeamEnName;
       if (!rec[vt]) { rec[vt] = {w:0,l:0,d:0}; seq[vt] = []; }
       if (!rec[ht]) { rec[ht] = {w:0,l:0,d:0}; seq[ht] = []; }
       if (vs > hs) { rec[vt].w++; rec[ht].l++; seq[vt].push('W'); seq[ht].push('L'); }
@@ -795,11 +801,10 @@ async function buildWidget() {
     else if (PARAM === 'cpbl')        { groups = await fetchCpbl();      leagueKey = 'cpbl'; }
     else                              { groups = [{ section: null, teams: await fetchKbo() }]; leagueKey = 'kbo'; }
 
-    // 앱 모드에서만 로고 백그라운드 다운로드 (렌더링 논블로킹)
     const teamKeys = groups.flatMap(g => g.teams.map(t =>
       leagueKey + ':' + (leagueKey === 'mlb' ? (t.abbr || t.team) : t.team)
     ));
-    downloadLogosIfApp(teamKeys);
+    await downloadMissingLogos(teamKeys);
 
     const showSections = groups.length > 1;
     let shown = 0;
@@ -895,7 +900,6 @@ async function buildAllWidget() {
         teams: g.teams,
       }));
 
-      // ── 팀 로고: 동기 디스크 캐시 읽기 (async 없음) ──────
       const allTeamKeys = [
         ...kboTeams.map(t => 'kbo:' + t.team),
         ...npbGroups.flatMap(g => g.teams.map(t => 'npb:' + t.team)),
@@ -903,6 +907,7 @@ async function buildAllWidget() {
         ...mlbAll.nl.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
         ...mlbAll.al.flatMap(g => g.teams.map(t => 'mlb:' + t.team)),
       ];
+      await downloadMissingLogos(allTeamKeys);
 
       const collectEntries = (teams, league, lKey, min) => {
         const ws = [], ls = [];
@@ -941,9 +946,6 @@ async function buildAllWidget() {
       addLeagueColumn(content, 'AL',        C.mlb,  mlbAll.al, logoSync, 'mlb');
       content.addSpacer(3);
       addStreakColumn(content, streakEntries);
-
-      // 앱 모드에서만 로고 백그라운드 다운로드 (await 없음 → 렌더링 블로킹 없음)
-      downloadLogosIfApp(allTeamKeys);
     }
   } catch (renderErr) {
     widget.addSpacer(4);
