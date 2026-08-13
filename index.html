@@ -8629,6 +8629,9 @@ const TEAM_LOGO = {
   'Brothers':'logos/cpbl-Brothers.png','Dragons':'logos/cpbl-Dragons.png','DRAGONS':'logos/cpbl-Dragons.png',
   'Guardians':'logos/cpbl-Guardians.png','Monkeys':'logos/cpbl-Monkeys.png',
   'TSG Hawks':'logos/cpbl-Hawks.png','U-Lions':'logos/cpbl-UniLions.png',
+  '중신 브라더스':'logos/cpbl-Brothers.png','웨이취안 드래곤즈':'logos/cpbl-Dragons.png',
+  '푸방 가디언즈':'logos/cpbl-Guardians.png','라쿠텐 몽키스':'logos/cpbl-Monkeys.png',
+  '타이강 호크스':'logos/cpbl-Hawks.png','퉁이 라이온즈':'logos/cpbl-UniLions.png',
   // MLB 스케줄 (단축 한글)
   '볼티모어':'https://www.mlbstatic.com/team-logos/110.svg',
   '보스턴':'https://www.mlbstatic.com/team-logos/111.svg',
@@ -9098,6 +9101,16 @@ const CPBL_TEAM_FULL = {
   'AEO':'Guardians','AAA':'Dragons','AKP':'TSG Hawks',
 };
 
+// 스케줄 API가 반환하는 중국어 정식 팀명 → 한글 팀명 (구장/순위 표시용)
+const CPBL_TEAM_KO = {
+  '中信兄弟':'중신 브라더스',
+  '樂天桃猿':'라쿠텐 몽키스',
+  '統一7-ELEVEn獅':'퉁이 라이온즈',
+  '富邦悍將':'푸방 가디언즈',
+  '味全龍':'웨이취안 드래곤즈',
+  '台鋼雄鷹':'타이강 호크스',
+};
+
 /* ══════════════════════════════════════════════════════
    ★ CPBL 자동완성
 ══════════════════════════════════════════════════════ */
@@ -9452,25 +9465,25 @@ async function _loadCpblSchedData(year) {
 }
 
 const CPBL_VENUE = {
-  'INT':'타이중 인터컨티넨탈',
-  'TPD':'타오위안 야구장',
-  'TYN':'타오위안 야구장',
-  'XZG':'신주 야구장',
-  'TTG':'타이난 야구장',
-  'CCL':'청칭후 야구장',
-  'CYC':'자이 야구장',
-  'DLU':'더우류 야구장',
-  'HLN':'화롄 야구장',
-  'TMU':'타이중 시립구장',
-  'API':'신좡 야구장',
+  '洲際':'타이중 인터컨티넨탈',
+  '樂天桃園':'라쿠텐 타오위안 야구장',
+  '亞太主':'아시아태평양 야구장(타이난)',
+  '澄清湖':'청칭후 야구장',
+  '嘉義市':'자이 시립야구장',
+  '斗六':'더우류 야구장',
+  '花蓮':'화롄 야구장',
+  '新莊':'신좡 야구장',
+  '天母':'톈무 야구장',
+  '台東':'타이둥 야구장',
+  '大巨蛋':'타이베이 돔',
 };
 
 async function loadCpblSchedule(el) {
   const yr = _lgDate.getFullYear();
   const mm = _lgDate.getMonth() + 1;
   const dd = _lgDate.getDate();
-  // DRAGONS(대문자) → Dragons 정규화
-  const normTeam = n => n === 'DRAGONS' ? 'Dragons' : (n || '');
+  // 중국어 정식 팀명 → 한글 팀명
+  const normTeam = n => CPBL_TEAM_KO[n] || (n || '');
 
   try {
     const allGames = await _loadCpblSchedData(yr);
@@ -9555,7 +9568,8 @@ async function loadCpblStandings(el) {
       const vs = g.VisitingScore, hs = g.HomeScore;
       if (typeof vs !== 'number' || typeof hs !== 'number') continue;
       if (vs === 0 && hs === 0) continue; // not yet played
-      const vt = g.VisitingTeamEnName, ht = g.HomeTeamEnName;
+      const vt = CPBL_TEAM_KO[g.VisitingTeamName] || g.VisitingTeamName;
+      const ht = CPBL_TEAM_KO[g.HomeTeamName] || g.HomeTeamName;
       if (!rec[vt]) { rec[vt] = {w:0,l:0,d:0}; seq[vt] = []; }
       if (!rec[ht]) { rec[ht] = {w:0,l:0,d:0}; seq[ht] = []; }
       if (vs > hs) {
