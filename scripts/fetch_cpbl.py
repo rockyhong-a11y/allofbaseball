@@ -75,7 +75,7 @@ def curl_post_json(api_url: str, body_dict: dict, token: str,
             '-H', 'X-Requested-With: XMLHttpRequest',
             '-H', f'RequestVerificationToken: {token}',
             '-H', f'Cookie: __RequestVerificationToken={cookie}',
-            '-H', f'Origin: https://en.cpbl.com.tw',
+            '-H', f'Origin: https://cpbl.com.tw',
             '-H', f'Referer: {referer}',
             '-H', f'User-Agent: {CURL_UA}',
             '-H', 'Accept: application/json, */*',
@@ -109,7 +109,7 @@ def fetch_all_stats(index_html_path: str) -> dict:
         print(f'  [{acnt}] {name} ({ptype})', end=' ... ', flush=True)
 
         try:
-            page_url = f'https://en.cpbl.com.tw/team/person?Acnt={acnt}'
+            page_url = f'https://cpbl.com.tw/team/person?Acnt={acnt}'
             html, cookie = curl_get(page_url)
             tokens = extract_js_tokens(html)
 
@@ -119,9 +119,9 @@ def fetch_all_stats(index_html_path: str) -> dict:
                 continue
 
             token = tokens[1] if (not is_batter and len(tokens) > 1) else tokens[0]
-            api_url = ('https://en.cpbl.com.tw/team/getpitchscore'
+            api_url = ('https://cpbl.com.tw/team/getpitchscore'
                        if not is_batter else
-                       'https://en.cpbl.com.tw/team/getbattingscore')
+                       'https://cpbl.com.tw/team/getbattingscore')
 
             result = curl_post_json(api_url,
                                     {'acnt': acnt, 'kindCode': 'A'},
@@ -156,7 +156,7 @@ def fetch_all_stats(index_html_path: str) -> dict:
 def fetch_schedule(year: int):
     print(f'📅 CPBL {year} 스케줄 수집 (curl)...')
     try:
-        html, cookie = curl_get('https://en.cpbl.com.tw/schedule')
+        html, cookie = curl_get('https://cpbl.com.tw/schedule')
         tokens = extract_js_tokens(html)
 
         if not tokens or not cookie:
@@ -165,10 +165,10 @@ def fetch_schedule(year: int):
 
         token = tokens[1] if len(tokens) > 1 else tokens[0]
         result = curl_post_json(
-            'https://en.cpbl.com.tw/schedule/getgamedatas',
+            'https://cpbl.com.tw/schedule/getgamedatas',
             {'calendar': f'{year}/01/01', 'location': '', 'kindCode': 'A'},
             token, cookie,
-            'https://en.cpbl.com.tw/schedule'
+            'https://cpbl.com.tw/schedule'
         )
 
         if result.get('Success'):
