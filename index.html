@@ -1257,7 +1257,7 @@ function fillChip(el) {
 }
 
 function doSearch() {
-  const raw = document.getElementById('si').value.trim();
+  const raw = _s2t(document.getElementById('si').value.trim());
   if (!raw) return;
   hideAcDrop();
   document.getElementById('featured').style.display = 'none';
@@ -1278,6 +1278,7 @@ function doSearch() {
 let acIdx = -1;
 
 function acFilter(q) {
+  q = _s2t(q);
   const qn = q.toLowerCase().replace(/\s+/g,'');
   if (!qn) return [];
   const res = AC_CANDIDATES.filter(c => c.keys.some(k => k.includes(qn)));
@@ -2130,6 +2131,36 @@ const LOCAL_PROXY = 'http://localhost:8080';                    // 로컬 폴백
 const PROXY       = 'https://api.allorigins.win/get?url=';     // 범용 프록시 (구)
 const CODETABS    = 'https://api.codetabs.com/v1/proxy/?quest='; // 범용 CORS 프록시 (NPB)
 
+// 범용 CORS 프록시 fetch: r.jina.ai(HTML 원본) → CODETABS → allorigins 순 폴백
+// (corsproxy.io는 유료 인증 필요로 전환되어 제외, CODETABS는 간헐적 응답 지연 있어 폴백으로 유지)
+async function _corsFetch(url) {
+  try {
+    const r = await fetch(`https://r.jina.ai/${url}`, {
+      headers: {'X-Return-Format': 'html'},
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.ok) {
+      const t = await r.text();
+      if (t && t.length > 200) return t;
+    }
+  } catch(_) {}
+  try {
+    const r = await fetch(`${CODETABS}${encodeURIComponent(url)}`, {signal: AbortSignal.timeout(12000)});
+    if (r.ok) {
+      const t = await r.text();
+      if (t && t.length > 200) return t;
+    }
+  } catch(_) {}
+  try {
+    const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, {signal: AbortSignal.timeout(12000)});
+    if (r.ok) {
+      const t = await r.text();
+      if (t && t.length > 200) return t;
+    }
+  } catch(_) {}
+  throw new Error('모든 프록시 실패: ' + url);
+}
+
 
 /* KBO: CF Worker → 로컬 프록시 순으로 시도 */
 async function fetchKboData(query) {
@@ -2334,6 +2365,16 @@ function parseKboPage(doc, playerId, isHitter, name, sourceUrl, rawHtml = '') {
     return { name, isBatter: hasBat, isPitcher: hasPit, rows, ths, careerRow, playerId, sourceUrl, src: 'kbo' };
   }
   return null;
+}
+
+/* ══════════════════════════════════════════════════════
+   중국어 간체 → 번체/일본어 한자 변환 (CPBL_ZH_MAP·NPB_INDEX·
+   NPB_KO_MAP에 실제 등장하는 한자만 대상, 검색어 정규화용)
+══════════════════════════════════════════════════════ */
+const SIMP_TO_TRAD = {'并':'並','来':'來','仓':'倉','伦':'倫','伟':'偉','杰':'傑','优':'優','凯':'凱','则':'則','刚':'剛','刘':'劉','勋':'勳','胜':'勝','势':'勢','吴':'吳','吕':'呂','严':'嚴','国':'國','园':'園','场':'場','堑':'塹','梦':'夢','宫':'宮','将':'將','寻':'尋','冈':'岡','峰':'峯','岛':'島','岭':'嶺','干':'幹','广':'廣','张':'張','强':'強','彦':'彥','后':'後','爱':'愛','庆':'慶','宪':'憲','扬':'揚','升':'昇','时':'時','晋':'晉','晖':'暉','旸':'暘','畅':'暢','会':'會','东':'東','条':'條','杨':'楊','枫':'楓','荣':'榮','乐':'樂','树':'樹','桥':'橋','樱':'櫻','凉':'涼','浅':'淺','涌':'湧','汤':'湯','沟':'溝','润':'潤','泽':'澤','滨':'濱','泷':'瀧','尔':'爾','狮':'獅','玮':'瑋','卢':'盧','真':'眞','矶':'磯','种':'種','笃':'篤','纪':'紀','红':'紅','纳':'納','纯':'純','纮':'紘','细':'細','绍':'紹','统':'統','纲':'綱','纶':'綸','纬':'緯','织':'織','罗':'羅','义':'義','圣':'聖','与':'與','庄':'莊','华':'華','叶':'葉','苍':'蒼','莲':'蓮','蒋':'蔣','蓝':'藍','苏':'蘇','虾':'蝦','见':'見','规':'規','亲':'親','记':'記','许':'許','诗':'詩','诚':'誠','说':'説','谅':'諒','谕':'諭','谚':'諺','谦':'謙','谢':'謝','贞':'貞','贡':'貢','贯':'貫','贵':'貴','贺':'賀','贤':'賢','赖':'賴','赛':'賽','赵':'趙','跃':'躍','军':'軍','辅':'輔','辉':'輝','达':'達','远':'遠','辽':'遼','边':'邊','郑':'鄭','钧':'鈞','铃':'鈴','银':'銀','锐':'銳','锌':'鋅','钱':'錢','锹':'鍬','键':'鍵','锶':'鍶','钟':'鍾','镛':'鏞','铎':'鐸','长':'長','开':'開','间':'間','陈':'陳','陆':'陸','阳':'陽','韦':'韋','响':'響','顺':'順','颂':'頌','顿':'頓','飒':'颯','飞':'飛','饲':'飼','马':'馬','骏':'駿','骑':'騎','鸿':'鴻','鹈':'鵜','鹏':'鵬','鹰':'鷹','丽':'麗','黄':'黃','齐':'齊','斋':'齋','龄':'齡','龙':'龍'};
+// 간체 → 번체/일본어 한자 (문자 단위 치환, 매핑 없는 문자는 그대로 유지)
+function _s2t(str) {
+  return str.replace(/[一-鿿]/g, ch => SIMP_TO_TRAD[ch] || ch);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -6838,21 +6879,18 @@ async function fetchNpbData(query) {
       // 50음 페이지에서 한자명으로 BIS ID 검색 (공통 helper)
       const _searchBisPage = async (suffix) => {
         const idxUrl = `https://npb.jp/bis/players/all/index_${suffix}.html`;
-        for (const proxy of [`https://corsproxy.io/?${encodeURIComponent(idxUrl)}`, `${CODETABS}${encodeURIComponent(idxUrl)}`]) {
-          try {
-            const ir = await fetch(proxy, {signal: AbortSignal.timeout(10000)});
-            if (!ir.ok) continue;
-            const iDoc = new DOMParser().parseFromString(await ir.text(), 'text/html');
-            const cleanJp = jpName.replace(/[\s　]/g,'');
-            for (const a of iDoc.querySelectorAll('a[href*="/bis/players/"]')) {
-              const txt = a.textContent.replace(/[\s　]/g, '');
-              if (txt === cleanJp || txt.includes(cleanJp)) {
-                const m = a.getAttribute('href').match(/\/bis\/players\/(\d{8})\.html/);
-                if (m) return m[1];
-              }
+        try {
+          const html = await _corsFetch(idxUrl);
+          const iDoc = new DOMParser().parseFromString(html, 'text/html');
+          const cleanJp = jpName.replace(/[\s　]/g,'');
+          for (const a of iDoc.querySelectorAll('a[href*="/bis/players/"]')) {
+            const txt = a.textContent.replace(/[\s　]/g, '');
+            if (txt === cleanJp || txt.includes(cleanJp)) {
+              const m = a.getAttribute('href').match(/\/bis\/players\/(\d{8})\.html/);
+              if (m) return m[1];
             }
-          } catch(_) {}
-        }
+          }
+        } catch(_) {}
         return null;
       };
 
@@ -6907,17 +6945,12 @@ async function fetchNpbData(query) {
     }
     if (!bisId) return null;
 
-    /* ── 3. npb.jp 선수 페이지 fetch (corsproxy.io → CODETABS 순) ── */
+    /* ── 3. npb.jp 선수 페이지 fetch ── */
     const pageUrl = `https://npb.jp/bis/players/${bisId}.html`;
     let doc = null;
-    for (const proxy of [`https://corsproxy.io/?${encodeURIComponent(pageUrl)}`, `${CODETABS}${encodeURIComponent(pageUrl)}`]) {
-      try {
-        const r = await fetch(proxy, {signal: AbortSignal.timeout(15000)});
-        if (!r.ok) continue;
-        doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-        break;
-      } catch(_) {}
-    }
+    try {
+      doc = new DOMParser().parseFromString(await _corsFetch(pageUrl), 'text/html');
+    } catch(_) {}
     if (!doc) throw new Error('fetch fail');
 
     /* ── 4. 선수 정보 파싱 ── */
@@ -8318,11 +8351,7 @@ function _parsePacificLeagueHtml(html, yr, mm, dd) {
   return games;
 }
 
-/* ── NPB 스케줄 (primary: corsproxy.io → fallback: CODETABS) ── */
-/* ── NPB 스케줄
-   primary  : Naver Sports (m.sports.naver.com/wbaseball/schedule?category=npb)
-   fallback1: 동일 URL, 다른 프록시
-   fallback2: npb.jp HTML (corsproxy.io → CODETABS 순) ── */
+/* ── NPB 스케줄: Pacific League 공식 → Naver Sports → npb.jp HTML 순 (_corsFetch 사용) ── */
 async function loadNpbSchedule(el) {
   const yr  = _lgDate.getFullYear();
   const mm  = String(_lgDate.getMonth()+1).padStart(2,'0');
@@ -8332,52 +8361,31 @@ async function loadNpbSchedule(el) {
   const naverUrl = `https://m.sports.naver.com/wbaseball/schedule/index?category=npb&date=${dateStr}`;
   const npbUrl   = `https://npb.jp/games/${yr}/schedule_${mm}_detail.html`;
 
-  const fetchText = async (url) => {
-    const r = await fetch(url, {signal: AbortSignal.timeout(12000), cache: 'no-store'});
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.text();
-  };
-
   let games = null;
 
-  // 1·2단계: Pacific League 공식 사이트
-  for (const proxy of [
-    `https://corsproxy.io/?${encodeURIComponent(plUrl)}`,
-    `${CODETABS}${encodeURIComponent(plUrl)}`,
-  ]) {
+  // 1단계: Pacific League 공식 사이트
+  try {
+    const html = await _corsFetch(plUrl);
+    const parsed = _parsePacificLeagueHtml(html, yr, mm, dd);
+    if (parsed.length) games = parsed;
+  } catch(e) { /* 다음 시도 */ }
+
+  // 2단계: Naver Sports (fallback)
+  if (!games) {
     try {
-      const html = await fetchText(proxy);
-      const parsed = _parsePacificLeagueHtml(html, yr, mm, dd);
-      if (parsed.length) { games = parsed; break; }
+      const html = await _corsFetch(naverUrl);
+      const raw = _parseNaverSchedule(html);
+      if (raw.length) games = raw;
     } catch(e) { /* 다음 시도 */ }
   }
 
-  // 3·4단계: Naver Sports (fallback)
+  // 3단계 fallback: npb.jp HTML
   if (!games) {
-    for (const proxy of [
-      `https://corsproxy.io/?${encodeURIComponent(naverUrl)}`,
-      `${CODETABS}${encodeURIComponent(naverUrl)}`,
-    ]) {
-      try {
-        const html = await fetchText(proxy);
-        const raw = _parseNaverSchedule(html);
-        if (raw.length) { games = raw; break; }
-      } catch(e) { /* 다음 시도 */ }
-    }
-  }
-
-  // 5·6단계 fallback: npb.jp HTML
-  if (!games) {
-    for (const proxy of [
-      `https://corsproxy.io/?${encodeURIComponent(npbUrl)}`,
-      `${CODETABS}${encodeURIComponent(npbUrl)}`,
-    ]) {
-      try {
-        const html = await fetchText(proxy);
-        const parsed = _parseNpbHtml(html, mm, dd);
-        if (parsed.length) { games = parsed; break; }
-      } catch(e) { /* 다음 시도 */ }
-    }
+    try {
+      const html = await _corsFetch(npbUrl);
+      const parsed = _parseNpbHtml(html, mm, dd);
+      if (parsed.length) games = parsed;
+    } catch(e) { /* 다음 시도 */ }
   }
 
   if (games?.length) { el.innerHTML = _renderScheduleTable(games, 'npb'); return; }
@@ -8397,17 +8405,7 @@ async function _fetchNpbStreaks(yr, mm) {
     `https://npb.jp/games/${yr}/schedule_${mm}_detail.html`,
   ];
   const fetchWithFallback = async url => {
-    for (const pUrl of [
-      `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      `${CODETABS}${encodeURIComponent(url)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    ]) {
-      try {
-        const r = await fetch(pUrl, {signal: AbortSignal.timeout(10000)});
-        if (r.ok) { const t = await r.text(); if (t && t.length > 200) return t; }
-      } catch {}
-    }
-    return '';
+    try { return await _corsFetch(url); } catch(_) { return ''; }
   };
   const htmls = await Promise.all(urls.map(fetchWithFallback));
   return _computeNpbStreaks(htmls);
@@ -8547,21 +8545,7 @@ async function loadNpbStandings(el) {
     return { cl, pl };
   };
 
-  const fetchPage = async url => {
-    for (const pUrl of [
-      `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      `${CODETABS}${encodeURIComponent(url)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    ]) {
-      try {
-        const r = await fetch(pUrl, {signal: AbortSignal.timeout(12000)});
-        if (!r.ok) continue;
-        const text = await r.text();
-        if (text && text.length > 500) return text;
-      } catch {}
-    }
-    throw new Error('All proxies failed');
-  };
+  const fetchPage = async url => _corsFetch(url);
 
   try {
     const yr = _lgDate.getFullYear();
