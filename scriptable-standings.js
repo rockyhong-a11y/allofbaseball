@@ -444,7 +444,24 @@ async function computeNpbStreaks() {
   return result;
 }
 
-const CPBL_NAME_FIX = { DRAGONS: 'Dragons' }; // API returns uppercase, logo key is title-case
+// 스케줄 JSON은 팀 영문명(...EnName)을 제공하지 않는다. TeamCode와 중문 팀명만 있으므로
+// 로고 키('cpbl:Brothers' 등)와 일치하도록 영문 표기로 정규화한다.
+const CPBL_TEAM_BY_CODE = {
+  ACN011: 'Brothers',   // 中信兄弟
+  AAA011: 'Dragons',    // 味全龍
+  AEO011: 'Guardians',  // 富邦悍將
+  AJL011: 'Monkeys',    // 樂天桃猿
+  AKP011: 'TSG Hawks',  // 台鋼雄鷹
+  ADD011: 'U-Lions',    // 統一7-ELEVEn獅
+};
+const CPBL_TEAM_BY_NAME = {
+  '中信兄弟': 'Brothers', '味全龍': 'Dragons', '富邦悍將': 'Guardians',
+  '樂天桃猿': 'Monkeys', '台鋼雄鷹': 'TSG Hawks', '統一7-ELEVEn獅': 'U-Lions',
+  DRAGONS: 'Dragons', // 일부 응답이 영문 대문자로 올 때 대비
+};
+const cpblTeam = (code, zhName, enName) =>
+  CPBL_TEAM_BY_CODE[code] || CPBL_TEAM_BY_NAME[zhName] ||
+  CPBL_TEAM_BY_NAME[enName] || enName || zhName || '';
 
 async function fetchCpbl() {
   // Primary: compute from GitHub raw schedule JSON (no proxy/Cloudflare issues)
@@ -452,14 +469,20 @@ async function fetchCpbl() {
     const DATA_URL = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${YEAR}.json`;
     const req = new Request(DATA_URL); req.timeoutInterval = 10;
     const games = JSON.parse(await req.loadString());
+    // 원본 배열은 날짜순이 아니다 → 연속기록(streak)이 어긋나므로 경기 시간순으로 정렬.
+    // 미실시·미래 경기는 PresentStatus가 1이어도 0-0으로 들어오므로 함께 제외한다.
+    const played = games
+      .filter(g => g.PresentStatus === 1
+        && typeof g.VisitingScore === 'number' && typeof g.HomeScore === 'number'
+        && !(g.VisitingScore === 0 && g.HomeScore === 0))
+      .sort((a, b) => String(a.GameDate).localeCompare(String(b.GameDate))
+        || (a.GameSno || 0) - (b.GameSno || 0));
     const rec = {}, seq = {};
-    for (const g of games) {
-      if (g.PresentStatus !== 1) continue;
+    for (const g of played) {
       const vs = g.VisitingScore, hs = g.HomeScore;
-      if (typeof vs !== 'number' || typeof hs !== 'number') continue;
-      if (vs === 0 && hs === 0) continue;
-      const vt = CPBL_NAME_FIX[g.VisitingTeamEnName] || g.VisitingTeamEnName;
-      const ht = CPBL_NAME_FIX[g.HomeTeamEnName] || g.HomeTeamEnName;
+      const vt = cpblTeam(g.VisitingTeamCode, g.VisitingTeamName, g.VisitingTeamEnName);
+      const ht = cpblTeam(g.HomeTeamCode, g.HomeTeamName, g.HomeTeamEnName);
+      if (!vt || !ht) continue;
       if (!rec[vt]) { rec[vt] = {w:0,l:0,d:0}; seq[vt] = []; }
       if (!rec[ht]) { rec[ht] = {w:0,l:0,d:0}; seq[ht] = []; }
       if (vs > hs) { rec[vt].w++; rec[ht].l++; seq[vt].push('W'); seq[ht].push('L'); }
