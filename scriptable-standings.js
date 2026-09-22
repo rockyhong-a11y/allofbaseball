@@ -10,6 +10,16 @@ const NOW   = new Date();
 const CF    = 'https://kbo-proxy.rockyhong.workers.dev';
 const CTABS = 'https://api.codetabs.com/v1/proxy/?quest=';
 
+// ── 전리그 위젯 레이아웃 ─────────────────────────────────
+// 연속기록 칼럼을 떼어내 5개 리그가 가로 폭을 나눠 쓴다.
+// 각 칼럼은 행 끝의 유연 스페이서로 남는 폭을 함께 차지하므로,
+// 바깥 여백과 칼럼 간격을 줄인 만큼 그대로 칼럼 폭으로 돌아간다.
+const COL_GAP     = 2;   // 칼럼 사이 간격 (기존 3)
+const EDGE_PAD    = 8;   // 위젯 좌우 여백 (기존 12)
+const CARD_PAD_X  = 4;   // 칼럼 카드 좌우 안쪽 여백 (기존 5)
+const LOGO_SIZE   = 20;  // 팀 로고 (기존 17)
+const NAME_CHARS  = 6;   // 로고 없을 때 팀명 최대 글자 (기존 5)
+
 const C = {
   bg:   Color.dynamic(new Color('#f0f4f8'), new Color('#070c18')),
   card: Color.dynamic(new Color('#dce5f2'), new Color('#0d1928')),
@@ -147,19 +157,6 @@ function parseKoreanStreak(text) {
   m = s.match(/^(\d+)\s*(승|패)$/);
   if (m) return { type: m[2] === '승' ? 'W' : 'L', count: parseInt(m[1]) };
   return null;
-}
-
-function extractStreaks(teams, min = 5) {
-  const wins = [], losses = [];
-  for (const t of teams) {
-    if (!t.streak || t.streak.count < min) continue;
-    const e = { team: t.team, count: t.streak.count };
-    if (t.streak.type === 'W') wins.push(e);
-    else losses.push(e);
-  }
-  wins.sort((a, b) => b.count - a.count);
-  losses.sort((a, b) => b.count - a.count);
-  return { wins, losses };
 }
 
 // ── Data fetch ───────────────────────────────────────────
@@ -362,92 +359,6 @@ async function fetchNpb(leagueFilter) {
   return groups;
 }
 
-// NPB 연승/연패: 웹앱 _computeNpbStreaks 로직을 regex로 재구현
-async function computeNpbStreaks() {
-  const NORM = {
-    '巨人':'読売','ORIX':'オリックス','スワローズ':'ヤクルト','読売ジャイアンツ':'読売',
-    '北海道日本ハム':'日本ハム','ファイターズ':'日本ハム','ハム':'日本ハム',
-    'バファローズ':'オリックス','イーグルス':'楽天','マリーンズ':'ロッテ',
-    'ライオンズ':'西武','ホークス':'ソフトバンク',
-  };
-  const NPB_KO = {
-    'ヤクルト':'야쿠르트','広島':'히로시마','読売':'요미우리','中日':'주니치',
-    'DeNA':'DeNA','阪神':'한신','ソフトバンク':'소프트뱅크','日本ハム':'닛폰햄',
-    '楽天':'라쿠텐','ロッテ':'롯데','オリックス':'ORIX','西武':'세이부',
-  };
-  const month   = String(NOW.getMonth() + 1).padStart(2, '0');
-  const prevM   = NOW.getMonth() === 0 ? 12 : NOW.getMonth();
-  const prevY   = NOW.getMonth() === 0 ? YEAR - 1 : YEAR;
-  const prevMStr = String(prevM).padStart(2, '0');
-
-  const fetchHtml = async url => {
-    // iOS widget has no CORS: try direct URL first, then proxies as fallback
-    for (const pUrl of [
-      url,
-      `${CTABS}${encodeURIComponent(url)}`,
-      `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    ]) {
-      try {
-        const req = new Request(pUrl); req.timeoutInterval = 6;
-        const t = await req.loadString();
-        if (t && t.length > 200) return t;
-      } catch {}
-    }
-    return '';
-  };
-
-  const htmls = await Promise.all([
-    fetchHtml(`https://npb.jp/games/${prevY}/schedule_${prevMStr}_detail.html`),
-    fetchHtml(`https://npb.jp/games/${YEAR}/schedule_${month}_detail.html`),
-  ]);
-
-  const games = [];
-
-  for (let idx = 0; idx < htmls.length; idx++) {
-    const html = htmls[idx];
-    if (!html) continue;
-    // <tr id="date{MMDD}"> 패턴 — 웹앱의 doc.querySelectorAll('tr[id]') 대응
-    for (const [, trId, trBody] of [...html.matchAll(/<tr\b[^>]*\bid="date(\d{4})"[^>]*>([\s\S]*?)<\/tr>/gi)]) {
-      const byClass = cls => {
-        const m = trBody.match(new RegExp(`class="[^"]*\\b${cls}\\b[^"]*"[^>]*>([\\s\\S]*?)<\\/`, 'i'));
-        return m ? m[1].replace(/<[^>]+>/g, '').trim() : '';
-      };
-      let t1 = byClass('team1'), t2 = byClass('team2');
-      const s1s = byClass('score1'), s2s = byClass('score2');
-      if (!t1 || !t2 || !/^\d+$/.test(s1s) || !/^\d+$/.test(s2s)) continue;
-      t1 = NORM[t1] || t1;
-      t2 = NORM[t2] || t2;
-      const mm = parseInt(trId.slice(0, 2)), dd = parseInt(trId.slice(2, 4));
-      games.push({ dateKey: idx * 10000 + mm * 100 + dd, t1, t2, s1: +s1s, s2: +s2s });
-    }
-  }
-
-  games.sort((a, b) => a.dateKey - b.dateKey);
-
-  const teamSeq = {};
-  for (const g of games) {
-    const r1 = g.s1 > g.s2 ? 'W' : g.s1 < g.s2 ? 'L' : 'D';
-    const r2 = g.s2 > g.s1 ? 'W' : g.s2 < g.s1 ? 'L' : 'D';
-    (teamSeq[g.t1] = teamSeq[g.t1] || []).push(r1);
-    (teamSeq[g.t2] = teamSeq[g.t2] || []).push(r2);
-  }
-
-  const result = {};
-  for (const [jp, seq] of Object.entries(teamSeq)) {
-    if (!seq.length) continue;
-    const last = seq[seq.length - 1];
-    if (last === 'D') continue;
-    let count = 0;
-    for (let i = seq.length - 1; i >= 0 && seq[i] === last; i--) count++;
-    const ko = NPB_KO[jp];
-    if (ko && count > 0) result[ko] = { count, type: last };
-  }
-  return result;
-}
-
-// 스케줄 JSON은 팀 영문명(...EnName)을 제공하지 않는다. TeamCode와 중문 팀명만 있으므로
-// 로고 키('cpbl:Brothers' 등)와 일치하도록 영문 표기로 정규화한다.
 const CPBL_TEAM_BY_CODE = {
   ACN011: 'Brothers',   // 中信兄弟
   AAA011: 'Dragons',    // 味全龍
@@ -625,75 +536,6 @@ function addDivider(parent) {
 }
 
 // 우측 연승/연패 컬럼 (all 위젯 전용)
-function addStreakColumn(parent, entries) {
-  const card = parent.addStack();
-  card.layoutVertically();
-  card.backgroundColor = C.card;
-  card.cornerRadius = 7;
-  card.setPadding(6, 5, 6, 5);
-
-  const hdr = card.addText('연속기록');
-  hdr.font = Font.boldSystemFont(9);
-  hdr.textColor = C.mu;
-  card.addSpacer(5);
-
-  if (!entries.length) {
-    const none = card.addText('연속기록\n없음');
-    none.font = Font.systemFont(9);
-    none.textColor = C.mu;
-    card.addSpacer();
-    return;
-  }
-
-  let first = true;
-  for (const e of entries) {
-    if (!first) {
-      card.addSpacer(2);
-      const dl = card.addStack();
-      dl.backgroundColor = C.div;
-      dl.size = new Size(0, 1);
-      card.addSpacer(2);
-    }
-    first = false;
-
-    const row = card.addStack();
-    row.layoutHorizontally();
-    row.centerAlignContent();
-
-    // 연승/연패 아이콘
-    const ic = row.addText(e.type === 'W' ? '🔥' : '💧');
-    ic.font = Font.systemFont(9);
-    row.addSpacer(2);
-
-    // 팀 로고 or 팀명
-    if (e.logoImg) {
-      const imgEl = row.addImage(e.logoImg);
-      imgEl.imageSize = new Size(16, 16);
-      imgEl.cornerRadius = 2;
-    } else {
-      const tm = row.addText(e.team.slice(0, 4));
-      tm.font = Font.boldSystemFont(10);
-      tm.textColor = C.tx;
-      tm.minimumScaleFactor = 0.75;
-    }
-    row.addSpacer(3);
-
-    // 연승/연패 수
-    const cnt = row.addText(`${e.count}${e.type === 'W' ? '연승' : '연패'}`);
-    cnt.font = Font.boldSystemFont(10);
-    cnt.textColor = e.type === 'W' ? C.win : C.lose;
-    row.addSpacer(2);
-
-    // 리그 태그
-    const lg = row.addText(e.league);
-    lg.font = Font.systemFont(8);
-    lg.textColor = C.mu;
-    row.addSpacer();
-  }
-
-  card.addSpacer();
-}
-
 function addCell(parent, team, leagueColor, leagueKey) {
   const cell = parent.addStack();
   cell.layoutVertically();
@@ -733,11 +575,13 @@ function addLeagueColumn(parent, labelText, color, sections, logoFn, leagueKey) 
   card.layoutVertically();
   card.backgroundColor = C.card;
   card.cornerRadius = 7;
-  card.setPadding(6, 5, 6, 5);
+  card.setPadding(6, CARD_PAD_X, 6, CARD_PAD_X);
 
   const lbl = card.addText(labelText);
   lbl.font = Font.boldSystemFont(10);
   lbl.textColor = color;
+  lbl.lineLimit = 1;
+  lbl.minimumScaleFactor = 0.7;
   card.addSpacer(3);
 
   let firstRow = true;
@@ -780,13 +624,15 @@ function addLeagueColumn(parent, labelText, color, sections, logoFn, leagueKey) 
       const logoImg = (logoFn && leagueKey) ? logoFn(leagueKey, team.team) : null;
       if (logoImg) {
         const imgEl = row.addImage(logoImg);
-        imgEl.imageSize = new Size(17, 17);
+        imgEl.imageSize = new Size(LOGO_SIZE, LOGO_SIZE);
         imgEl.cornerRadius = 2;
       } else {
-        const tEl = row.addText((team.team || '').slice(0, 5));
-        tEl.font = Font.boldSystemFont(12);
+        // lineLimit=1 — 넓어진 폭에서도 "히로시\n마"처럼 줄바꿈되지 않게 한다
+        const tEl = row.addText((team.team || '').slice(0, NAME_CHARS));
+        tEl.font = Font.boldSystemFont(13);
         tEl.textColor = C.tx;
-        tEl.minimumScaleFactor = 0.65;
+        tEl.lineLimit = 1;
+        tEl.minimumScaleFactor = 0.6;
       }
       row.addSpacer();
     }
@@ -884,7 +730,7 @@ async function buildWidget() {
 async function buildAllWidget() {
   const widget = new ListWidget();
   widget.backgroundColor = C.bg;
-  widget.setPadding(10, 12, 8, 12);
+  widget.setPadding(10, EDGE_PAD, 8, EDGE_PAD);
 
   const hdr = widget.addStack();
   hdr.layoutHorizontally();
@@ -899,13 +745,12 @@ async function buildAllWidget() {
   widget.addSpacer(8);
 
   const results = await Promise.allSettled([
-    fetchKbo(), fetchNpb('npb'), fetchMlbAll(), computeNpbStreaks(), fetchCpbl(),
+    fetchKbo(), fetchNpb('npb'), fetchMlbAll(), fetchCpbl(),
   ]);
   const kboTeams    = results[0].status === 'fulfilled' ? results[0].value : [];
   const npbGroups   = results[1].status === 'fulfilled' ? results[1].value : [];
   const mlbAll      = results[2].status === 'fulfilled' ? results[2].value : { nl: [], al: [] };
-  const npbStreakMap = results[3].status === 'fulfilled' ? results[3].value : {};
-  const cpblGroups  = results[4].status === 'fulfilled' ? results[4].value : [];
+  const cpblGroups  = results[3].status === 'fulfilled' ? results[3].value : [];
 
   const anyLoaded = kboTeams.length || npbGroups.length || mlbAll.nl.length || mlbAll.al.length || cpblGroups.length;
   try {
@@ -916,10 +761,6 @@ async function buildAllWidget() {
       errEl.textColor = C.mu;
       errEl.minimumScaleFactor = 0.7;
     } else {
-      for (const g of npbGroups)
-        for (const t of g.teams)
-          t.streak = npbStreakMap[t.team] || null;
-
       const npbSec = npbGroups.map(g => ({
         section: g.section === '센트럴리그' ? 'セ' : g.section === '퍼시픽리그' ? 'パ' : g.section,
         teams: g.teams,
@@ -934,43 +775,20 @@ async function buildAllWidget() {
       ];
       await downloadMissingLogos(allTeamKeys);
 
-      const collectEntries = (teams, league, lKey, min) => {
-        const ws = [], ls = [];
-        for (const t of teams) {
-          if (!t.streak || t.streak.count < min) continue;
-          const logoImg = logoSync(lKey, t.team);
-          const e = { team: t.team, count: t.streak.count, type: t.streak.type, league, logoImg };
-          if (t.streak.type === 'W') ws.push(e); else ls.push(e);
-        }
-        ws.sort((a, b) => b.count - a.count);
-        ls.sort((a, b) => b.count - a.count);
-        return [...ws, ...ls];
-      };
-      const gatherEntries = min => [
-        ...collectEntries(kboTeams, 'KBO', 'kbo', min),
-        ...collectEntries(npbGroups.flatMap(g => g.teams), 'NPB', 'npb', min),
-        ...collectEntries(cpblGroups.flatMap(g => g.teams), 'CPBL', 'cpbl', min),
-        ...collectEntries(mlbAll.nl.flatMap(g => g.teams), 'NL', 'mlb', min),
-        ...collectEntries(mlbAll.al.flatMap(g => g.teams), 'AL', 'mlb', min),
-      ];
-      // 5연속 없으면 3연속으로 자동 하향
-      let streakEntries = gatherEntries(5);
-      if (!streakEntries.length) streakEntries = gatherEntries(3);
-
+      // 연속기록은 전용 위젯(scriptable-streaks.js)으로 분리 —
+      // 여기서는 5개 리그가 가로 폭을 나눠 쓴다.
       const content = widget.addStack();
       content.layoutHorizontally();
 
       addLeagueColumn(content, '🇰🇷 KBO',  C.kbo,  [{ section: null, teams: kboTeams }], logoSync, 'kbo');
-      content.addSpacer(3);
+      content.addSpacer(COL_GAP);
       addLeagueColumn(content, '🇯🇵 NPB',  C.npb,  npbSec, logoSync, 'npb');
-      content.addSpacer(3);
+      content.addSpacer(COL_GAP);
       addLeagueColumn(content, '🇹🇼 CPBL', C.cpbl, cpblGroups, logoSync, 'cpbl');
-      content.addSpacer(3);
+      content.addSpacer(COL_GAP);
       addLeagueColumn(content, '🇺🇸 NL',   C.mlb,  mlbAll.nl, logoSync, 'mlb');
-      content.addSpacer(3);
+      content.addSpacer(COL_GAP);
       addLeagueColumn(content, 'AL',        C.mlb,  mlbAll.al, logoSync, 'mlb');
-      content.addSpacer(3);
-      addStreakColumn(content, streakEntries);
     }
   } catch (renderErr) {
     widget.addSpacer(4);
