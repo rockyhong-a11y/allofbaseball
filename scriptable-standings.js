@@ -142,6 +142,10 @@ function parseKoreanStreak(text) {
   // "연패13" / "연승3" (type first)
   m = s.match(/(연승|연패)(\d+)/);
   if (m) return { type: m[1] === '연승' ? 'W' : 'L', count: parseInt(m[2]) };
+  // KBO GetTeamRank의 연속 칼럼은 '연' 없이 "2승" / "7패" 형식으로 온다.
+  // 전체 일치로만 허용 — "7승0무3패"(최근10경기) 같은 값이 잘못 잡히지 않도록.
+  m = s.match(/^(\d+)\s*(승|패)$/);
+  if (m) return { type: m[2] === '승' ? 'W' : 'L', count: parseInt(m[1]) };
   return null;
 }
 
@@ -170,14 +174,12 @@ async function fetchKbo() {
     const raw = row[1]?.Text || '';
     const m = raw.match(/>([^<]+)</);
     const short = m ? m[1].trim() : raw.replace(/<[^>]+>/g, '').trim();
-    const raw8 = (row[8]?.Text || '').replace(/<[^>]+>/g, '').trim();
-    const raw9 = (row[9]?.Text || '').replace(/<[^>]+>/g, '').trim();
-    let streak = parseKoreanStreak(raw8) || parseKoreanStreak(raw9);
-    if (!streak) {
-      const combined = raw8 + raw9;
-      const t = combined.includes('연승') ? 'W' : combined.includes('연패') ? 'L' : null;
-      const cnt = parseInt(raw9) || parseInt(raw8);
-      if (t && cnt > 0) streak = { type: t, count: cnt };
+    // 응답은 셀 9개(0~8): 순위·팀·경기·승·패·무·승률·게임차·연속
+    // 연속은 row[8]. 칼럼이 밀리더라도 동작하도록 실패 시 뒤에서부터 훑는다.
+    const cells = row.map(c => String(c?.Text || '').replace(/<[^>]+>/g, '').trim());
+    let streak = parseKoreanStreak(cells[8]);
+    for (let ci = cells.length - 1; ci >= 2 && !streak; ci--) {
+      streak = parseKoreanStreak(cells[ci]);
     }
     return {
       rank: i + 1, team: short,
