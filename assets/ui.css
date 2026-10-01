@@ -512,6 +512,67 @@ body[data-view="transactions"] .view-header { display: none; }
   .dialog-heading h2 { font-size: 19px; }
   .glossary { grid-template-columns: 65px 1fr; font-size: 12px; }
 }
+@media (max-width: 760px) {
+  #lg-content .lg-tbl-wrap { overflow-x: visible; padding-bottom: 0; }
+  #lg-content .table-scroll-hint { display: none !important; }
+  #lg-content .lg-tbl { display: block; width: 100%; min-width: 0; white-space: normal; }
+  #lg-content .lg-tbl thead { display: none; }
+  #lg-content .lg-tbl tbody { display: grid; gap: 10px; padding: 12px; }
+
+  #lg-content .lg-tbl:not(.standings-table) tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+    grid-template-areas:
+      "away score home"
+      "venue venue state";
+    gap: 10px 7px;
+    align-items: center;
+    padding: 14px 12px;
+    border: 1px solid var(--bd);
+    border-radius: 10px;
+    background: var(--c1);
+  }
+  #lg-content .lg-tbl:not(.standings-table) td { min-width: 0; padding: 0; border: 0; background: transparent !important; }
+  #lg-content .lg-tbl:not(.standings-table) .team-away { grid-area: away; display: flex; align-items: center; justify-content: flex-end; gap: 6px; text-align: right; overflow-wrap: anywhere; }
+  #lg-content .lg-tbl:not(.standings-table) .score-cell { grid-area: score; font-size: 17px; white-space: nowrap; }
+  #lg-content .lg-tbl:not(.standings-table) .team-home { grid-area: home; display: flex; align-items: center; justify-content: flex-start; gap: 6px; text-align: left; overflow-wrap: anywhere; }
+  #lg-content .lg-tbl:not(.standings-table) td:nth-child(4) { grid-area: venue; color: var(--mu2); font-size: 12px; text-align: left; overflow-wrap: anywhere; }
+  #lg-content .lg-tbl:not(.standings-table) td:nth-child(4)::before { content: '구장 · '; color: var(--mu); }
+  #lg-content .lg-tbl:not(.standings-table) td:nth-child(5) { grid-area: state; justify-self: end; text-align: right; }
+  #lg-content .lg-tbl:not(.standings-table) .team-logo { width: 25px; height: 25px; flex: 0 0 25px; }
+
+  #lg-content .standings-table tr:not(.lg-div-row) {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    align-items: center;
+    gap: 9px 2px;
+    padding: 12px 10px 11px;
+    border: 1px solid var(--bd);
+    border-radius: 10px;
+    background: var(--c1);
+  }
+  #lg-content .standings-table td { min-width: 0; padding: 0; border: 0; background: transparent !important; box-shadow: none !important; text-align: center; }
+  #lg-content .standings-table .rank-cell { position: static; grid-column: 1; grid-row: 1; width: 32px; min-width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft) !important; color: var(--ac); font-size: 14px; }
+  #lg-content .standings-table .tm-name { position: static; grid-column: 2 / -1; grid-row: 1; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0; font-size: 14px; text-align: left; overflow-wrap: anywhere; }
+  #lg-content .standings-table td:nth-child(n+3) { grid-row: 2; display: grid; gap: 2px; color: var(--tx); font-size: 13px; font-weight: 700; }
+  #lg-content .standings-table td:nth-child(n+3)::before { color: var(--mu); font-size: 11px; font-weight: 500; line-height: 1.2; }
+  #lg-content .standings-table td:nth-child(3) { grid-column: 1; }
+  #lg-content .standings-table td:nth-child(4) { grid-column: 2; }
+  #lg-content .standings-table td:nth-child(5) { grid-column: 3; }
+  #lg-content .standings-table td:nth-child(6) { grid-column: 4; }
+  #lg-content .standings-table td:nth-child(7) { grid-column: 5; }
+  #lg-content .standings-table td:nth-child(8) { grid-column: 6; }
+  #lg-content .standings-table td:nth-child(9) { grid-column: 7; }
+  #lg-content .standings-table td:nth-child(3)::before { content: '경기'; }
+  #lg-content .standings-table td:nth-child(4)::before { content: '승'; }
+  #lg-content .standings-table td:nth-child(5)::before { content: '패'; }
+  #lg-content .standings-table td:nth-child(6)::before { content: '무'; }
+  #lg-content .standings-table td:nth-child(7)::before { content: '승률'; }
+  #lg-content .standings-table td:nth-child(8)::before { content: '게차'; }
+  #lg-content .standings-table td:nth-child(9)::before { content: '연속'; }
+  #lg-content .standings-table .lg-div-row { display: block; border: 0; background: transparent; }
+  #lg-content .standings-table .lg-div-row td { display: block; padding: 11px 5px 2px; border: 0; border-radius: 0; background: transparent !important; color: var(--ac); text-align: left; font-size: 13px; font-weight: 700; }
+}
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
