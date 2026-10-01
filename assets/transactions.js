@@ -76,8 +76,14 @@
   }
 
   async function loadKbo() {
-    const url = `https://raw.githubusercontent.com/rockyhong-a11y/BBNews/main/kbo-cache.json?_=${Date.now()}`;
-    const data = await fetchJson(url);
+    const remote = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/kbo_transactions.json?_=${Date.now()}`;
+    let data;
+    try {
+      const response = await fetch(remote, {cache: 'no-store', signal: AbortSignal.timeout(12000)});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      data = await response.json();
+    }
+    catch (_) { data = await fetchJson(`data/kbo_transactions.json?_=${Date.now()}`); }
     const items = (data.rows || []).map(record => {
       const cells = (record.row || []).map(cell => String(cell?.Text || '').trim());
       if (cells.length < 4) return null;
