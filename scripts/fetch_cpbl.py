@@ -9,6 +9,7 @@ CPBL 선수 연도별 기록 + 시즌 스케줄 수집 스크립트 (curl 버전
 """
 import json, re, time, sys, os, argparse, subprocess, tempfile
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
@@ -20,17 +21,21 @@ CURL_UA = (
 )
 
 # ── curl 헬퍼 ─────────────────────────────────────────────
-def curl_get(url) -> tuple[str, str]:
+def curl_get(url) -> tuple[str, str, str]:
     """
-    curl로 페이지 GET → (html, __RequestVerificationToken cookie값) 반환
+    curl로 페이지 GET → (html, __RequestVerificationToken cookie값, cookie jar 경로) 반환
     """
     with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as tf:
         tmp = tf.name
+    with tempfile.NamedTemporaryFile(suffix='.cookies', delete=False) as cf:
+        cookie_jar = cf.name
 
     # -D - 로 응답 헤더를 stdout에, 본문은 파일에 저장
     result = subprocess.run(
         [
             'curl', '-s', '-L',
+            '-c', cookie_jar,
+            '-b', cookie_jar,
             '-D', '-',          # 헤더를 stdout으로
             '-o', tmp,          # 본문은 파일로
             '-H', f'User-Agent: {CURL_UA}',
@@ -51,10 +56,23 @@ def curl_get(url) -> tuple[str, str]:
             if m:
                 cookie_val = m.group(1)
 
+    # CPBL은 www 리디렉션 뒤 쿠키 엔진이 활성화된 요청에만 CSRF 쿠키를
+    # 내려주기도 한다. 이 경우 응답 헤더 대신 cookie jar에서 읽는다.
+    if not cookie_val:
+        try:
+            with open(cookie_jar, encoding='utf-8') as f:
+                for line in f:
+                    if not line.startswith('#') and '__RequestVerificationToken' in line:
+                        cookie_val = line.rstrip().split('\t')[-1]
+                    elif line.startswith('#HttpOnly_') and '__RequestVerificationToken' in line:
+                        cookie_val = line.rstrip().split('\t')[-1]
+        except OSError:
+            pass
+
     with open(tmp, 'r', encoding='utf-8', errors='replace') as f:
         html = f.read()
     os.unlink(tmp)
-    return html, cookie_val
+    return html, cookie_val, cookie_jar
 
 
 def extract_js_tokens(html: str) -> list[str]:
@@ -62,27 +80,31 @@ def extract_js_tokens(html: str) -> list[str]:
 
 
 def curl_post_json(api_url: str, body_dict: dict, token: str,
-                   cookie: str, referer: str) -> dict:
+                   cookie: str, referer: str, cookie_jar: str = '') -> dict:
     """
     curl로 CSRF 인증 POST → JSON 파싱 결과 반환
     """
     body = '&'.join(f'{k}={v}' for k, v in body_dict.items())
-    result = subprocess.run(
-        [
+    command = [
             'curl', '-s',
+            '-L',
             '-X', 'POST',
             '-H', 'Content-Type: application/x-www-form-urlencoded',
             '-H', 'X-Requested-With: XMLHttpRequest',
             '-H', f'RequestVerificationToken: {token}',
             '-H', f'Cookie: __RequestVerificationToken={cookie}',
-            '-H', f'Origin: https://cpbl.com.tw',
+            '-H', f'Origin: https://www.cpbl.com.tw',
             '-H', f'Referer: {referer}',
             '-H', f'User-Agent: {CURL_UA}',
             '-H', 'Accept: application/json, */*',
             '--max-time', '30',
             '--data', body,
             api_url,
-        ],
+        ]
+    if cookie_jar:
+        command[2:2] = ['-c', cookie_jar, '-b', cookie_jar]
+    result = subprocess.run(
+        command,
         capture_output=True, text=True, timeout=40
     )
     return json.loads(result.stdout)
@@ -110,22 +132,24 @@ def fetch_all_stats(index_html_path: str) -> dict:
 
         try:
             page_url = f'https://cpbl.com.tw/team/person?Acnt={acnt}'
-            html, cookie = curl_get(page_url)
+            html, cookie, cookie_jar = curl_get(page_url)
             tokens = extract_js_tokens(html)
 
             if not tokens or not cookie:
                 print(f'토큰 없음 (t={len(tokens)}, c={bool(cookie)})')
+                if os.path.exists(cookie_jar): os.unlink(cookie_jar)
                 fail += 1
                 continue
 
             token = tokens[1] if (not is_batter and len(tokens) > 1) else tokens[0]
-            api_url = ('https://cpbl.com.tw/team/getpitchscore'
+            api_url = ('https://www.cpbl.com.tw/team/getpitchscore'
                        if not is_batter else
-                       'https://cpbl.com.tw/team/getbattingscore')
+                       'https://www.cpbl.com.tw/team/getbattingscore')
 
             result = curl_post_json(api_url,
                                     {'acnt': acnt, 'kindCode': 'A'},
-                                    token, cookie, page_url)
+                                    token, cookie, page_url, cookie_jar)
+            if os.path.exists(cookie_jar): os.unlink(cookie_jar)
 
             if result.get('Success'):
                 raw_key = 'BattingScore' if is_batter else 'PitchScore'
@@ -156,7 +180,7 @@ def fetch_all_stats(index_html_path: str) -> dict:
 def fetch_schedule(year: int):
     print(f'📅 CPBL {year} 스케줄 수집 (curl)...')
     try:
-        html, cookie = curl_get('https://cpbl.com.tw/schedule')
+        html, cookie, cookie_jar = curl_get('https://www.cpbl.com.tw/schedule')
         tokens = extract_js_tokens(html)
 
         if not tokens or not cookie:
@@ -165,11 +189,12 @@ def fetch_schedule(year: int):
 
         token = tokens[1] if len(tokens) > 1 else tokens[0]
         result = curl_post_json(
-            'https://cpbl.com.tw/schedule/getgamedatas',
+            'https://www.cpbl.com.tw/schedule/getgamedatas',
             {'calendar': f'{year}/01/01', 'location': '', 'kindCode': 'A'},
             token, cookie,
-            'https://cpbl.com.tw/schedule'
+            'https://www.cpbl.com.tw/schedule', cookie_jar
         )
+        if os.path.exists(cookie_jar): os.unlink(cookie_jar)
 
         if result.get('Success'):
             raw_val = result.get('GameDatas') or result.get('Data') or '[]'
@@ -206,7 +231,7 @@ def main():
     except Exception:
         meta = {}
 
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M KST')
+    now_str = datetime.now(ZoneInfo('Asia/Seoul')).strftime('%Y-%m-%d %H:%M KST')
 
     if do_stats:
         idx_path = os.path.join(BASE_DIR, 'index.html')
