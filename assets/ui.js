@@ -65,19 +65,32 @@
     document.querySelectorAll('.lg-tab').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.tab === _lgTab));
     });
+    const txOpen = view === 'transactions';
+    const txNav = document.getElementById('transaction-nav');
+    txNav.hidden = !txOpen;
+    document.querySelector('[data-view-link="transactions"]').setAttribute('aria-expanded', String(txOpen));
+    document.querySelectorAll('[data-tx-league]').forEach(button => {
+      const active = txOpen && button.dataset.txLeague === window.txCurrentLeague;
+      button.classList.toggle('on', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
   }
 
   function setView(view) {
     document.body.dataset.view = view;
     const isLeague = view === 'league';
-    const label = isLeague ? (_lgTab === 'standings' ? '리그 순위' : '경기 일정') : '선수 검색';
+    const isTransactions = view === 'transactions';
+    const label = isTransactions ? '이적/등록' : isLeague ? (_lgTab === 'standings' ? '리그 순위' : '경기 일정') : '선수 검색';
     document.getElementById('breadcrumb-view').textContent = label;
-    document.getElementById('view-heading').textContent = isLeague ? label : '선수 기록';
-    document.getElementById('view-description').textContent = isLeague
+    document.getElementById('view-heading').textContent = isTransactions ? '이적·등록 소식' : isLeague ? label : '선수 기록';
+    document.getElementById('view-description').textContent = isTransactions
+      ? '리그별 선수 이동과 등록 현황을 확인하세요.'
+      : isLeague
       ? '네 개 리그의 경기 일정과 팀 순위를 확인하세요.'
       : '시즌별 기록과 통산 성적을 확인하세요.';
-    document.getElementById('back-home').textContent = isLeague ? '선수 검색' : '선수 목록';
-    syncNavigation(isLeague ? _lgTab : 'search');
+    document.getElementById('back-home').textContent = (isLeague || isTransactions) ? '선수 검색' : '선수 목록';
+    document.getElementById('tx-panel').hidden = !isTransactions;
+    syncNavigation(isTransactions ? 'transactions' : isLeague ? _lgTab : 'search');
     syncInput();
     window.appToggleMenu(false, false);
     scheduleEnhancement();
@@ -101,6 +114,7 @@
 
   window.appGoHome = (focus = false) => {
     closeLeague();
+    document.getElementById('tx-panel').hidden = true;
     window.scrollTo({top: 0, behavior: 'instant'});
     if (focus) input.focus({preventScroll: true});
   };
@@ -164,12 +178,33 @@
   };
 
   window.appShowLeague = (league = null, tab = null) => {
+    document.getElementById('tx-panel').hidden = true;
     const nextLeague = league || _lgCur || lastLeague;
     const nextTab = tab || (_lgCur ? _lgTab : 'schedule');
     if (_lgCur !== nextLeague) toggleLeague(nextLeague, nextTab);
     else if (_lgTab !== nextTab) switchLgTab(nextTab);
     else window.appSyncLeague();
     window.scrollTo({top: 0, behavior: 'instant'});
+  };
+
+  window.appShowTransactions = () => {
+    if (_lgCur) closeLeague();
+    window.appInvalidateSearch();
+    main.replaceChildren();
+    document.getElementById('featured').style.display = 'none';
+    document.getElementById('tx-panel').hidden = false;
+    setView('transactions');
+    window.scrollTo({top: 0, behavior: 'instant'});
+  };
+
+  window.appLoadTransactions = league => {
+    window.appShowTransactions();
+    window.txSelectLeague?.(league);
+    syncNavigation('transactions');
+  };
+
+  window.appRefreshTransactions = () => {
+    if (window.txCurrentLeague) window.txSelectLeague?.(window.txCurrentLeague, true);
   };
 
   document.getElementById('lg-date-input').addEventListener('change', event => {
@@ -309,13 +344,18 @@
     const panel = document.getElementById('lg-content');
     enhanceTables(panel);
     const leagueView = document.body.dataset.view === 'league';
-    const root = leagueView ? panel : main;
+    const transactionView = document.body.dataset.view === 'transactions';
+    const txContent = document.getElementById('tx-content');
+    const root = transactionView ? txContent : leagueView ? panel : main;
     const busy = Boolean(root.querySelector('.spin, .is-loading'));
     main.setAttribute('aria-busy', String(!leagueView && busy));
     panel.setAttribute('aria-busy', String(leagueView && busy));
+    txContent.setAttribute('aria-busy', String(transactionView && busy));
     if (document.body.dataset.view === 'search') return;
     const count = root.querySelectorAll('.prof').length;
-    const status = busy ? '기록을 불러오고 있어요.' : leagueView
+    const status = busy ? '기록을 불러오고 있어요.' : transactionView
+      ? (root.querySelector('.tx-empty, .tx-error')?.textContent || `${(window.txCurrentLeague || '').toUpperCase()} 이적·등록 소식을 불러왔어요.`)
+      : leagueView
       ? `${(_lgCur || '').toUpperCase()} ${_lgTab === 'standings' ? '리그 순위' : '경기 일정'} 조회를 마쳤어요.`
       : count ? `${input.value} 검색 결과 ${count}건을 불러왔어요.`
         : (root.querySelector('.sbox p, .lg-err')?.textContent || '조회 결과를 확인하세요.');
@@ -331,6 +371,7 @@
   const observer = new MutationObserver(scheduleEnhancement);
   observer.observe(main, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
   observer.observe(document.getElementById('lg-panel'), {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
+  observer.observe(document.getElementById('tx-panel'), {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
   window.addEventListener('resize', scheduleEnhancement);
   input.addEventListener('input', syncInput);
   document.fonts.ready.then(scheduleEnhancement);
