@@ -279,18 +279,16 @@
       <button type="button" class="nav-item active" data-view-link="search" onclick="appGoHome()" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span>선수 검색</span></button>
       <button type="button" class="nav-item" data-view-link="schedule" onclick="appShowLeague(null, 'schedule')"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 4h2m4 0h2m-8 4h2"/></svg><span>경기 일정</span></button>
       <button type="button" class="nav-item" data-view-link="standings" onclick="appShowLeague(null, 'standings')"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8v7a4 4 0 0 1-8 0V3ZM8 5H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 2v5m-4 2h8m-6-2h4"/></svg><span>리그 순위</span></button>
+      <button type="button" class="nav-item" data-view-link="transactions" onclick="appShowTransactions()" aria-expanded="false" aria-controls="transaction-nav"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h13m-4-4 4 4-4 4M17 17H4m4-4-4 4 4 4"/></svg><span>이적/등록</span></button>
     </div>
-    <p class="nav-label">LEAGUES</p>
-    <div class="league-nav">
-      <button type="button" class="lg-nav-btn kbo-btn" data-league="kbo" onclick="appShowLeague('kbo')" aria-label="KBO 경기 일정과 순위" aria-pressed="false"><span class="lg-token">KBO</span><span class="league-label">한국 프로야구<small>Korea</small></span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
-      <button type="button" class="lg-nav-btn mlb-btn" data-league="mlb" onclick="appShowLeague('mlb')" aria-label="MLB 경기 일정과 순위" aria-pressed="false"><span class="lg-token">MLB</span><span class="league-label">메이저리그<small>United States</small></span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
-      <button type="button" class="lg-nav-btn npb-btn" data-league="npb" onclick="appShowLeague('npb')" aria-label="NPB 경기 일정과 순위" aria-pressed="false"><span class="lg-token">NPB</span><span class="league-label">일본 프로야구<small>Japan</small></span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
-      <button type="button" class="lg-nav-btn cpbl-btn" data-league="cpbl" onclick="appShowLeague('cpbl')" aria-label="CPBL 경기 일정과 순위" aria-pressed="false"><span class="lg-token">CPBL</span><span class="league-label">대만 프로야구<small>Taiwan</small></span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+    <div class="transaction-nav" id="transaction-nav" aria-label="이적·등록 리그 선택" hidden>
+      <button type="button" class="tx-nav-btn" data-tx-league="kbo" onclick="appLoadTransactions('kbo')"><span class="lg-token">KBO</span><span>한국 프로야구</span></button>
+      <button type="button" class="tx-nav-btn" data-tx-league="mlb" onclick="appLoadTransactions('mlb')"><span class="lg-token">MLB</span><span>메이저리그</span></button>
+      <button type="button" class="tx-nav-btn" data-tx-league="npb" onclick="appLoadTransactions('npb')"><span class="lg-token">NPB</span><span>일본 프로야구</span></button>
+      <button type="button" class="tx-nav-btn" data-tx-league="cpbl" onclick="appLoadTransactions('cpbl')"><span class="lg-token">CPBL</span><span>대만 프로야구</span></button>
     </div>
   </nav>
   <div class="sidebar-bottom">
-    <a href="https://rockyhong-a11y.github.io/BBNews/" target="_blank" rel="noopener noreferrer" class="nav-item" aria-label="이적·등록 소식 (새 창)"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4h7v7m0-7-9 9M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>이적·등록 소식</span></a>
-    <div class="sidebar-divider"></div>
     <button type="button" class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="라이트 모드로 전환"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span>라이트 모드</span></button>
     <p class="sidebar-version">FOUR LEAGUES. ONE GAME.</p>
   </div>
@@ -420,6 +418,19 @@
       </div>
       <div id="lg-content" style="min-height:120px;"></div>
     </div>
+  </section>
+  <section id="tx-panel" aria-labelledby="tx-title" hidden>
+    <div class="tx-heading">
+      <div><span class="tx-eyebrow">PLAYER MOVEMENT</span><h2 id="tx-title">이적·등록 소식</h2><p>확인할 리그를 선택하면 해당 리그의 최신 소식만 불러옵니다.</p></div>
+      <button type="button" class="text-button" id="tx-refresh" onclick="appRefreshTransactions()" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M18.5 9A7 7 0 0 0 6.7 6.7L4 11m16 2-2.7 4.3A7 7 0 0 1 5.5 15"/></svg>새로고침</button>
+    </div>
+    <div class="tx-league-grid" role="group" aria-label="이적·등록 조회 리그">
+      <button type="button" class="tx-league-card" data-tx-league="kbo" onclick="appLoadTransactions('kbo')"><span class="badge b-kbo">KBO</span><strong>한국 프로야구</strong><small>선수 등록·말소·이적</small></button>
+      <button type="button" class="tx-league-card" data-tx-league="mlb" onclick="appLoadTransactions('mlb')"><span class="badge b-mlb">MLB</span><strong>메이저리그</strong><small>공식 트랜잭션</small></button>
+      <button type="button" class="tx-league-card" data-tx-league="npb" onclick="appLoadTransactions('npb')"><span class="badge b-npb">NPB</span><strong>일본 프로야구</strong><small>공시·1군 등록</small></button>
+      <button type="button" class="tx-league-card" data-tx-league="cpbl" onclick="appLoadTransactions('cpbl')"><span class="badge b-cpbl">CPBL</span><strong>대만 프로야구</strong><small>선수 이동 공시</small></button>
+    </div>
+    <div id="tx-content" aria-live="polite"></div>
   </section>
   <div class="main" id="main" role="region" aria-label="선수 검색 결과" tabindex="-1"></div>
   <footer class="app-footer"><span>야구의 모든 순간을, 기록으로.</span><span class="footer-leagues">KBO · MLB · NPB · CPBL</span></footer>
@@ -9265,12 +9276,20 @@ let _cpblStatsDbCache = null;  // 전체 DB 캐시 (1회만 fetch)
 let _cpblCareerCache = {};     // acnt별 캐시
 let _cpblMetaCache = null;
 
+async function _fetchCpblJson(remoteUrl, localUrl, timeout = 15000) {
+  for (const url of [remoteUrl + (remoteUrl.includes('?') ? '&' : '?') + '_=' + Date.now(), localUrl]) {
+    try {
+      const resp = await fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(timeout)});
+      if (resp.ok) return await resp.json();
+    } catch (_) {}
+  }
+  throw new Error('CPBL data unavailable');
+}
+
 async function _loadCpblMeta() {
   if (_cpblMetaCache) return _cpblMetaCache;
   try {
-    const resp = await fetch(CPBL_META_RAW + '?_=' + Date.now(), { signal: AbortSignal.timeout(8000) });
-    if (!resp.ok) return null;
-    _cpblMetaCache = await resp.json();
+    _cpblMetaCache = await _fetchCpblJson(CPBL_META_RAW, 'data/cpbl_meta.json', 8000);
     return _cpblMetaCache;
   } catch(_) { return null; }
 }
@@ -9291,9 +9310,7 @@ async function _fillCpblMeta(type) {
 async function _loadCpblStatsDb() {
   if (_cpblStatsDbCache) return _cpblStatsDbCache;
   try {
-    const resp = await fetch(CPBL_STATS_RAW, { signal: AbortSignal.timeout(15000) });
-    if (!resp.ok) return null;
-    _cpblStatsDbCache = await resp.json();
+    _cpblStatsDbCache = await _fetchCpblJson(CPBL_STATS_RAW, 'data/cpbl_stats.json');
     return _cpblStatsDbCache;
   } catch(_) { return null; }
 }
@@ -9540,10 +9557,8 @@ async function runCpbl(query, requestId = _searchRequestId) {
 let _cpblSchedCache = null;
 async function _loadCpblSchedData(year) {
   if (_cpblSchedCache?.year === String(year)) return _cpblSchedCache.games;
-  const url = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${year}.json`;
-  const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (!resp.ok) throw new Error(`schedule fetch failed: ${resp.status}`);
-  const games = await resp.json();
+  const remote = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${year}.json`;
+  const games = await _fetchCpblJson(remote, `data/cpbl_schedule_${year}.json`);
   if (!Array.isArray(games)) throw new Error('invalid schedule format');
   _cpblSchedCache = { year: String(year), games };
   return games;
@@ -9641,10 +9656,7 @@ async function loadCpblStandings(el) {
   try {
     const yr = _lgDate.getFullYear();
     const DATA_URL = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${yr}.json`;
-    const games = await fetch(DATA_URL, {signal: AbortSignal.timeout(10000)}).then(r => {
-      if (!r.ok) throw new Error('fetch fail');
-      return r.json();
-    });
+    const games = await _fetchCpblJson(DATA_URL, `data/cpbl_schedule_${yr}.json`, 10000);
 
     const rec = {};   // team → {w,l,d}
     const seq = {};   // team → [W/L/D,...]  (date-ordered for streak)
@@ -9713,6 +9725,7 @@ function escH(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
+<script src="assets/transactions.js"></script>
 <script src="assets/ui.js"></script>
 </body>
 </html>
