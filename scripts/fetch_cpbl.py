@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
+STATS_PART_SIZE = 50
 
 CURL_UA = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -210,6 +211,20 @@ def fetch_schedule(year: int):
         return None
 
 
+def write_stats_parts(stats: dict) -> list[str]:
+    """GitHub의 단일 파일 전송 한도를 피하도록 선수 DB를 작은 조각으로 저장한다."""
+    names = []
+    entries = list(stats.items())
+    for index in range(0, len(entries), STATS_PART_SIZE):
+        name = f'cpbl_stats_part_{index // STATS_PART_SIZE + 1}.json'
+        path = os.path.join(DATA_DIR, name)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(dict(entries[index:index + STATS_PART_SIZE]), f,
+                      ensure_ascii=False, separators=(',', ':'))
+        names.append(name)
+    return names
+
+
 # ── 메인 ────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description='CPBL 데이터 수집')
@@ -244,6 +259,7 @@ def main():
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(stats, f, ensure_ascii=False, separators=(',', ':'))
             print(f'💾 저장: {out_path} ({os.path.getsize(out_path)//1024}KB)')
+            meta['stats_parts'] = write_stats_parts(stats)
             meta['stats_updated'] = now_str
 
     if do_sched:
