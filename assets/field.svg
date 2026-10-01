@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" fill="none">
+  <defs>
+    <linearGradient id="field" x1="190" y1="40" x2="350" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60DFB4" stop-opacity=".17"/>
+      <stop offset="1" stop-color="#60DFB4" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="ball" cx="0" cy="0" r="1" gradientTransform="translate(315 83) rotate(55) scale(118)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF8"/>
+      <stop offset=".63" stop-color="#E3EAE8"/>
+      <stop offset="1" stop-color="#879C98"/>
+    </radialGradient>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#8CB6A5" fill-opacity=".17"/>
+    </pattern>
+    <clipPath id="ballClip"><circle cx="335" cy="108" r="65"/></clipPath>
+  </defs>
+  <rect x="20" y="12" width="444" height="236" fill="url(#dots)"/>
+  <ellipse cx="256" cy="197" rx="166" ry="53" stroke="#60DFB4" stroke-opacity=".12"/>
+  <ellipse cx="256" cy="197" rx="135" ry="42" stroke="#60DFB4" stroke-opacity=".13"/>
+  <path d="M82 177 256 54 430 177 256 259Z" fill="url(#field)" stroke="#60DFB4" stroke-opacity=".23"/>
+  <path d="m168 179 88-60 88 60-88 61Z" stroke="#60DFB4" stroke-opacity=".58"/>
+  <path d="M256 240v-84m0 0L82 177m174-21 174 21M168 179l88-60 88 60" stroke="#60DFB4" stroke-opacity=".17"/>
+  <path d="m247 237 9-6 9 6v7h-18Z" fill="#60DFB4" fill-opacity=".8"/>
+  <path d="m159 179 9-6 9 6-9 6Z" fill="#60DFB4"/>
+  <path d="m247 119 9-6 9 6-9 6Z" fill="#60DFB4"/>
+  <path d="m335 179 9-6 9 6-9 6Z" fill="#60DFB4"/>
+  <path d="M136 148C155 64 250 34 338 26" stroke="#60DFB4" stroke-opacity=".5" stroke-dasharray="4 7"/>
+  <circle cx="138" cy="140" r="4" fill="#60DFB4"/>
+  <ellipse cx="339" cy="177" rx="63" ry="13" fill="#080F15" fill-opacity=".35"/>
+  <circle cx="335" cy="108" r="65" fill="url(#ball)"/>
+  <g clip-path="url(#ballClip)" stroke="#AC5960" stroke-width="2">
+    <path d="M274 58c44 17 46 67 16 98M358 38c-31 45-20 88 31 109"/>
+    <path d="m284 66 7-2m-1 8 7-3m-1 10 7-3m-2 11 8-3m-3 11 8-1m-6 10 8 1m-8 9 8 3m-11 6 7 4m-12 5 6 5m-12 3 5 5m43-84 6 5m-10 4 7 4m-9 6 7 2m-8 7 8 1m-7 8 8-1m-5 10 8-2m-3 10 7-3m-1 11 6-5m2 12 5-6m4 11 3-6m6 10 2-6" stroke-linecap="round"/>
+  </g>
+  <circle cx="335" cy="108" r="65" stroke="#FFF" stroke-opacity=".15"/>
+  <path d="M91 48h28m-14-14v28M419 214h17m-8-8v16" stroke="#60DFB4" stroke-opacity=".35"/>
+  <circle cx="412" cy="56" r="4" stroke="#60DFB4" stroke-opacity=".4"/>
+</svg>
