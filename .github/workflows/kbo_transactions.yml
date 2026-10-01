@@ -1,0 +1,51 @@
+name: KBO 이적·등록 자동 수집
+
+on:
+  schedule:
+    # KST 00:30 / 06:30 / 12:30 / 18:30
+    - cron: '30 15,21,3,9 * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: KBO 공식 선수 이동 수집
+        run: |
+          YEAR=$(TZ=Asia/Seoul date +%Y)
+          URL="https://www.koreabaseball.com/ws/Player.asmx/GetTradeList"
+          PARAMS="seasonId=${YEAR}&monthId=0&bdSc=0&teamName=&searchIf=&pageNo=1&listCount=300"
+          curl -sf "${URL}?${PARAMS}" \
+            -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" \
+            -H "Referer: https://www.koreabaseball.com/Player/Trade.aspx" \
+            -H "Accept: application/json, */*" \
+            -H "Accept-Language: ko-KR,ko;q=0.9" \
+            -o /tmp/kbo_transactions.json
+          python3 - <<'PY'
+          import json
+          path = '/tmp/kbo_transactions.json'
+          data = json.load(open(path, encoding='utf-8'))
+          rows = data.get('rows', [])
+          if not rows:
+              raise SystemExit('KBO 응답에 데이터가 없습니다.')
+          print(f'KBO {len(rows)}건 · 최신 {rows[0]["row"][0]["Text"]}')
+          PY
+          mv /tmp/kbo_transactions.json data/kbo_transactions.json
+
+      - name: 변경사항 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/kbo_transactions.json
+          if git diff --staged --quiet; then
+            echo "변경사항 없음 — 커밋 건너뜀"
+          else
+            git commit -m "data: KBO 이적·등록 자동 업데이트 $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+            git push
+          fi
