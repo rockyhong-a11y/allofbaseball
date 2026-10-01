@@ -9310,7 +9310,17 @@ async function _fillCpblMeta(type) {
 async function _loadCpblStatsDb() {
   if (_cpblStatsDbCache) return _cpblStatsDbCache;
   try {
-    _cpblStatsDbCache = await _fetchCpblJson(CPBL_STATS_RAW, 'data/cpbl_stats.json');
+    const meta = await _loadCpblMeta();
+    const parts = meta?.stats_parts || [];
+    if (parts.length) {
+      const chunks = await Promise.all(parts.map(name => _fetchCpblJson(
+        `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/${name}`,
+        `data/${name}`
+      )));
+      _cpblStatsDbCache = Object.assign({}, ...chunks);
+    } else {
+      _cpblStatsDbCache = await _fetchCpblJson(CPBL_STATS_RAW, 'data/cpbl_stats.json');
+    }
     return _cpblStatsDbCache;
   } catch(_) { return null; }
 }
