@@ -265,8 +265,8 @@
 <body data-view="search">
 <a class="skip-link" href="#workspace-content">본문으로 바로 가기</a>
 <div class="mobile-bar">
-  <button type="button" class="mobile-brand" onclick="appGoHome()" aria-label="ALL OF BASEBALL 선수 검색 홈"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 5c6 4 6 10 0 14M18 5c-6 4-6 10 0 14M7 7l2-1M8 10l2-1M8 14l2 1M7 17l2 1M17 7l-2-1M16 10l-2-1M16 14l-2 1M17 17l-2 1"/></svg><span>ALL OF BASEBALL</span></button>
   <button type="button" class="mobile-menu" id="mobile-menu" onclick="appToggleMenu()" aria-label="메뉴 열기" aria-controls="sidebar" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+  <button type="button" class="mobile-brand" onclick="appGoHome()" aria-label="ALL OF BASEBALL 선수 검색 홈"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 5c6 4 6 10 0 14M18 5c-6 4-6 10 0 14M7 7l2-1M8 10l2-1M8 14l2 1M7 17l2 1M17 7l-2-1M16 10l-2-1M16 14l-2 1M17 17l-2 1"/></svg><span>ALL OF BASEBALL</span></button>
 </div>
 <button type="button" class="drawer-backdrop" id="drawer-backdrop" onclick="appToggleMenu(false)" aria-label="메뉴 닫기" hidden></button>
 <aside class="sidebar" id="sidebar" aria-label="주 메뉴">
@@ -9565,12 +9565,14 @@ async function runCpbl(query, requestId = _searchRequestId) {
 ══════════════════════════════════════════════════════ */
 // 시즌 스케줄 전체 캐시 (GitHub Actions 수집 → raw.githubusercontent.com)
 let _cpblSchedCache = null;
+const CPBL_SCHEDULE_TTL = 5 * 60 * 1000;
 async function _loadCpblSchedData(year) {
-  if (_cpblSchedCache?.year === String(year)) return _cpblSchedCache.games;
+  if (_cpblSchedCache?.year === String(year) && Date.now() - _cpblSchedCache.fetchedAt < CPBL_SCHEDULE_TTL) return _cpblSchedCache.games;
   const remote = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${year}.json`;
   const games = await _fetchCpblJson(remote, `data/cpbl_schedule_${year}.json`);
   if (!Array.isArray(games)) throw new Error('invalid schedule format');
-  _cpblSchedCache = { year: String(year), games };
+  _cpblSchedCache = { year: String(year), games, fetchedAt: Date.now() };
+  _cpblMetaCache = null;
   return games;
 }
 
@@ -9600,13 +9602,14 @@ async function loadCpblSchedule(el) {
 
     // 선택 날짜 경기만 필터
     const dayGames = allGames.filter(g => {
-      const d = new Date(g.GameDate);
-      return d.getFullYear() === yr && (d.getMonth() + 1) === mm && d.getDate() === dd;
+      return String(g.GameDate).slice(0, 10) === `${yr}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
     });
 
     if (!dayGames.length) {
       el.innerHTML = `<div class="sbox"><p>🏟️ ${_lgDateStr(_lgDate)} CPBL 경기 없음</p>
+        ${_cpblUpdatedBadge('schedule')}
         <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정</a></div>`;
+      _fillCpblMeta('schedule');
       return;
     }
 
@@ -9614,27 +9617,32 @@ async function loadCpblSchedule(el) {
     for (const g of dayGames) {
       const away = normTeam(g.VisitingTeamName);
       const home = normTeam(g.HomeTeamName);
-      const isDone = (Number(g.VisitingScore) > 0 || Number(g.HomeScore) > 0);
+      const result = String(g.GameResult ?? '');
+      const isDone = result === '0';
+      const isLive = result === '' && g.IsPlayBall === 'Y' && !g.GameDateTimeE;
+      const phase = {E:'플레이오프', C:'챔피언십'}[g.KindCode];
+      const phaseLabel = phase ? `<span class="cpbl-game-phase">${phase}</span>` : '';
+      const stateLabel = isDone ? '종료' : isLive ? (g.IsGameStop === '1' ? '일시 중단' : '진행 중')
+        : ({'1':'연기', '2':'서스펜디드', '4':'취소'}[result] || _fmtSchedTime(g.PreExeDate || ''));
       const awayWin = isDone && Number(g.VisitingScore) > Number(g.HomeScore);
       const homeWin = isDone && Number(g.HomeScore) > Number(g.VisitingScore);
       const venue = CPBL_VENUE[g.FieldAbbe] || g.FieldAbbe || '';
 
-      if (isDone) {
+      if (isDone || isLive) {
         rows += `<tr>
           <td class="team-away ${awayWin?'hg':''}">${escH(away)}${tmLogo(away)}</td>
           <td class="score-cell">${g.VisitingScore} <span style="color:var(--mu);font-weight:400">:</span> ${g.HomeScore}</td>
           <td class="team-home ${homeWin?'hg':''}">${tmLogo(home)}${escH(home)}</td>
           <td class="venue-cell">${escH(venue)}</td>
-          <td><span class="st-final">종료</span></td>
+          <td>${phaseLabel}<span class="${isDone?'st-final':'st-sched'}">${stateLabel}</span></td>
         </tr>`;
       } else {
-        const timeStr = _fmtSchedTime(g.PreExeDate || '');
         rows += `<tr>
           <td class="team-away">${escH(away)}${tmLogo(away)}</td>
           <td class="score-cell"><span style="color:var(--mu);font-weight:400">vs</span></td>
           <td class="team-home">${tmLogo(home)}${escH(home)}</td>
           <td class="venue-cell">${escH(venue)}</td>
-          <td><span class="st-sched">${timeStr}</span></td>
+          <td>${phaseLabel}<span class="${result?'st-cancel':'st-sched'}">${stateLabel}</span></td>
         </tr>`;
       }
     }
@@ -9671,10 +9679,9 @@ async function loadCpblStandings(el) {
     const rec = {};   // team → {w,l,d}
     const seq = {};   // team → [W/L/D,...]  (date-ordered for streak)
     for (const g of games) {
-      if (g.PresentStatus !== 1) continue;
+      if ((g.KindCode || 'A') !== 'A' || String(g.GameResult) !== '0' || Number(g.PresentStatus) !== 1) continue;
       const vs = g.VisitingScore, hs = g.HomeScore;
       if (typeof vs !== 'number' || typeof hs !== 'number') continue;
-      if (vs === 0 && hs === 0) continue; // not yet played
       const vt = CPBL_TEAM_KO[g.VisitingTeamName] || g.VisitingTeamName;
       const ht = CPBL_TEAM_KO[g.HomeTeamName] || g.HomeTeamName;
       if (!rec[vt]) { rec[vt] = {w:0,l:0,d:0}; seq[vt] = []; }

@@ -1,6 +1,12 @@
 name: CPBL 데이터 자동 수집
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fetch_cpbl.py'
+      - 'tests/test_cpbl_schedule.py'
+      - '.github/workflows/cpbl_data.yml'
   schedule:
     # KST 06:00 (UTC 21:00 전날) — 스케줄 + 선수 기록
     - cron: '0 21 * * *'
@@ -36,10 +42,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: CPBL 수집 회귀 검사
+        run: python3 -m unittest discover -s tests -v
+
       - name: CPBL 스케줄 수집
         if: ${{ github.event.inputs.target != 'stats' }}
         run: |
           python3 scripts/fetch_cpbl.py --schedule --year ${{ github.event.inputs.year || '2026' }}
+
 
       - name: CPBL 선수 기록 수집
         if: >

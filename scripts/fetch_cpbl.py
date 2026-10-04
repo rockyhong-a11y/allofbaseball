@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CPBL 선수 연도별 기록 + 시즌 스케줄 수집 스크립트 (curl 버전)
-- Python urllib/requests는 Cloudflare WAF에 차단되지만 curl은 정상 통과
+- 공식 CPBL의 쿠키·CSRF 세션을 curl로 공유하며 HTTP 실패를 확인한다.
 - 선수 기록: data/cpbl_stats.json
 - 시즌 스케줄: data/cpbl_schedule_{year}.json
 
@@ -10,10 +10,12 @@ CPBL 선수 연도별 기록 + 시즌 스케줄 수집 스크립트 (curl 버전
 import json, re, time, sys, os, argparse, subprocess, tempfile
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from urllib.parse import urlencode
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 STATS_PART_SIZE = 50
+SCHEDULE_KINDS = ('A', 'E', 'C')  # 공식 일정: 정규시즌, 플레이오프, 챔피언십
 
 CURL_UA = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -34,7 +36,7 @@ def curl_get(url) -> tuple[str, str, str]:
     # -D - 로 응답 헤더를 stdout에, 본문은 파일에 저장
     result = subprocess.run(
         [
-            'curl', '-s', '-L',
+            'curl', '-sS', '-L', '--fail-with-body', '--max-redirs', '5',
             '-c', cookie_jar,
             '-b', cookie_jar,
             '-D', '-',          # 헤더를 stdout으로
@@ -73,6 +75,12 @@ def curl_get(url) -> tuple[str, str, str]:
     with open(tmp, 'r', encoding='utf-8', errors='replace') as f:
         html = f.read()
     os.unlink(tmp)
+    statuses = re.findall(r'^HTTP/\S+\s+(\d{3})', headers, re.MULTILINE)
+    status = statuses[-1] if statuses else '?'
+    print(f'  GET {url}: HTTP {status}, {len(html.encode("utf-8"))} bytes')
+    if result.returncode or status != '200':
+        if os.path.exists(cookie_jar): os.unlink(cookie_jar)
+        raise RuntimeError(f'공식 페이지 HTTP {status} (curl {result.returncode})')
     return html, cookie_val, cookie_jar
 
 
@@ -85,15 +93,14 @@ def curl_post_json(api_url: str, body_dict: dict, token: str,
     """
     curl로 CSRF 인증 POST → JSON 파싱 결과 반환
     """
-    body = '&'.join(f'{k}={v}' for k, v in body_dict.items())
+    body = urlencode(body_dict)
     command = [
-            'curl', '-s',
+            'curl', '-sS', '--fail-with-body', '--max-redirs', '5',
             '-L',
             '-X', 'POST',
             '-H', 'Content-Type: application/x-www-form-urlencoded',
             '-H', 'X-Requested-With: XMLHttpRequest',
             '-H', f'RequestVerificationToken: {token}',
-            '-H', f'Cookie: __RequestVerificationToken={cookie}',
             '-H', f'Origin: https://www.cpbl.com.tw',
             '-H', f'Referer: {referer}',
             '-H', f'User-Agent: {CURL_UA}',
@@ -104,10 +111,14 @@ def curl_post_json(api_url: str, body_dict: dict, token: str,
         ]
     if cookie_jar:
         command[2:2] = ['-c', cookie_jar, '-b', cookie_jar]
+    else:
+        command[2:2] = ['-b', f'__RequestVerificationToken={cookie}']
     result = subprocess.run(
         command,
         capture_output=True, text=True, timeout=40
     )
+    if result.returncode:
+        raise RuntimeError(f'공식 API 요청 실패 (curl {result.returncode}): {result.stderr.strip()}')
     return json.loads(result.stdout)
 
 
@@ -178,8 +189,29 @@ def fetch_all_stats(index_html_path: str) -> dict:
 
 
 # ── 시즌 스케줄 수집 ──────────────────────────────────────
+def validate_schedule_response(result, year, kind):
+    if not isinstance(result, dict) or result.get('Success') is not True:
+        raise ValueError('공식 일정 API가 성공 응답을 반환하지 않음')
+    raw = result.get('GameDatas', result.get('Data'))
+    games = json.loads(raw) if isinstance(raw, str) else raw
+    if not isinstance(games, list):
+        raise ValueError('공식 경기 배열이 누락되거나 형식이 잘못됨')
+    for game in games:
+        if not isinstance(game, dict):
+            raise ValueError('경기 행 형식 오류')
+        if str(game.get('Year')) != str(year) or game.get('KindCode') != kind:
+            raise ValueError('공식 응답의 시즌·경기 종류가 요청 범위와 다름')
+        if game.get('GameSno') is None:
+            raise ValueError('경기 번호 누락')
+        when = datetime.fromisoformat(game.get('GameDate', ''))
+        if when.year != year:
+            raise ValueError('공식 경기 날짜가 요청 시즌 밖에 있음')
+    return games
+
+
 def fetch_schedule(year: int):
     print(f'📅 CPBL {year} 스케줄 수집 (curl)...')
+    cookie_jar = ''
     try:
         html, cookie, cookie_jar = curl_get('https://www.cpbl.com.tw/schedule')
         tokens = extract_js_tokens(html)
@@ -189,26 +221,25 @@ def fetch_schedule(year: int):
             return None
 
         token = tokens[1] if len(tokens) > 1 else tokens[0]
-        result = curl_post_json(
-            'https://www.cpbl.com.tw/schedule/getgamedatas',
-            {'calendar': f'{year}/01/01', 'location': '', 'kindCode': 'A'},
-            token, cookie,
-            'https://www.cpbl.com.tw/schedule', cookie_jar
-        )
-        if os.path.exists(cookie_jar): os.unlink(cookie_jar)
-
-        if result.get('Success'):
-            raw_val = result.get('GameDatas') or result.get('Data') or '[]'
-            games = json.loads(raw_val) if isinstance(raw_val, str) else raw_val
-            if isinstance(games, list):
-                print(f'  ✅ {len(games)}경기')
-                return games
-        print(f'  응답 이상: {str(result)[:100]}')
-        return None
+        games = []
+        for kind in SCHEDULE_KINDS:
+            result = curl_post_json(
+                'https://www.cpbl.com.tw/schedule/getgamedatas',
+                {'calendar': f'{year}/01/01', 'location': '', 'teamNo': '', 'kindCode': kind},
+                token, cookie, 'https://www.cpbl.com.tw/schedule', cookie_jar
+            )
+            batch = validate_schedule_response(result, year, kind)
+            print(f'  ✅ {kind}: {len(batch)}경기')
+            games.extend(batch)
+        unique = {(str(g['Year']), g['KindCode'], str(g['GameSno']), g['GameDate']): g
+                  for g in games}
+        return sorted(unique.values(), key=lambda g: (g['GameDate'], g['KindCode'], int(g['GameSno'])))
 
     except Exception as e:
         print(f'  오류: {e}')
         return None
+    finally:
+        if cookie_jar and os.path.exists(cookie_jar): os.unlink(cookie_jar)
 
 
 def write_stats_parts(stats: dict) -> list[str]:
@@ -247,6 +278,8 @@ def main():
         meta = {}
 
     now_str = datetime.now(ZoneInfo('Asia/Seoul')).strftime('%Y-%m-%d %H:%M KST')
+    failed = False
+    changed = False
 
     if do_stats:
         idx_path = os.path.join(BASE_DIR, 'index.html')
@@ -261,6 +294,9 @@ def main():
             print(f'💾 저장: {out_path} ({os.path.getsize(out_path)//1024}KB)')
             meta['stats_parts'] = write_stats_parts(stats)
             meta['stats_updated'] = now_str
+            changed = True
+        else:
+            failed = True
 
     if do_sched:
         games = fetch_schedule(args.year)
@@ -270,11 +306,18 @@ def main():
                 json.dump(games, f, ensure_ascii=False, separators=(',', ':'))
             print(f'💾 저장: {out_path} ({os.path.getsize(out_path)//1024}KB)')
             meta['schedule_updated'] = now_str
+            meta['schedule_kinds'] = list(SCHEDULE_KINDS)
+            changed = True
+        else:
+            failed = True
+            print('❌ 일정 수집 실패 — 기존 캐시와 갱신 시각 유지')
 
     # meta 저장
-    with open(meta_path, 'w', encoding='utf-8') as f:
-        json.dump(meta, f, ensure_ascii=False, indent=2)
+    if changed:
+        with open(meta_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+    return 1 if failed else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
