@@ -7799,8 +7799,8 @@ const LG_CFG = {
     extSch:'https://pacificleague.com/game/search',
     extStd:'https://npb.jp/bis/eng/2026/stats/'},
   cpbl: {badge:'CPBL', badgeClass:'b-cpbl', title:'🇹🇼 대만 프로야구',
-    extSch:'https://hamivideo.hinet.net/main/606.do',
-    extStd:'https://cpbl.com.tw/standings/season'},
+    extSch:'https://stats.cpbl.com.tw/schedule',
+    extStd:'https://stats.cpbl.com.tw/'},
 };
 
 function _lgDateStr(d) {
@@ -9295,7 +9295,7 @@ async function _loadCpblMeta() {
 }
 
 function _cpblUpdatedBadge(type) {
-  // type: 'stats' | 'schedule'
+  // type: 'stats' | 'schedule' | 'standings'
   return `<span id="cpbl-meta-${type}" style="font-size:.68rem;color:var(--mu2);float:right;margin-left:auto;">🔄 갱신 확인 중…</span>`;
 }
 
@@ -9303,7 +9303,7 @@ async function _fillCpblMeta(type) {
   const meta = await _loadCpblMeta();
   const el = document.getElementById(`cpbl-meta-${type}`);
   if (!el) return;
-  const key = type === 'stats' ? 'stats_updated' : 'schedule_updated';
+  const key = `${type}_updated`;
   el.textContent = meta?.[key] ? `🔄 ${meta[key]}` : '';
 }
 
@@ -9398,7 +9398,7 @@ async function fetchCpblData(query) {
     jerseyNo: p.j, team: p.t, teamCode: p.tc, acnt,
     photo: p.ph, pos: p.p, bt: p.bt, hw: p.hw,
     born: p.b, debut: p.d, nation: p.nt,
-    pageUrl: `https://cpbl.com.tw/team/person?Acnt=${acnt}`,
+    pageUrl: `https://stats.cpbl.com.tw/players/${acnt}`,
     isBatter, careerStats,
   };
 }
@@ -9547,7 +9547,7 @@ async function runCpbl(query, requestId = _searchRequestId) {
         예: <em>江承諺</em> / <em>장청옌</em> / <em>CHIANG Chen Yen</em><br>
         예: <em>林子偉</em> / <em>린쯔웨이</em> / <em>LIN Tzu Wei</em>
       </p>
-      <a href="https://cpbl.com.tw/player" target="_blank" class="lg-ext-link" style="margin:12px 0 0;">🔗 CPBL 전체 선수 목록</a>
+      <a href="https://stats.cpbl.com.tw/players" target="_blank" class="lg-ext-link" style="margin:12px 0 0;">🔗 CPBL 전체 선수 목록</a>
     </div>`;
     return;
   }
@@ -9618,12 +9618,13 @@ async function loadCpblSchedule(el) {
       const away = normTeam(g.VisitingTeamName);
       const home = normTeam(g.HomeTeamName);
       const result = String(g.GameResult ?? '');
-      const isDone = result === '0';
-      const isLive = result === '' && g.IsPlayBall === 'Y' && !g.GameDateTimeE;
+      const isDone = g.GameStatus ? g.GameStatus === 'FINISHED' : result === '0';
+      const isLive = g.GameStatus ? g.GameStatus === 'START' : result === '' && g.IsPlayBall === 'Y' && !g.GameDateTimeE;
       const phase = {E:'플레이오프', C:'챔피언십'}[g.KindCode];
       const phaseLabel = phase ? `<span class="cpbl-game-phase">${phase}</span>` : '';
       const stateLabel = isDone ? '종료' : isLive ? (g.IsGameStop === '1' ? '일시 중단' : '진행 중')
-        : ({'1':'연기', '2':'서스펜디드', '4':'취소'}[result] || _fmtSchedTime(g.PreExeDate || ''));
+        : (g.GameStatus ? ({POSTPONED:'연기', CANCELLED:'취소', RESERVED:'보류', OTHER:'기타'}[g.GameStatus] || _fmtSchedTime(g.PreExeDate || ''))
+          : ({'1':'연기', '2':'서스펜디드', '4':'취소'}[result] || _fmtSchedTime(g.PreExeDate || '')));
       const awayWin = isDone && Number(g.VisitingScore) > Number(g.HomeScore);
       const homeWin = isDone && Number(g.HomeScore) > Number(g.VisitingScore);
       const venue = CPBL_VENUE[g.FieldAbbe] || g.FieldAbbe || '';
@@ -9654,7 +9655,7 @@ async function loadCpblSchedule(el) {
       <tbody>${rows}</tbody>
     </table>
     <div style="padding:6px 14px;font-size:.72rem;color:var(--mu2);display:flex;align-items:center;justify-content:space-between;">
-      <span>🏟️ 출처: <a href="https://cpbl.com.tw/schedule" target="_blank" style="color:var(--cpbl);">CPBL 공식 일정</a></span>
+      <span>🏟️ 출처: <a href="https://stats.cpbl.com.tw/schedule" target="_blank" style="color:var(--cpbl);">CPBL 공식 일정</a></span>
       ${_cpblUpdatedBadge('schedule')}
     </div></div>`;
     _fillCpblMeta('schedule');
@@ -9662,74 +9663,34 @@ async function loadCpblSchedule(el) {
   } catch(e) {
     el.innerHTML = `<div class="lg-err">
       <p>⚠️ CPBL 스케줄을 불러오지 못했습니다.</p>
-      <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 Hami Video 一軍賽程表</a>
+      <a href="${LG_CFG.cpbl.extSch}" target="_blank" class="lg-ext-link">🔗 CPBL 공식 일정</a>
     </div>`;
   }
 }
 
 /* ══════════════════════════════════════════════════════
-   ★ CPBL 순위 (GitHub raw schedule JSON → 직접 계산)
+   ★ CPBL 순위 (공식 통계 사이트 1군 정규시즌 집계)
 ══════════════════════════════════════════════════════ */
 async function loadCpblStandings(el) {
   try {
     const yr = _lgDate.getFullYear();
-    const DATA_URL = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_schedule_${yr}.json`;
-    const games = await _fetchCpblJson(DATA_URL, `data/cpbl_schedule_${yr}.json`, 10000);
-
-    const rec = {};   // team → {w,l,d}
-    const seq = {};   // team → [W/L/D,...]  (date-ordered for streak)
-    for (const g of games) {
-      if ((g.KindCode || 'A') !== 'A' || String(g.GameResult) !== '0' || Number(g.PresentStatus) !== 1) continue;
-      const vs = g.VisitingScore, hs = g.HomeScore;
-      if (typeof vs !== 'number' || typeof hs !== 'number') continue;
-      const vt = CPBL_TEAM_KO[g.VisitingTeamName] || g.VisitingTeamName;
-      const ht = CPBL_TEAM_KO[g.HomeTeamName] || g.HomeTeamName;
-      if (!rec[vt]) { rec[vt] = {w:0,l:0,d:0}; seq[vt] = []; }
-      if (!rec[ht]) { rec[ht] = {w:0,l:0,d:0}; seq[ht] = []; }
-      if (vs > hs) {
-        rec[vt].w++; rec[ht].l++;
-        seq[vt].push('W'); seq[ht].push('L');
-      } else if (hs > vs) {
-        rec[ht].w++; rec[vt].l++;
-        seq[ht].push('W'); seq[vt].push('L');
-      } else {
-        rec[vt].d++; rec[ht].d++;
-        seq[vt].push('D'); seq[ht].push('D');
-      }
-    }
-    const entries = Object.entries(rec);
-    if (entries.length < 2) throw new Error('No data');
-
-    entries.sort((a, b) => {
-      const pa = a[1].w / (a[1].w + a[1].l) || 0;
-      const pb = b[1].w / (b[1].w + b[1].l) || 0;
-      return pb - pa;
-    });
-    const [, lr] = entries[0];
-    const teams = entries.map(([name, r], i) => {
-      const g = r.w + r.l + r.d;
-      const pct = (r.w + r.l) > 0 ? (r.w / (r.w + r.l)).toFixed(3) : '.000';
-      const gb  = i === 0 ? '-' : (((lr.w - r.w) + (r.l - lr.l)) / 2).toFixed(1);
-      const s = seq[name] || [];
-      let streak = '-';
-      if (s.length) {
-        const last = s[s.length - 1];
-        if (last !== 'D') {
-          let cnt = 0;
-          for (let j = s.length - 1; j >= 0 && s[j] === last; j--) cnt++;
-          streak = last + cnt;
-        }
-      }
-      return {rank: i+1, team: name, g: String(g), w: String(r.w), l: String(r.l), d: String(r.d), pct, gb, streak};
-    });
-
+    const remote = `https://raw.githubusercontent.com/rockyhong-a11y/allofbaseball/main/data/cpbl_standings_${yr}.json`;
+    const data = await _fetchCpblJson(remote, `data/cpbl_standings_${yr}.json`, 10000);
+    if (data.year !== yr || !Array.isArray(data.teams) || data.teams.length !== 6) throw new Error('Invalid official standings');
+    const teams = data.teams.map(t => ({
+      rank: t.Ranking,
+      team: CPBL_TEAM_KO[t.Team.Name] || t.Team.Name,
+      g: String(t.GameCnt), w: String(t.GameResultWCnt), l: String(t.GameResultLCnt), d: String(t.GameResultTCnt),
+      pct: t.Pct, gb: t.GB == null ? '-' : String(t.GB),
+      streak: t.Strk > 0 ? `${t.Strk}연승` : t.Strk < 0 ? `${-t.Strk}연패` : '-'
+    }));
     el.innerHTML = _renderStandingsTable(teams, 'cpbl');
     const footer = el.querySelector('.lg-tbl-wrap > div:last-child');
     if (footer) {
       footer.style.display = 'flex'; footer.style.alignItems = 'center';
       footer.style.justifyContent = 'space-between';
-      footer.insertAdjacentHTML('beforeend', _cpblUpdatedBadge('schedule'));
-      _fillCpblMeta('schedule');
+      footer.insertAdjacentHTML('beforeend', _cpblUpdatedBadge('standings'));
+      _fillCpblMeta('standings');
     }
   } catch(e) {
     el.innerHTML = `<div class="lg-err">⚠️ CPBL 순위를 불러오지 못했습니다.<br>

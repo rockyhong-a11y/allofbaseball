@@ -11,11 +11,15 @@ import json, re, time, sys, os, argparse, subprocess, tempfile
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from concurrent.futures import ThreadPoolExecutor
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 STATS_PART_SIZE = 50
 SCHEDULE_KINDS = ('A', 'E', 'C')  # 공식 일정: 정규시즌, 플레이오프, 챔피언십
+STATS_SITE = 'https://stats.cpbl.com.tw'
+GAME_STATUSES = {'SCHEDULED', 'START', 'FINISHED', 'POSTPONED', 'OTHER', 'CANCELLED', 'RESERVED'}
 
 CURL_UA = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -189,57 +193,103 @@ def fetch_all_stats(index_html_path: str) -> dict:
 
 
 # ── 시즌 스케줄 수집 ──────────────────────────────────────
-def validate_schedule_response(result, year, kind):
-    if not isinstance(result, dict) or result.get('Success') is not True:
-        raise ValueError('공식 일정 API가 성공 응답을 반환하지 않음')
-    raw = result.get('GameDatas', result.get('Data'))
-    games = json.loads(raw) if isinstance(raw, str) else raw
+def stats_site_get(path, params=None):
+    """공식 Next.js 클라이언트와 같은 공개 JSON GET 계약을 사용한다."""
+    url = STATS_SITE + '/api/proxy' + path
+    if params:
+        url += '?' + urlencode(params)
+    for attempt in range(3):
+        try:
+            with urlopen(Request(url, headers={'User-Agent': CURL_UA, 'Accept': 'application/json'}), timeout=30) as response:
+                if response.status != 200:
+                    raise RuntimeError(f'HTTP {response.status}')
+                return json.load(response)
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(attempt + 1)
+
+
+def validate_schedule_response(result, year, kind, month):
+    data = result.get('Data') if isinstance(result, dict) else None
+    games = data.get('Games') if isinstance(data, dict) else None
     if not isinstance(games, list):
         raise ValueError('공식 경기 배열이 누락되거나 형식이 잘못됨')
+    normalized = []
     for game in games:
         if not isinstance(game, dict):
             raise ValueError('경기 행 형식 오류')
-        if str(game.get('Year')) != str(year) or game.get('KindCode') != kind:
+        number = game.get('GameSno')
+        if type(number) is not int or game.get('GameId') != f'{year}-{kind}-{number}' or game.get('KindCode') != kind:
             raise ValueError('공식 응답의 시즌·경기 종류가 요청 범위와 다름')
-        if game.get('GameSno') is None:
-            raise ValueError('경기 번호 누락')
-        when = datetime.fromisoformat(game.get('GameDate', ''))
-        if when.year != year:
-            raise ValueError('공식 경기 날짜가 요청 시즌 밖에 있음')
-    return games
+        when = datetime.fromisoformat(game.get('PreExeDate', ''))
+        if when.year != year or when.month != month:
+            raise ValueError('공식 경기 날짜가 요청 연월 밖에 있음')
+        status = game.get('GameStatus')
+        if status not in GAME_STATUSES:
+            raise ValueError(f'확인되지 않은 경기 상태: {status}')
+        row = dict(GameId=game['GameId'], Year=year, KindCode=kind, GameSno=number,
+                   GameDate=game['PreExeDate'], PreExeDate=game['PreExeDate'], GameStatus=status,
+                   GameResult={'FINISHED': '0', 'POSTPONED': '1', 'CANCELLED': '4'}.get(status, ''),
+                   PresentStatus=1, IsPlayBall='Y' if status in {'START', 'FINISHED'} else 'N')
+        for source, target in [('Visiting', 'Visiting'), ('Home', 'Home')]:
+            side = game.get(source)
+            team = side.get('Team') if isinstance(side, dict) else None
+            if not isinstance(team, dict) or not team.get('Name'):
+                raise ValueError('공식 구단 정보 누락')
+            score = side.get('Score')
+            if status in {'START', 'FINISHED'} and (type(score) is not int or score < 0):
+                raise ValueError('진행·종료 경기 점수 누락')
+            row[target + 'TeamName'] = team['Name']
+            row[target + 'Score'] = score
+        row['FieldAbbe'] = (game.get('Field') or {}).get('Abbe', '')
+        normalized.append(row)
+    return normalized
 
 
 def fetch_schedule(year: int):
-    print(f'📅 CPBL {year} 스케줄 수집 (curl)...')
-    cookie_jar = ''
+    print(f'📅 CPBL {year} 공식 통계 사이트 일정 수집...')
     try:
-        html, cookie, cookie_jar = curl_get('https://www.cpbl.com.tw/schedule')
-        tokens = extract_js_tokens(html)
-
-        if not tokens or not cookie:
-            print(f'  ⚠️  토큰 없음 (t={len(tokens)}, c={bool(cookie)})')
-            return None
-
-        token = tokens[1] if len(tokens) > 1 else tokens[0]
-        games = []
-        for kind in SCHEDULE_KINDS:
-            result = curl_post_json(
-                'https://www.cpbl.com.tw/schedule/getgamedatas',
-                {'calendar': f'{year}/01/01', 'location': '', 'teamNo': '', 'kindCode': kind},
-                token, cookie, 'https://www.cpbl.com.tw/schedule', cookie_jar
-            )
-            batch = validate_schedule_response(result, year, kind)
-            print(f'  ✅ {kind}: {len(batch)}경기')
-            games.extend(batch)
+        def collect(scope):
+            kind, month = scope
+            result = stats_site_get('/v1/games/schedule', {'kindCode': kind, 'year': year, 'month': month})
+            return validate_schedule_response(result, year, kind, month)
+        scopes = [(kind, month) for kind in SCHEDULE_KINDS for month in range(1, 13)]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            games = [game for batch in pool.map(collect, scopes) for game in batch]
         unique = {(str(g['Year']), g['KindCode'], str(g['GameSno']), g['GameDate']): g
                   for g in games}
+        for kind in SCHEDULE_KINDS:
+            print(f'  ✅ {kind}: {sum(g["KindCode"] == kind for g in unique.values())}경기 (12개월 검증)')
         return sorted(unique.values(), key=lambda g: (g['GameDate'], g['KindCode'], int(g['GameSno'])))
 
     except Exception as e:
         print(f'  오류: {e}')
         return None
-    finally:
-        if cookie_jar and os.path.exists(cookie_jar): os.unlink(cookie_jar)
+
+
+def fetch_standings(year):
+    result = stats_site_get('/v1/home', {'TeamRecordsYear': year})
+    data = result.get('Data') if isinstance(result, dict) else None
+    records = data.get('TeamRecords', {}).get('A', {}) if isinstance(data, dict) else {}
+    teams = records.get('FullYear')
+    if not isinstance(teams, list) or len(teams) != 6:
+        raise ValueError('공식 1군 순위 6개 구단 누락')
+    codes = set()
+    for team in teams:
+        code = team.get('Team', {}).get('Code')
+        if not code or not code.endswith('011') or code in codes or not team['Team'].get('Name'):
+            raise ValueError('공식 순위 구단 범위 오류')
+        codes.add(code)
+        counts = [team.get(key) for key in ('GameCnt', 'GameResultWCnt', 'GameResultLCnt', 'GameResultTCnt')]
+        if any(type(n) is not int or n < 0 for n in counts) or counts[0] != sum(counts[1:]):
+            raise ValueError('공식 순위 경기·승패무 집계 오류')
+        if type(team.get('Ranking')) is not int or not 1 <= team['Ranking'] <= 6:
+            raise ValueError('공식 순위 순번 누락')
+        pct = team.get('Pct')
+        if not isinstance(pct, (int, float)) or not 0 <= pct <= 1:
+            raise ValueError('공식 순위 승률 누락')
+    return {'year': year, 'source': STATS_SITE, 'teams': teams}
 
 
 def write_stats_parts(stats: dict) -> list[str]:
@@ -301,12 +351,24 @@ def main():
     if do_sched:
         games = fetch_schedule(args.year)
         if games is not None:
+            try:
+                standings = fetch_standings(args.year)
+            except Exception as exc:
+                print(f'❌ 공식 순위 검증 실패 — 기존 일정·순위 캐시 유지: {exc}')
+                games = None
+        if games is not None:
             out_path = os.path.join(DATA_DIR, f'cpbl_schedule_{args.year}.json')
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(games, f, ensure_ascii=False, separators=(',', ':'))
+            standings['updated'] = now_str
+            with open(os.path.join(DATA_DIR, f'cpbl_standings_{args.year}.json'), 'w', encoding='utf-8') as f:
+                json.dump(standings, f, ensure_ascii=False, separators=(',', ':'))
             print(f'💾 저장: {out_path} ({os.path.getsize(out_path)//1024}KB)')
             meta['schedule_updated'] = now_str
             meta['schedule_kinds'] = list(SCHEDULE_KINDS)
+            meta['schedule_source'] = STATS_SITE + '/schedule'
+            meta['standings_updated'] = now_str
+            meta['standings_source'] = STATS_SITE
             changed = True
         else:
             failed = True

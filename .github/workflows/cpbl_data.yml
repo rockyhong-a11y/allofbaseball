@@ -60,6 +60,8 @@ jobs:
           python3 scripts/fetch_cpbl.py --stats --year ${{ github.event.inputs.year || '2026' }}
 
       - name: 변경사항 커밋
+        # 검증된 일정·순위는 독립적으로 게시한다. 선수 기록 실패는 job 실패로 남긴다.
+        if: ${{ !cancelled() }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
