@@ -1,5 +1,5 @@
 {
-  "schedule_updated": "2026-10-11 00:12 KST",
+  "schedule_updated": "2026-10-11 03:44 KST",
   "stats_updated": "2026-10-01 11:13 KST",
   "stats_parts": [
     "cpbl_stats_part_1.json",
@@ -13,6 +13,6 @@
     "C"
   ],
   "schedule_source": "https://stats.cpbl.com.tw/schedule",
-  "standings_updated": "2026-10-11 00:12 KST",
+  "standings_updated": "2026-10-11 03:44 KST",
   "standings_source": "https://stats.cpbl.com.tw"
 }
