@@ -311,8 +311,9 @@ def main():
     parser = argparse.ArgumentParser(description='CPBL 데이터 수집')
     parser.add_argument('--stats',    action='store_true', help='선수 기록 수집')
     parser.add_argument('--schedule', action='store_true', help='스케줄 수집')
-    parser.add_argument('--year', type=int, default=2026, help='시즌 연도 (기본: 2026)')
+    parser.add_argument('--year', type=int, default=datetime.now().year, help='시즌 연도 (기본: 올해)')
     args = parser.parse_args()
+    args.year = args.year or datetime.now().year  # 0(워크플로 미지정) → 올해
 
     do_stats = args.stats or not (args.stats or args.schedule)
     do_sched = args.schedule or not (args.stats or args.schedule)

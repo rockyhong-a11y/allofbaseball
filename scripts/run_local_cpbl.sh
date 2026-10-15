@@ -17,8 +17,14 @@
 
 REPO="$HOME/allofbaseball"
 PYTHON="/Library/Frameworks/Python.framework/Versions/3.13/bin/python3"
-YEAR=2026
+YEAR=$(date +%Y)
 MODE="${1:---schedule}"
+
+# 2026 포스트시즌/비시즌: 수집 실패 지속 → 2027-04-01 전까지 스킵 (이후 자동 재개)
+if [ "$(date +%Y%m%d)" -lt 20270401 ]; then
+    echo "$(date '+%Y-%m-%d %H:%M') 비시즌 스킵 (2027-04-01부터 자동 재개)"
+    exit 0
+fi
 
 echo ""
 echo "===== $(date '+%Y-%m-%d %H:%M KST') CPBL 수집 시작 (mode=$MODE) ====="

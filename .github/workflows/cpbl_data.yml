@@ -23,12 +23,30 @@ on:
         required: false
         default: 'all'
       year:
-        description: '시즌 연도'
+        description: '시즌 연도 (비우면 올해)'
         required: false
-        default: '2026'
+        default: ''
 
 jobs:
+  # 2026 포스트시즌/비시즌: 수집 실패(선수 페이지 404)가 지속되어 2027-04-01 전까지 자동 실행(schedule/push) 스킵.
+  # 수동 실행(workflow_dispatch)은 항상 허용. 재개는 날짜 경과로 자동 처리.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.g.outputs.run }}
+    steps:
+      - id: g
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$(date -u +%Y%m%d)" -ge 20270401 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "비시즌 스킵 (2027-04-01부터 자동 재개)"
+          fi
+
   fetch:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -48,7 +66,7 @@ jobs:
       - name: CPBL 스케줄 수집
         if: ${{ github.event.inputs.target != 'stats' }}
         run: |
-          python3 scripts/fetch_cpbl.py --schedule --year ${{ github.event.inputs.year || '2026' }}
+          python3 scripts/fetch_cpbl.py --schedule --year ${{ github.event.inputs.year || '0' }}
 
 
       - name: CPBL 선수 기록 수집
@@ -57,7 +75,7 @@ jobs:
           github.event.inputs.target == 'stats' ||
           (github.event_name == 'schedule' && github.event.schedule == '0 21 * * *')
         run: |
-          python3 scripts/fetch_cpbl.py --stats --year ${{ github.event.inputs.year || '2026' }}
+          python3 scripts/fetch_cpbl.py --stats --year ${{ github.event.inputs.year || '0' }}
 
       - name: 변경사항 커밋
         # 검증된 일정·순위는 독립적으로 게시한다. 선수 기록 실패는 job 실패로 남긴다.
