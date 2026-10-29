@@ -5,6 +5,114 @@
     {
       "row": [
         {
+          "Text": "2026-10-29",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "군보류",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "NC",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "홍재문(투수)",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        }
+      ],
+      "Class": null,
+      "OnClick": null,
+      "Style": null,
+      "Value": null,
+      "Id": null
+    },
+    {
+      "row": [
+        {
+          "Text": "2026-10-29",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "군보류",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "키움",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "김동규(투수)",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        },
+        {
+          "Text": "",
+          "Class": null,
+          "Scope": null,
+          "RowSpan": null,
+          "ColSpan": null,
+          "Width": null,
+          "TypeObj": null
+        }
+      ],
+      "Class": null,
+      "OnClick": null,
+      "Style": null,
+      "Value": null,
+      "Id": null
+    },
+    {
+      "row": [
+        {
           "Text": "2026-10-26",
           "Class": null,
           "Scope": null,
@@ -16093,118 +16201,10 @@
       "Style": null,
       "Value": null,
       "Id": null
-    },
-    {
-      "row": [
-        {
-          "Text": "2026-06-04",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "소속선수 추가 등록",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "두산",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "김영현(투수)",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "군보류 해제",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        }
-      ],
-      "Class": null,
-      "OnClick": null,
-      "Style": null,
-      "Value": null,
-      "Id": null
-    },
-    {
-      "row": [
-        {
-          "Text": "2026-06-03",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "부상자 명단",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "두산",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "김정우(투수)",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        },
-        {
-          "Text": "10일",
-          "Class": null,
-          "Scope": null,
-          "RowSpan": null,
-          "ColSpan": null,
-          "Width": null,
-          "TypeObj": null
-        }
-      ],
-      "Class": null,
-      "OnClick": null,
-      "Style": null,
-      "Value": null,
-      "Id": null
     }
   ],
   "tfoot": [],
-  "totalCnt": "596",
+  "totalCnt": "598",
   "headerClass": null,
   "tbodyClass": null,
   "tfootClass": null,
