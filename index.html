@@ -1937,22 +1937,27 @@ function buildLocalCard(p) {
 ══════════════════════════════════════════════════════ */
 async function buildApiCard(player) {
   const id=player.id;
+  let regularStatsVerified=false;
   let detail=player, batSplits=[], pitSplits=[], cBat=null, cPit=null;
   let arsenalSplits=[], hitterZones=[], pitcherZones=[], statcastStat=null;
   const szn=new Date().getFullYear();
   try {
     const [dr,br,pr,ar,hz,hzp,sc]=await Promise.all([
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}?hydrate=currentTeam`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=yearByYear,career&group=hitting`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=yearByYear,career&group=pitching`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=pitchArsenal&group=pitching&season=${szn}`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=hotColdZones&group=hitting&season=${szn}`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=hotColdZones&group=pitching&season=${szn}`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=statcast&group=hitting&season=${szn}`)
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}?hydrate=currentTeam`, {cache:"no-store",signal:AbortSignal.timeout(8000)}).catch(()=>({ok:false,json:async()=>({stats:[]})})),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=yearByYear,career&group=hitting&gameType=R&sportIds=1`, {cache:"no-store",signal:AbortSignal.timeout(8000)}).catch(()=>({ok:false,json:async()=>({stats:[]})})),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=yearByYear,career&group=pitching&gameType=R&sportIds=1`, {cache:"no-store",signal:AbortSignal.timeout(8000)}).catch(()=>({ok:false,json:async()=>({stats:[]})})),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=pitchArsenal&group=pitching&season=${szn}&gameType=R&sportIds=1`, {cache:"no-store",signal:AbortSignal.timeout(8000)}).catch(()=>({ok:false,json:async()=>({stats:[]})})),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=hotColdZones&group=hitting&season=${szn}&gameType=R&sportIds=1`, {cache:"no-store",signal:AbortSignal.timeout(8000)}).catch(()=>({ok:false,json:async()=>({stats:[]})})),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=hotColdZones&group=pitching&season=${szn}&gameType=R&sportIds=1`, {cache:"no-store",signal:AbortSignal.timeout(8000)}).catch(()=>({ok:false,json:async()=>({stats:[]})})),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=statcast&group=hitting&season=${szn}&gameType=R&sportIds=1`, {cache:"no-store",signal:AbortSignal.timeout(8000)}).catch(()=>({ok:false,json:async()=>({stats:[]})}))
     ]);
     const dd=await dr.json(); if(dd.people?.[0]) detail=dd.people[0];
+    if (!br.ok || !pr.ok) throw new Error('MLB 정규시즌 최신 조회 실패');
     const bd=await br.json();
     const pd=await pr.json();
+    for (const payload of [bd,pd]) {
+      if ((payload.stats || []).some(group => (group.splits || []).some(split => split.gameType !== 'R' || split.sport?.id !== 1))) throw new Error('MLB 정규시즌 범위 불일치');
+    }
     if(bd.stats) bd.stats.forEach(sg=>{
       if(sg.type?.displayName==='yearByYear') batSplits=sg.splits||[];
       if(sg.type?.displayName==='career') cBat=sg.splits?.[0]?.stat||null;
@@ -1961,6 +1966,8 @@ async function buildApiCard(player) {
       if(sg.type?.displayName==='yearByYear') pitSplits=sg.splits||[];
       if(sg.type?.displayName==='career') cPit=sg.splits?.[0]?.stat||null;
     });
+    if (!Array.isArray(bd.stats) || !Array.isArray(pd.stats)) throw new Error('MLB 정규시즌 응답 오류');
+    regularStatsVerified=true;
     // 구종 아스날 파싱
     const ad=await ar.json();
     if(ad.stats) ad.stats.forEach(sg=>{ if((sg.splits||[]).length) arsenalSplits=sg.splits; });
@@ -1981,6 +1988,7 @@ async function buildApiCard(player) {
       if(sp.length && !statcastStat) statcastStat=sp[0].stat||null;
     });
   } catch(_){}
+  if (!regularStatsVerified) throw new Error("MLB 정규시즌 최신 기록 미확인");
 
   const name=detail.fullName||player.fullName||'?';
   const pos=detail.primaryPosition?.abbreviation||'?';
@@ -2237,7 +2245,7 @@ const CODETABS    = 'https://api.codetabs.com/v1/proxy/?quest='; // 범용 CORS 
 async function _corsFetch(url) {
   try {
     const r = await fetch(`https://r.jina.ai/${url}`, {
-      headers: {'X-Return-Format': 'html'},
+      headers: {'X-Return-Format': 'html'}, cache:'no-store',
       signal: AbortSignal.timeout(15000),
     });
     if (r.ok) {
@@ -2246,14 +2254,14 @@ async function _corsFetch(url) {
     }
   } catch(_) {}
   try {
-    const r = await fetch(`${CODETABS}${encodeURIComponent(url)}`, {signal: AbortSignal.timeout(12000)});
+    const r = await fetch(`${CODETABS}${encodeURIComponent(url)}`, {cache:'no-store',signal: AbortSignal.timeout(12000)});
     if (r.ok) {
       const t = await r.text();
       if (t && t.length > 200) return t;
     }
   } catch(_) {}
   try {
-    const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, {signal: AbortSignal.timeout(12000)});
+    const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, {cache:'no-store',signal: AbortSignal.timeout(12000)});
     if (r.ok) {
       const t = await r.text();
       if (t && t.length > 200) return t;
@@ -2283,13 +2291,13 @@ async function _kboFetch(proxy, query) {
       'Accept': 'application/json, text/javascript, */*'
     },
     body: `name=${encodeURIComponent(query)}`,
-    signal: AbortSignal.timeout(9000)
+    signal: AbortSignal.timeout(18000)
   });
-  if (!sr.ok) return null;
+  if (!sr.ok) throw new Error('KBO HTTP ' + sr.status);
 
   const json = await sr.json();
   // 응답 형식: {code:"100", now:[{P_ID, P_NM, T_NM, POS_NO, P_TYPE, BACK_NO, ...}], retire:[...]}
-  if (!json || json.code !== '100') return null;
+  if (!json || String(json.code) !== '100') throw new Error('KBO 응답 형식 오류');
   const players = [...(json.now||[]), ...(json.retire||[])];
   if (!players.length) return null;
 
@@ -2299,6 +2307,35 @@ async function _kboFetch(proxy, query) {
   );
   const valid = results.filter(Boolean);
   return valid.length ? valid : null;
+}
+
+// KBO defaults to the currently active series (e.g. Korean Series).
+// Explicit WebForms postback is required; a seriesId query parameter is ignored.
+function isKboRegularDocument(doc) {
+  const select = doc.querySelector('select[name$="$ddlSeries"]');
+  const heading = [...doc.querySelectorAll('.player_records h6')].map(h => h.textContent.trim());
+  return select?.value === '0' && heading.some(t => t === 'KBO 정규시즌');
+}
+async function fetchKboRegularPage(url) {
+  let response = await fetch(url, {cache:'no-store',signal: AbortSignal.timeout(15000)});
+  if (!response.ok) throw new Error('KBO HTTP ' + response.status);
+  let text = await response.text();
+  let doc = new DOMParser().parseFromString(text, 'text/html');
+  if (!isKboRegularDocument(doc)) {
+    const select = doc.querySelector('select[name$="$ddlSeries"]');
+    if (!select) throw new Error('KBO 시즌 선택 정보 없음');
+    const form = new URLSearchParams();
+    doc.querySelectorAll('input[type="hidden"][name]').forEach(el => form.set(el.name, el.value));
+    form.set(select.name, '0');
+    form.set('__EVENTTARGET', select.name);
+    form.set('__EVENTARGUMENT', '');
+    response = await fetch(url, {method:'POST', cache:'no-store', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:form.toString(), signal:AbortSignal.timeout(15000)});
+    if (!response.ok) throw new Error('KBO 정규시즌 선택 실패');
+    text = await response.text();
+    doc = new DOMParser().parseFromString(text, 'text/html');
+  }
+  if (!isKboRegularDocument(doc)) throw new Error('KBO 정규시즌 확인 실패');
+  return {ok:true, text:async()=>text};
 }
 
 /* 선수 1명의 상세 기록 조회 */
@@ -2317,8 +2354,8 @@ async function _kboFetchPlayer(proxy, pl) {
   const pitPath = `/Record/Player/PitcherDetail/Total.aspx?playerId=${playerId}`;
 
   const [hitResp, pitResp] = await Promise.all([
-    fetch(`${proxy}${hitPath}`, {signal: AbortSignal.timeout(12000)}),
-    fetch(`${proxy}${pitPath}`, {signal: AbortSignal.timeout(12000)})
+    fetchKboRegularPage(`${proxy}${hitPath}`).catch(()=>({ok:false})),
+    fetchKboRegularPage(`${proxy}${pitPath}`).catch(()=>({ok:false}))
   ]);
 
   let hitParsed = null, pitParsed = null;
@@ -2349,31 +2386,8 @@ async function _kboFetchPlayer(proxy, pl) {
   const bio = parseKboBio(hitDoc || pitDoc);
 
   // 투수: 구종(PitchType) / 타자: 핫콜드존 + 발사각(BattedBall) 병렬 취득
-  let pitchTypeRows = null, kboHotColdZones = null, kboBattedBallRows = null;
-  try {
-    if (isPit) {
-      const ptPath = `/Record/Player/PitcherDetail/PitchType.aspx?playerId=${playerId}`;
-      const ptResp = await fetch(`${proxy}${ptPath}`, {signal: AbortSignal.timeout(8000)});
-      if (ptResp.ok) {
-        const ptDoc = new DOMParser().parseFromString(await ptResp.text(), 'text/html');
-        pitchTypeRows = parseKboPitchTypes(ptDoc);
-      }
-    } else {
-      // 타자: 핫콜드존 + 발사각 동시 요청
-      const [hczResp, bbResp] = await Promise.all([
-        fetch(`${proxy}/Record/Player/HitterDetail/HotColdZone.aspx?playerId=${playerId}`, {signal: AbortSignal.timeout(8000)}),
-        fetch(`${proxy}/Record/Player/HitterDetail/BattedBall.aspx?playerId=${playerId}`,  {signal: AbortSignal.timeout(8000)})
-      ]);
-      if (hczResp.ok) {
-        const hczDoc = new DOMParser().parseFromString(await hczResp.text(), 'text/html');
-        kboHotColdZones = parseKboHotColdZone(hczDoc);
-      }
-      if (bbResp.ok) {
-        const bbDoc = new DOMParser().parseFromString(await bbResp.text(), 'text/html');
-        kboBattedBallRows = parseKboBattedBall(bbDoc);
-      }
-    }
-  } catch(_){}
+  // Supplemental pages have no verified regular-series selection; omit them.
+  const pitchTypeRows = null, kboHotColdZones = null, kboBattedBallRows = null;
 
   return { ...parsed, backNo, teamName, posName, bio,
     detailPos: detailPos || pagePos,
@@ -2381,6 +2395,8 @@ async function _kboFetchPlayer(proxy, pl) {
 }
 
 function parseKboPage(doc, playerId, isHitter, name, sourceUrl, rawHtml = '') {
+  // Fail closed: never present preseason/postseason rows as regular season.
+  if (!isKboRegularDocument(doc)) return null;
   // koreabaseball.com 기록 테이블 파싱
   // isHitter=true  → 타자 테이블(AVG+H)만 반환
   // isHitter=false → 투수 테이블(ERA+IP)만 반환
@@ -2463,7 +2479,7 @@ function parseKboPage(doc, playerId, isHitter, name, sourceUrl, rawHtml = '') {
     const rows = allRows.filter(r => !isCareer(r[yrKey]) && r[yrKey] !== '-');
     if (!rows.length && !careerRow) continue;
 
-    return { name, isBatter: hasBat, isPitcher: hasPit, rows, ths, careerRow, playerId, sourceUrl, src: 'kbo' };
+    return { name, isBatter: hasBat, isPitcher: hasPit, rows, ths, careerRow, playerId, sourceUrl, src: 'kbo', regularSeason:true, fetchedAt:new Date().toISOString() };
   }
   return null;
 }
@@ -7059,6 +7075,7 @@ async function fetchNpbData(query) {
     // 형식: "佐藤　輝明（阪神タイガース） | 個人年度別成績 | NPB.jp 日本野球機構"
     const titleEl = doc.querySelector('title');
     const titleText = titleEl?.textContent || '';
+    if (!titleText.includes('個人年度別成績')) throw new Error('NPB 공식 연도별 기록 확인 실패');
     const nameFromTitle = titleText.split(/[（|]/)[0].trim().replace(/　/g, ' ');
 
     // li 패턴 fallback: [배번, 구단명, 선수명, 요미가나]
@@ -7204,6 +7221,7 @@ async function fetchNpbData(query) {
         const yr   = o['年度'] || tds[0] || '';
         const team = o['所属球団'] || tds[1] || '-';
         if (!yr || yr === '年度') return;
+        if (!/^(?:\d{4}[春秋]?|.*通[\s　]*算.*)$/.test(yr)) return;
         // 通算: 연도에 포함되거나(일반), th 행에서 팀 셀에 포함되는 경우(npb.jp 스타일)
         const isCareer = /通[\s　]*算/.test(yr) || (isThRow && /通[\s　]*算/.test(team));
 
@@ -7262,7 +7280,7 @@ async function fetchNpbData(query) {
     return { name:fullName, yomi, isBatter, isPitcher:!isBatter,
       rows, careerRow, backNo, teamName, posName:posNameKo, handInfo:handInfoKo,
       birth:birthDate, heightWeight:hwKo, careerHist, draftInfo:draftInfoKo, photoUrl,
-      playerId:bisId, sourceUrl:pageUrl, src:'npb', noStats:rows.length===0 };
+      playerId:bisId, sourceUrl:pageUrl, src:'npb', regularSeason:true, fetchedAt:new Date().toISOString(), noStats:rows.length===0 };
   } catch(e) { return null; }
 }
 
@@ -7475,7 +7493,7 @@ function buildExternalCard(data, league) {
         ${kboBioHtml}
       </div>
     </div>
-    <span class="src-tag src-api">📡 koreabaseball.com 공식 · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">원본 보기</a></span>
+    <span class="src-tag src-api">📡 KBO 정규시즌 검증 · <a href="https://all-of-baseball.rockyhong99.chatgpt.site/api/kbo/player?id=${encodeURIComponent(data.playerId)}&type=${isBat ? 'hitter' : 'pitcher'}" target="_blank" style="color:inherit">검증 데이터</a> · <a href="${escH(data.sourceUrl)}" target="_blank" style="color:inherit">KBO 원본(정규시즌 선택 필요)</a></span>
     ${tableHtml}
     ${(!isBat && data.pitchTypeRows)    ? renderKboPitchTypes(data.pitchTypeRows)       : ''}
     ${(isBat  && data.kboHotColdZones)  ? renderHotColdZones(data.kboHotColdZones, false): ''}
@@ -9703,7 +9721,10 @@ function escH(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
-<script src="assets/transactions.js"></script>
-<script src="assets/ui.js"></script>
+<script src="assets/cpbl-directory.js?build=20261116-gh1"></script>
+<script src="assets/cpbl-recent.js?build=20261116-gh1"></script>
+<script src="assets/search.js?build=20261116-gh1"></script>
+<script src="assets/transactions.js?build=20261116-gh1"></script>
+<script src="assets/ui.js?build=20261116-gh1"></script>
 </body>
 </html>
