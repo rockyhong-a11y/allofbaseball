@@ -67,3 +67,14 @@ assert.equal(helpers.npbMatches('zzzznotaplayer').length,0);
  assert(statuses.some(s=>s.includes('CPBL: 12명')));
  console.log('PASS: NPB 5 name forms; CPBL 6 name forms; multiple matches; empty queries; MLB HTTP error/success; KBO detail fallback.');
 })();
+
+const cpblTable=helpers.liveCpblCard({acnt:'0000001618',name:'Lin',nameZh:'林子偉',team:'樂天桃猿二軍',isBatter:true,live:{status:'ok',year:2026,metrics:{Team:{Name:'樂天桃猿'},Pa:360,Ba:.2454545,BaPR:58,Obp:.28895,Slg:.32727,Woba:.28879}}});
+assert(cpblTable.includes('class="tbl-wrap"'));assert(cpblTable.includes('<table>'));
+assert(cpblTable.includes('<td>360</td>'));assert(cpblTable.includes('<td>0.245</td>'));
+assert(cpblTable.includes('<td>미제공</td>'));assert(!cpblTable.includes('<td>58</td>'));
+assert(cpblTable.includes('2026 1군 정규시즌'));assert(cpblTable.includes('class="td-tm">樂天桃猿</td>'));
+const pitcherTable=helpers.liveCpblCard({acnt:'0000001232',name:'Chiang',isBatter:false,live:{status:'ok',year:2026,metrics:{Pa:176,Kp:.1534,Bbp:.09659}}});
+assert(pitcherTable.includes('<td>15.3%</td>'));assert(pitcherTable.includes('>ERA</th>'));
+assert(helpers.liveCpblCard({acnt:'0000001618',name:'Lin',isBatter:true,live:{status:'unavailable'}}).includes('最新')===false);
+assert(helpers.liveCpblCard({acnt:'0000001618',name:'Lin',isBatter:true,live:{status:'unavailable'}}).includes('최신 기록 미확인'));
+console.log('PASS: CPBL batter/pitcher unified tables, source values, missing fields, unavailable state');
