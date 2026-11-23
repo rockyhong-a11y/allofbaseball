@@ -77,7 +77,7 @@ const cpblTable=helpers.liveCpblCard({acnt:'0000001618',name:'Lin',nameZh:'林�
 assert(cpblTable.includes('class="tbl-wrap"'));assert(cpblTable.includes('<table>'));
 assert(cpblTable.includes('<td>360</td>'));assert(cpblTable.includes('<td>0.245</td>'));
 assert(cpblTable.includes('확인된 기본 기록 없음'));assert(!cpblTable.includes('<td>58</td>'));
-assert(cpblTable.includes('CPBL 1군 정규시즌 고급 지표'));assert(cpblTable.includes('class="td-tm">樂天桃猿</td>'));
+assert(cpblTable.includes('CPBL 1군 정규시즌 고급 지표'));assert(cpblTable.includes('class="td-tm">라쿠텐 몽키스</td>'));
 const pitcherTable=helpers.liveCpblCard({acnt:'0000001232',name:'Chiang',isBatter:false,live:{status:'ok',year:2026,metrics:{Pa:176,Kp:.1534,Bbp:.09659}}});
 assert(pitcherTable.includes('<td>15.3%</td>'));assert(pitcherTable.includes('>ERA</th>'));
 assert(helpers.liveCpblCard({acnt:'0000001618',name:'Lin',isBatter:true,live:{status:'unavailable'}}).includes('最新')===false);
@@ -87,7 +87,7 @@ console.log('PASS: CPBL batter/pitcher unified tables, source values, missing fi
 const jiang=helpers.liveCpblCard({acnt:'0000002679',name:'Chiang',isBatter:false,live:{status:'ok',year:2026,profile:{CHName:'江承諺',Team:{Name:'台鋼雄鷹二軍'}},metrics:{Team:{Name:'台鋼雄鷹'},Pa:465,Ba:.27684964200477324}}});
 assert(helpers.cpblMatches('0000002679').includes('0000002679'));
 for(const q of ['江承諺','江辰晏','CHIANG Chen Yen']) assert(helpers.cpblMatches(q).includes('0000002679'));
-assert(jiang.includes('江承諺')); assert(jiang.includes('프로필 소속: 台鋼雄鷹二軍')); assert(jiang.includes('class="td-tm">台鋼雄鷹</td>')); assert(jiang.includes('<td>465</td>'));
+assert(jiang.includes('江承諺')); assert(jiang.includes('프로필 소속: 타이강 호크스 2군')); assert(jiang.includes('class="td-tm">타이강 호크스</td>')); assert(jiang.includes('<td>465</td>'));
 assert(jiang.includes('www.cpbl.com.tw/team/person?acnt=0000002679'));
 const jiangCached=helpers.liveCpblCard({acnt:'0000002679',name:'Chiang',isBatter:false,statsUpdated:'fixture',live:{status:'ok',year:2026,metrics:{Pa:465}},careerStats:[{Year:'2026',KindCode:'A',TeamAbbrName:'台鋼雄鷹',TotalGames:20,Era:3.302},{Year:'2025',KindCode:'A',TeamAbbrName:'台鋼雄鷹',TotalGames:21},{Year:'2026',KindCode:'C',TotalGames:99999}]});
 assert(jiangCached.includes('2026-11-23 19:51 KST 공식 원문 대조값'));
@@ -104,7 +104,7 @@ const jiangProfile={CHName:'江承諺',Team:{Name:'台鋼雄鷹二軍'},AcntImgP
 const historical=helpers.liveCpblCard({acnt:'0000002679',name:'Chiang',pos:'Pitcher',isBatter:false,statsUpdated:'2026-10-01 11:13 KST',careerStats:officialHistory,live:{profile:jiangProfile,status:'unavailable',seasonRecords:[{Year:'2026',KindCode:'A',TeamAbbrName:'台鋼雄鷹',TotalGames:20,PitchStarting:20,InningPitched:109,Era:3.30},{Year:'2026',KindCode:'C',TeamAbbrName:'台鋼雄鷹',TotalGames:9999}]}});
 const shownYears=[...historical.matchAll(/class="td-yr">(\d{4})</g)].map(m=>+m[1]);
 assert.deepEqual(shownYears,Array.from({length:13},(_,i)=>2026-i));
-for(const phrase of [encodeURI(officialPhoto),'江承諺 선수 사진','江辰晏','1995-06-03','175cm / 70kg','좌투 좌타','西苑高中','2014-09-26','統一7-ELEVEn獅 2013년 1라운드','統一7-ELEVEn獅','<td>14.2</td>','<td>3.07</td>']) assert(historical.includes(phrase),phrase);
+for(const phrase of [encodeURI(officialPhoto),'江承諺 선수 사진','江辰晏','1995-06-03','175cm / 70kg','좌투 좌타','西苑高中','2014-09-26','퉁이 라이온즈 2013년 1라운드','퉁이 라이온즈','<td>14.2</td>','<td>3.07</td>']) assert(historical.includes(phrase),phrase);
 assert(!historical.includes('9999'));
 assert(historical.includes('공식 실시간 조회'));assert(historical.includes('2026-10-01 11:13 KST 저장본'));
 const intentionalTrades=helpers.liveCpblCard({acnt:'0000002679',name:'Chiang',isBatter:false,live:{profile:{AcntImgPath:'https://not-cpbl.invalid/photo.jpg'},seasonRecords:[{Year:'2026',KindCode:'A',TeamAbbrName:'첫팀',TotalGames:3},{Year:'2026',KindCode:'A',TeamAbbrName:'둘째팀',TotalGames:5},{Year:'2026',KindCode:'A',TeamAbbrName:'合計',TotalGames:8},{Year:'2026',KindCode:'A',TeamAbbrName:'合計',TotalGames:8}]}});
@@ -130,3 +130,22 @@ if(fs.existsSync(currentDataPath)) {
  assert.equal(Number(match.Era),3.30);assert.equal(Number(match.PlateAppearances),466);
 }
 console.log('PASS: complete official current-season rows keep separate date, source and old seasons');
+
+const moya=helpers.liveCpblCard({acnt:'0000007239',name:'Steven MOYA',nameZh:'魔鷹',team:'台鋼雄鷹',isBatter:true,live:{profile:{IsForeign:'1',CHName:'魔鷹',Engname:'Steven MOYA',AboriginalName:'Steven MOYA'}}});
+assert(moya.includes('<h3>Steven MOYA')); assert(!moya.includes('<h3>魔鷹'));
+assert(helpers.cpblMatches('魔鷹').includes('0000007239'));
+assert(helpers.cpblMatches('Steven Moya').includes('0000007239'));
+const domestic=helpers.liveCpblCard({acnt:'0000002679',name:'CHIANG Chen Yen',nameZh:'江承諺',isBatter:false,live:{profile:{IsForeign:'0',CHName:'江承諺',Engname:'CHIANG Chen Yen'}}});
+assert(domestic.includes('<h3>江承諺')); assert(!domestic.includes('<h3>CHIANG Chen Yen'));
+const foreignWithoutLatin=helpers.liveCpblCard({acnt:'0000009999',name:'測試',nameZh:'測試',isBatter:true,live:{profile:{IsForeign:'1',CHName:'測試',Engname:'測試'}}});
+assert(foreignWithoutLatin.includes('<h3>測試'));
+const moyaOffline=helpers.liveCpblCard({acnt:'0000007239',name:'Steven MOYA',nameZh:'魔鷹',isBatter:true});
+assert(moyaOffline.includes('<h3>Steven MOYA'));
+assert.equal(vm.runInContext("cpblTeamKo('中信兄弟二軍')",context),'중신 브라더스 2군');
+assert.equal(vm.runInContext("cpblTeamKo('臺鋼雄鷹')",context),'타이강 호크스');
+assert.equal(vm.runInContext("cpblTeamKo('Lamigo')",context),'라미고 몽키스');
+assert.equal(vm.runInContext("cpblTeamKo('未知球隊二軍')",context),'未知球隊二軍');
+console.log('PASS: verified foreign English and domestic Chinese, aliases, first/second-team names, historical fallback');
+
+assert(helpers.liveCpblCard({acnt:'0000007228',nameZh:'鈴木駿輔',isBatter:false}).includes('<h3>SUZUKI Shunsuke'));
+assert(helpers.liveCpblCard({acnt:'0000007783',nameZh:'阿部雄大',isBatter:false}).includes('<h3>ABE Yudai'));

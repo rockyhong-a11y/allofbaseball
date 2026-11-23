@@ -157,11 +157,15 @@
   }
   // League's own 1군 정규시즌 table, read manually when its public endpoint
   // was unavailable from the deployment network. Replaced by a live row when available.
-  const cpblVerifiedStandard = {'0000002679':{readAt:'2026-11-23 19:51 KST',bio:{debut:'2014-09-26',school:'西苑高中',draft:'統一7-ELEVEn獅 2013년 1라운드'},row:{Year:'2026',KindCode:'A',TeamAbbrName:'台鋼雄鷹',TotalGames:20,PitchStarting:20,Wins:4,Loses:5,SaveOK:0,ReliefPointCnt:0,InningPitched:109,Era:3.30,Whip:1.32,PlateAppearances:466,HittingCnt:116,HomeRunCnt:8,BasesONBallsCnt:28,StrikeOutCnt:50}}};
+  const cpblVerifiedStandard = {'0000002679':{readAt:'2026-11-23 19:51 KST',bio:{debut:'2014-09-26',school:'西苑高中',draft:'퉁이 라이온즈 2013년 1라운드'},row:{Year:'2026',KindCode:'A',TeamAbbrName:'台鋼雄鷹',TotalGames:20,PitchStarting:20,Wins:4,Loses:5,SaveOK:0,ReliefPointCnt:0,InningPitched:109,Era:3.30,Whip:1.32,PlateAppearances:466,HittingCnt:116,HomeRunCnt:8,BasesONBallsCnt:28,StrikeOutCnt:50}}};
   function liveCpblCard(p) {
     const live=p.live || {}, basic=live.profile;
-    const name=basic?.CHName || basic?.ChName || basic?.chName || p.nameZh || p.name;
-    const team=basic?.Team?.Name || basic?.team?.name || p.team;
+    // These fallback identities were independently matched to the league's official
+    // IsForeign flag and English roster name; the live flag still takes precedence.
+    const verifiedForeignEnglish={ '0000007228':'SUZUKI Shunsuke','0000007783':'ABE Yudai' }[p.acnt];
+    const foreignName=cpblForeignName(basic,verifiedForeignEnglish?{...p,isForeign:true,name:verifiedForeignEnglish}:p);
+    const name=foreignName || basic?.CHName || basic?.ChName || basic?.chName || p.nameZh || p.name;
+    const team=cpblTeamKo(basic?.Team?.Name || basic?.team?.name || p.team);
     const id=encodeURIComponent(p.acnt);
     const officialUrl=`https://www.cpbl.com.tw/team/person?acnt=${id}`;
     const advancedUrl=`https://stats.cpbl.com.tw/players/${id}`;
@@ -214,7 +218,7 @@
     const jersey=one(basic?.UniformNo,basic?.uniformNo,p.jerseyNo);
     const position=one(p.pos);
     const debut=one(basic?.FirstGameDate,basic?.firstGameDate,verified?.bio?.debut,p.debut).replace(/^(\d{4}-\d{2}-\d{2})T.*$/,'$1');
-    const bio=[['등번호',jersey],['포지션',/pitcher/i.test(position)?'투수':position],['투타',joined||one(p.bt)],['생년월일',birth],['신장/체중',size||one(p.hw)],['데뷔',debut],['이전 이름',one(basic?.AboriginalName,basic?.aboriginalName)],['출신학교',one(basic?.SchoolName,basic?.schoolName,verified?.bio?.school)],['지명',one(verified?.bio?.draft)]]
+    const bio=[['등번호',jersey],['포지션',/pitcher/i.test(position)?'투수':position],['투타',joined||one(p.bt)],['생년월일',birth],['신장/체중',size||one(p.hw)],['데뷔',debut],['이전 이름',foreignName?'':one(basic?.AboriginalName,basic?.aboriginalName)],['출신학교',one(basic?.SchoolName,basic?.schoolName,verified?.bio?.school)],['지명',one(verified?.bio?.draft)]]
       .filter(([,value])=>value).map(([label,value])=>`<div class="bc"><div class="bl">${label}</div><div class="bv">${escH(value)}</div></div>`).join('');
     const profile=`<div class="prof"><div class="photo"><span aria-hidden="true">⚾</span>${photo?`<img src="${escH(photo)}" alt="${escH(name)} 선수 사진" onload="this.previousElementSibling.hidden=true" onerror="this.remove()">`:''}</div><div class="pinfo"><h3>${escH(name)} <span class="badge">CPBL</span></h3><p>프로필 소속: ${escH(team || '미확인')}</p>${bio?`<div class="bio-g">${bio}</div>`:''}</div></div>`;
     const fields=p.isBatter
@@ -224,13 +228,13 @@
       ? (Number(raw)*(pct?100:1)).toFixed(dec)+(pct?'%':'') : '미제공';
     const wrap=(caption,labels,contents)=>`<div class="tbl-wrap" tabindex="0" role="region" aria-label="${caption}"><table><caption style="text-align:left;padding:12px 0">${caption}</caption><thead><tr>${labels.map(label=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${contents}</tbody></table></div>`;
     const standardBody=[...rows].sort((a,b)=>Number(b.Year)-Number(a.Year)).map(r=>
-      `<tr><td class="td-yr">${r.Year}</td><td class="td-tm">${escH(r.TeamAbbrName || '미제공')}</td>${fields.map(([key,,dec])=>`<td>${val(r[key],dec)}</td>`).join('')}<td>${recent.includes(r)?'공식 실시간 조회':siteConfirmed.includes(r)?escH(standardDate)+' 공식 전수표':r===verifiedRow?escH(verified.readAt)+' 원문 대조':escH(p.statsUpdated || '확인 시각 미상')+' 저장본'}</td></tr>`).join('');
+      `<tr><td class="td-yr">${r.Year}</td><td class="td-tm">${escH(cpblTeamKo(r.TeamAbbrName) || '미제공')}</td>${fields.map(([key,,dec])=>`<td>${val(r[key],dec)}</td>`).join('')}<td>${recent.includes(r)?'공식 실시간 조회':siteConfirmed.includes(r)?escH(standardDate)+' 공식 전수표':r===verifiedRow?escH(verified.readAt)+' 원문 대조':escH(p.statsUpdated || '확인 시각 미상')+' 저장본'}</td></tr>`).join('');
     const standard=wrap('CPBL 1군 정규시즌 기본 기록',['연도','팀',...fields.map(([,label])=>label),'자료 확인'],standardBody || `<tr><td colspan="${fields.length+3}">확인된 기본 기록 없음</td></tr>`);
     const advancedFields=p.isBatter
       ? [['Pa','PA'],['Ba','AVG',3],['Obp','OBP',3],['Slg','SLG',3],['Woba','wOBA',3]]
       : [['Pa','상대 PA'],['Ba','피AVG',3],['Obp','피OBP',3],['Slg','피SLG',3],['Woba','피wOBA',3],['Kp','K%',1,true],['Bbp','BB%',1,true]];
     const metric=live.status==='ok' && live.metrics;
-    const advanced=metric ? `<details><summary>공식 고급 지표 · 기본 기록과 별도 집계</summary>${wrap('CPBL 1군 정규시즌 고급 지표',['연도','팀',...advancedFields.map(([,label])=>label)],`<tr><td class="td-yr">${Number.isInteger(live.year)?live.year:'미확인'}</td><td class="td-tm">${escH(metric.Team?.Name || '미제공')}</td>${advancedFields.map(([key,,dec,pct])=>`<td>${val(metric[key],dec,pct)}</td>`).join('')}</tr>`)}<p class="tbl-note">고급 지표 조회 ${escH(live.retrievedAt || '미확인')} · 기본 기록과 합산하지 않습니다.</p></details>` : '';
+    const advanced=metric ? `<details><summary>공식 고급 지표 · 기본 기록과 별도 집계</summary>${wrap('CPBL 1군 정규시즌 고급 지표',['연도','팀',...advancedFields.map(([,label])=>label)],`<tr><td class="td-yr">${Number.isInteger(live.year)?live.year:'미확인'}</td><td class="td-tm">${escH(cpblTeamKo(metric.Team?.Name || metric.team?.name) || '미제공')}</td>${advancedFields.map(([key,,dec,pct])=>`<td>${val(metric[key],dec,pct)}</td>`).join('')}</tr>`)}<p class="tbl-note">고급 지표 조회 ${escH(live.retrievedAt || '미확인')} · 기본 기록과 합산하지 않습니다.</p></details>` : '';
     const state=siteConfirmed.length?`2026 공식 정규시즌 전수표 · ${escH(standardDate)} 조회 (실시간 조회 아님)`:recent.length?'CPBL 공식 기본 기록 직접 조회 · 직접 조회에 없는 과거 시즌은 저장본':verifiedRow?`기본 기록 실시간 연결 미확인 · ${escH(verified.readAt)} 공식 원문 대조값과 이전 시즌 저장본`:rows.length?`최신 시즌 성적 미확인 · 공식 기록 저장본 ${escH(p.statsUpdated || '확인 시각 미상')}`:'기본 기록 조회 미확인';
     return `<section class="pcard" style="padding:20px">${profile}<p>${state}</p>${standard}${advanced}<p class="tbl-note">기록표 팀은 해당 시즌 기준입니다. 미제공은 0이 아닙니다.</p><a href="${officialUrl}" target="_blank" rel="noopener">CPBL 공식 선수 페이지</a> · <a href="${advancedUrl}" target="_blank" rel="noopener">CPBL 공식 고급 지표</a></section>`;
   }
@@ -266,7 +270,7 @@
       const cards = document.getElementById('cards');
       all.filter(r=>r.type==='cpbl').forEach(r=>cards.insertAdjacentHTML('beforeend',liveCpblCard(r.data) + recentCpblCard(r.data.acnt)));
       if (leagues.includes('cpbl') && window.cpblDirectory) main.insertAdjacentHTML('beforeend', `<p class="tbl-note">CPBL 공식 명감 ${window.cpblDirectory.count}명 · 확인 ${escH(window.cpblDirectory.readAt)}<br>기본 기록과 공식 고급 지표는 서로 다른 표에 표시합니다.</p>`);
-      main.insertAdjacentHTML('afterbegin', '<p class="tbl-note">2026.11.23-gh6 · KBO 서버 검증판 · 모든 리그 정규시즌 전용 · 시범경기/포스트시즌 제외 · 새 검색마다 조회 시도 · 실패/캐시 여부 별도 표시</p>');
+      main.insertAdjacentHTML('afterbegin', '<p class="tbl-note">2026.11.23-gh7 · KBO 서버 검증판 · 모든 리그 정규시즌 전용 · 시범경기/포스트시즌 제외 · 새 검색마다 조회 시도 · 실패/캐시 여부 별도 표시</p>');
       const summary = leagues.map(l=>`${l.toUpperCase()}: ${status[l] || '검색 중…'}`).join(' · ');
       main.insertAdjacentHTML('afterbegin', `<p role="status" style="padding:12px;color:var(--mu)">${escH(summary)}</p>`);
       if (all.some(r=>r.type==='cpbl')) _fillCpblMeta('stats');

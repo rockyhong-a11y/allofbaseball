@@ -9224,7 +9224,31 @@ const CPBL_TEAM_KO = {
   '富邦悍將':'푸방 가디언즈',
   '味全龍':'웨이취안 드래곤즈',
   '台鋼雄鷹':'타이강 호크스',
+  '臺鋼雄鷹':'타이강 호크스',
+  'Lamigo':'라미고 몽키스',
+  '兄弟':'슝디 엘리펀츠',
+  '義大':'이다 라이노스',
+  '興農':'싱농 불스',
 };
+
+function cpblTeamKo(value) {
+  const team=typeof value==='string'?value.trim():'';
+  const second=/\s*[二2]軍$/.test(team);
+  const base=team.replace(/\s*[二2]軍$/,'').replace(/\s*一軍$/,'').trim();
+  if (/^(?:合計|總計|TOTAL)$/i.test(base)) return '합계';
+  return Object.hasOwn(CPBL_TEAM_KO,base) ? CPBL_TEAM_KO[base]+(second?' 2군':'') : team;
+}
+
+// Do not infer foreign status from English spelling; domestic profiles have it too.
+// The explicit official Moya profile is the offline fallback for this known ID.
+function cpblForeignName(basic, player) {
+  const flag=basic?.IsForeign ?? basic?.isForeign ?? player?.isForeign;
+  const fallback=String(player?.acnt)==='0000007239'?'Steven MOYA':'';
+  if (!(flag===true || flag===1 || flag==='1' || (flag==null && fallback))) return '';
+  return [basic?.Engname,basic?.engname,basic?.AboriginalName,basic?.aboriginalName,player?.name,fallback].find(
+    n=>typeof n==='string' && /\p{Script=Latin}/u.test(n) && /^[\p{Script=Latin}\p{Mark} .’'\-]+$/u.test(n.trim())
+  )?.trim() || '';
+}
 
 /* ══════════════════════════════════════════════════════
    ★ CPBL 자동완성
@@ -9245,7 +9269,7 @@ function cpblAcSearch(q) {
         if (acnt && !seen.has(acnt)) {
           const p = CPBL_PLAYERS[acnt];
           seen.add(acnt);
-          results.push({ display: p.zh ? p.zh+' ('+p.n+')' : p.n, sub: p.t, keys:[ko, enLow], league:'cpbl', team:p.t });
+          results.push({ display: cpblForeignName(null,{acnt}) || (p.zh ? p.zh+' ('+p.n+')' : p.n), sub: cpblTeamKo(p.t), keys:[ko, enLow], league:'cpbl', team:cpblTeamKo(p.t) });
         }
       }
       if (results.length >= 8) break;
@@ -9261,7 +9285,7 @@ function cpblAcSearch(q) {
         if (acnt && !seen.has(acnt)) {
           const p = CPBL_PLAYERS[acnt];
           seen.add(acnt);
-          results.push({ display: zh+' ('+p.n+')', sub: p.t, keys:[zh, enLow], league:'cpbl', team:p.t });
+          results.push({ display: cpblForeignName(null,{acnt}) || zh+' ('+p.n+')', sub: cpblTeamKo(p.t), keys:[zh, enLow], league:'cpbl', team:cpblTeamKo(p.t) });
         }
       }
       if (results.length >= 8) break;
@@ -9274,11 +9298,11 @@ function cpblAcSearch(q) {
     if (nameLow.startsWith(qLow) || nameLow.includes(qLow)) {
       seen.add(acnt);
       results.push({
-        display: p.zh ? p.zh+' ('+p.n+')' : p.n,
-        sub: p.t,
+        display: cpblForeignName(null,{acnt}) || (p.zh ? p.zh+' ('+p.n+')' : p.n),
+        sub: cpblTeamKo(p.t),
         keys: [nameLow],
         league: 'cpbl',
-        team: p.t,
+        team: cpblTeamKo(p.t),
       });
     }
     if (results.length >= 8) break;
@@ -9462,7 +9486,7 @@ function buildCpblCard(p) {
     }
     const tbody = seasons.map(s => `<tr>
         <td class="td-yr">${s.Year}</td>
-        <td class="td-tm">${escH(s.TeamAbbrName||'')}</td>
+        <td class="td-tm">${escH(cpblTeamKo(s.TeamAbbrName))}</td>
         <td>${_int(s.TotalGames)}</td>
         <td>${_int(s.PlateAppearances)}</td>
         <td class="hy">${_avg(s.Avg)}</td>
@@ -9494,7 +9518,7 @@ function buildCpblCard(p) {
     }
     const tbody = seasons.map(s => `<tr>
         <td class="td-yr">${s.Year}</td>
-        <td class="td-tm">${escH(s.TeamAbbrName||'')}</td>
+        <td class="td-tm">${escH(cpblTeamKo(s.TeamAbbrName))}</td>
         <td>${_int(s.TotalGames)}</td>
         <td>${_int(s.PitchStarting)}</td>
         <td class="hg">${_int(s.Wins)}</td>
@@ -9534,7 +9558,7 @@ function buildCpblCard(p) {
         <div class="pname">${displayName} ${p.jerseyNo?`<span class="pname-sub">#${p.jerseyNo}</span>`:''}</div>
         <div class="brow">
           <span class="badge b-cpbl">CPBL</span>
-          <span class="badge b-tm">${escH(p.team)}</span>
+          <span class="badge b-tm">${escH(cpblTeamKo(p.team))}</span>
           ${p.pos ? `<span class="badge b-pos">${escH(p.pos)}</span>` : ''}
         </div>
         ${strip}
@@ -9615,7 +9639,7 @@ async function loadCpblSchedule(el) {
   const mm = _lgDate.getMonth() + 1;
   const dd = _lgDate.getDate();
   // 중국어 정식 팀명 → 한글 팀명
-  const normTeam = n => CPBL_TEAM_KO[n] || (n || '');
+  const normTeam = cpblTeamKo;
 
   try {
     const allGames = await _loadCpblSchedData(yr);
@@ -9699,7 +9723,7 @@ async function loadCpblStandings(el) {
     if (data.year !== yr || !Array.isArray(data.teams) || data.teams.length !== 6) throw new Error('Invalid official standings');
     const teams = data.teams.map(t => ({
       rank: t.Ranking,
-      team: CPBL_TEAM_KO[t.Team.Name] || t.Team.Name,
+      team: cpblTeamKo(t.Team.Name),
       g: String(t.GameCnt), w: String(t.GameResultWCnt), l: String(t.GameResultLCnt), d: String(t.GameResultTCnt),
       pct: t.Pct, gb: t.GB == null ? '-' : String(t.GB),
       streak: t.Strk > 0 ? `${t.Strk}연승` : t.Strk < 0 ? `${-t.Strk}연패` : '-'
@@ -9725,8 +9749,8 @@ function escH(s){
 </script>
 <script src="assets/cpbl-directory.js?build=20261116-gh2"></script>
 <script src="assets/cpbl-recent.js?build=20261116-gh2"></script>
-<script src="assets/search.js?build=20261123-gh6"></script>
-<script src="assets/transactions.js?build=20261116-gh2"></script>
+<script src="assets/search.js?build=20261123-gh7"></script>
+<script src="assets/transactions.js?build=20261123-gh7"></script>
 <script src="assets/ui.js?build=20261116-gh2"></script>
 </body>
 </html>
