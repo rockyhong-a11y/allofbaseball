@@ -6,7 +6,7 @@
     const timer = setTimeout(() => reject(new Error('응답 시간 초과')), ms);
     Promise.resolve(promise).then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
   });
-  const profile = (name, league, url, note = '선수는 확인했으나 상세 기록을 불러오지 못했습니다.') => `<div class="pcard" style="padding:24px"><h3>${escH(name)} <span class="badge">${league}</span></h3><p>${escH(note)}</p><a href="${escH(url)}" target="_blank" rel="noopener">공식 선수 페이지 ↗</a></div>`;
+  const profile = (name, league, url, note = '선수는 확인했으나 상세 기록을 불러오지 못했습니다.', bio = {}) => `<div class="pcard" style="padding:24px"><h3>${escH(name)} <span class="badge">${league}</span></h3><p>${escH(note)}</p>${Object.entries({birth:'생년월일',position:'포지션',heightWeight:'신장/체중',career:'경력',signingBonus:'입단 계약금',salary:'연봉',draftRank:'지명순위',joinYear:'입단년도'}).filter(([k])=>typeof bio?.[k]==='string'&&bio[k]).map(([k,label])=>`<p>${label}: ${escH(bio[k])}</p>`).join('')}<a href="${escH(url)}" target="_blank" rel="noopener">공식 선수 페이지 ↗</a></div>`;
   function npbMatches(query) {
     const q = norm(query), found = new Map();
     if (!q) return [];
@@ -22,7 +22,7 @@
     const aliases = {};
     for (const map of [CPBL_KO_MAP, CPBL_ZH_MAP]) for (const [alias, name] of Object.entries(map)) (aliases[norm(name)] ||= []).push(alias);
     for (const [id, p] of Object.entries(CPBL_PLAYERS)) {
-      const keys = [p.n, p.zh, ...(p.aliases || []), ...(aliases[norm(p.n)] || [])].filter(Boolean).map(norm);
+      const keys = [id, p.n, p.zh, ...(p.aliases || []), ...(aliases[norm(p.n)] || [])].filter(Boolean).map(norm);
       if (keys.some(k => k.includes(q))) matches.set(id, keys.includes(q) ? 0 : 1);
     }
     return [...matches].sort((a,b) => a[1]-b[1]).map(([id]) => id).slice(0, 12);
@@ -35,7 +35,7 @@
   const originalExternalCard = buildExternalCard;
   buildExternalCard = (data, league) => {
     if (league === 'KBO' && !data.searchProfile && (data.scopeVerified !== true || data.seriesId !== '0' || data.regularSeason !== true)) return profile(data.name, 'KBO', '/','정규시즌 검증 실패로 성적을 차단했습니다.');
-    if (data.searchProfile) return profile(data.name, league, data.sourceUrl, data.regularOnly ? 'KBO 정규시즌 기록을 확인하지 못했습니다. 다른 시즌 기록은 표시하지 않습니다.' : undefined);
+    if (data.searchProfile) return profile(data.name, league, data.sourceUrl, data.regularOnly ? 'KBO 정규시즌 기록을 확인하지 못했습니다. 다른 시즌 기록은 표시하지 않습니다.' : undefined, data.bio);
     const card = originalExternalCard(data, league);
     return `<p class="tbl-note">${league} 정규시즌 기록만 표시 · 공식 자료 조회 ${escH(data.fetchedAt || '미확인')}</p>` + card;
   };
@@ -48,9 +48,10 @@
       try {
         const r=await fetch(`https://all-of-baseball.rockyhong99.chatgpt.site/api/kbo/player?id=${encodeURIComponent(pl.P_ID)}&type=${type}`,{cache:'no-store',signal:AbortSignal.timeout(45000)});
         const d=await r.json();
+        if(d.playerId===String(pl.P_ID) && d.searchProfile===true) return {...d,name:pl.P_NM,regularOnly:true};
         if(!r.ok || d.playerId!==String(pl.P_ID) || d.seriesId!=='0' || d.scopeVerified!==true || d.regularSeason!==true || !Array.isArray(d.rows))throw new Error('정규시즌 범위 미확인');
         return {...d,name:pl.P_NM,teamName:pl.T_NM||'',posName:pl.POS_NO||'',backNo:pl.BACK_NO||'',handInfo:pl.P_TYPE||''};
-      } catch (_) { return {searchProfile:true,regularOnly:true,name:pl.P_NM,sourceUrl:`https://all-of-baseball.rockyhong99.chatgpt.site/api/kbo/player?id=${encodeURIComponent(pl.P_ID)}&type=${type}`}; }
+      } catch (_) { return {searchProfile:true,regularOnly:true,name:pl.P_NM,sourceUrl:`https://www.koreabaseball.com/Record/Player/${type==='pitcher'?'Pitcher':'Hitter'}Detail/Total.aspx?playerId=${encodeURIComponent(pl.P_ID)}`}; }
     }));
   };
   mlbFetch = async (q, sportIds = '1') => {
@@ -138,7 +139,7 @@
   }
   function liveCpblCard(p) {
     const live=p.live || {status:'unavailable'}, basic=live.profile;
-    const name=basic?.ChName || basic?.chName || p.nameZh || p.name;
+    const name=basic?.CHName || basic?.ChName || basic?.chName || p.nameZh || p.name;
     const team=basic?.Team?.Name || basic?.team?.name || p.team;
     const row=live.metrics;
     // Use the same horizontally scrollable record table as the other leagues.
@@ -151,12 +152,29 @@
       ? Number(row[key]*(pct?100:1)).toFixed(dec)+(pct?'%':'') : '미제공';
     const year=Number.isInteger(live.year) ? live.year : '미확인';
     const statsTeam=row?.Team?.Name || '미제공';
-    const record=live.status==='ok' && row
+    const officialUrl=`https://www.cpbl.com.tw/team/person?acnt=${encodeURIComponent(p.acnt)}`;
+    const advancedUrl=`https://stats.cpbl.com.tw/players/${encodeURIComponent(p.acnt)}`;
+    const regular=r=>r?.KindCode==='A' && /^\d{4}$/.test(String(r.Year));
+    const cache=Array.isArray(p.careerStats)?p.careerStats.filter(regular):[];
+    const availability=live.status==='ok' && row;
+    const cached=!availability && cache.length;
+    const sourceRows=cached?cache:[];
+    const fields=p.isBatter
+      ? {G:'TotalGames',Pa:'PlateAppearances',AB:'HitCnt',Ba:'Avg',H:'HittingCnt',HR:'HomeRunCnt',RBI:'RunBattedINCnt',SB:'StealBaseOKCnt',Obp:'Obp',Slg:'Slg',OPS:'Ops'}
+      : {G:'TotalGames',W:'Wins',L:'Loses',SV:'SaveOK',IP:'InningPitched',ERA:'Era',WHIP:'Whip',Pa:'PlateAppearances',Ba:'Avg'};
+    const seasonValue=(r,key,dec)=> {
+      const raw=r[fields[key]];
+      return raw!=='' && raw!=null && Number.isFinite(Number(raw)) ? Number(raw).toFixed(dec) : '미제공';
+    };
+    const seasonTableRows=[...sourceRows].sort((a,b)=>Number(b.Year)-Number(a.Year)).map(r=>
+      `<tr><td class="td-yr">${r.Year}</td><td class="td-tm">${escH(r.TeamAbbrName || '미제공')}</td>${specs.map(([key,,dec])=>`<td>${seasonValue(r,key,dec)}</td>`).join('')}</tr>`).join('');
+    const tableCaption=cached?'1군 정규시즌 · 확인된 과거 기록 (최신 미확인)':`${year} 1군 정규시즌 · 공식 제공 지표`;
+    const record=seasonTableRows || (availability
       ? `<tr><td class="td-yr">${year}</td><td class="td-tm">${escH(statsTeam)}</td>${specs.map(([key,label,dec,pct])=>`<td>${value(key,dec,pct)}</td>`).join('')}</tr>`
-      : `<tr><td colspan="${specs.length+2}">${live.status==='no_metrics' ? '해당 시즌 정규시즌 지표 없음' : '최신 기록 미확인'}</td></tr>`;
-    const table=`<div class="tbl-wrap" tabindex="0" role="region" aria-label="CPBL 정규시즌 기록"><table><caption style="text-align:left;padding:12px 0">${year} 1군 정규시즌 · 공식 제공 지표</caption><thead><tr><th scope="col">연도</th><th scope="col">팀</th>${specs.map(([,label])=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${record}</tbody></table></div>`;
-    const state=live.status==='ok' ? '공식 DB 직접 조회 · 1군 정규시즌(A)' : live.status==='no_metrics' ? '해당 시즌 정규시즌 지표 없음' : '최신 공식 DB 조회 실패 · 이전 캐시를 최신으로 대체하지 않음';
-    return `<section class="pcard" style="padding:20px"><h3>${escH(name)} <span class="badge">CPBL</span></h3><p>${escH(team || '')}</p><p>${escH(state)}</p>${table}<p class="tbl-note">${live.retrievedAt ? `조회 ${escH(live.retrievedAt)} · ` : ''}제공처 갱신 시각/집계 마감 시각은 미제공. 공식 시즌지표 데이터셋이며 연도별 통산표와 혼합하지 않습니다. 미제공은 0이 아닙니다. 공식 응답에 없는 G·HR·RBI·ERA·WHIP·OPS 등은 계산하거나 과거 캐시로 채우지 않습니다.</p><a href="https://stats.cpbl.com.tw/players/${escH(p.acnt)}" target="_blank" rel="noopener">공식 선수 DB</a>${live.sources?.metrics ? ` · <a href="${escH(live.sources.metrics)}" target="_blank" rel="noopener">공식 지표 원본</a>` : ''}</section>`;
+      : `<tr><td colspan="${specs.length+2}">${live.status==='no_metrics' ? '해당 시즌 정규시즌 지표 없음' : '최신 기록 미확인'}</td></tr>`);
+    const table=`<div class="tbl-wrap" tabindex="0" role="region" aria-label="CPBL 정규시즌 기록"><table><caption style="text-align:left;padding:12px 0">${tableCaption}</caption><thead><tr><th scope="col">연도</th><th scope="col">팀</th>${specs.map(([,label])=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${record}</tbody></table></div>`;
+    const state=cached?`최신 시즌 성적 미확인 · 공식 기록 저장본 ${p.statsUpdated || '확인 시각 미상'}`:live.status==='ok' ? '공식 DB 직접 조회 · 1군 정규시즌(A)' : live.status==='no_metrics' ? '해당 시즌 정규시즌 지표 없음' : '최신 공식 DB 조회 실패 · 이전 캐시를 최신으로 대체하지 않음';
+    return `<section class="pcard" style="padding:20px"><h3>${escH(name)} <span class="badge">CPBL</span></h3><p>프로필 소속: ${escH(team || '미확인')}</p><p>${escH(state)}</p>${table}<p class="tbl-note">${live.retrievedAt ? `공식 DB 조회 ${escH(live.retrievedAt)} · ` : ''}기록표 팀은 해당 시즌 기록 기준입니다. 미제공은 0이 아닙니다.</p><a href="${officialUrl}" target="_blank" rel="noopener">CPBL 공식 선수 페이지</a> · <a href="${advancedUrl}" target="_blank" rel="noopener">CPBL 공식 선수 DB</a></section>`;
   }
   function recentCpblCard(id) {
     const snapshot = window.cpblRecentRegular;
@@ -188,9 +206,9 @@
       const main = document.getElementById('main');
       if (!regular.length) main.innerHTML = `<div class="rhead"><h3>🔍 ${escH(query)}</h3></div><div id="cards"></div>`;
       const cards = document.getElementById('cards');
-      all.filter(r=>r.type==='cpbl').forEach(r=>cards.insertAdjacentHTML('beforeend',liveCpblCard(r.data) + recentCpblCard(r.data.acnt) + `<details><summary>이전 연도별 캐시 · ${escH(r.data.statsUpdated || '미확인')} (최신 확인 안 됨)</summary>` + buildCpblCard(r.data) + '</details>'));
+      all.filter(r=>r.type==='cpbl').forEach(r=>cards.insertAdjacentHTML('beforeend',liveCpblCard(r.data) + recentCpblCard(r.data.acnt) + ((r.data.live?.status!=='ok') ? '' : `<details><summary>이전 연도별 캐시 · ${escH(r.data.statsUpdated || '미확인')} (최신 확인 안 됨)</summary>` + buildCpblCard(r.data) + '</details>')));
       if (leagues.includes('cpbl') && window.cpblDirectory) main.insertAdjacentHTML('beforeend', `<p class="tbl-note">CPBL 공식 명감 ${window.cpblDirectory.count}명 · 확인 ${escH(window.cpblDirectory.readAt)}<br>공식 정규시즌 지표는 검색 시 직접 조회합니다. 연도별 성적 캐시는 접힌 영역에 별도 표시합니다.</p>`);
-      main.insertAdjacentHTML('afterbegin', '<p class="tbl-note">2026.11.16-gh2 · KBO 서버 검증판 · 모든 리그 정규시즌 전용 · 시범경기/포스트시즌 제외 · 새 검색마다 조회 시도 · 실패/캐시 여부 별도 표시</p>');
+      main.insertAdjacentHTML('afterbegin', '<p class="tbl-note">2026.11.23-gh3 · KBO 서버 검증판 · 모든 리그 정규시즌 전용 · 시범경기/포스트시즌 제외 · 새 검색마다 조회 시도 · 실패/캐시 여부 별도 표시</p>');
       const summary = leagues.map(l=>`${l.toUpperCase()}: ${status[l] || '검색 중…'}`).join(' · ');
       main.insertAdjacentHTML('afterbegin', `<p role="status" style="padding:12px;color:var(--mu)">${escH(summary)}</p>`);
       if (all.some(r=>r.type==='cpbl')) _fillCpblMeta('stats');

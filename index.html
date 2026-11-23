@@ -7463,6 +7463,8 @@ function buildExternalCard(data, league) {
     ['경력',     bio.career],
     ['계약금',   _fmtKboBonus(bio.signingBonus)],
     ['지명순위', bio.draftRank],
+    ['입단년도', bio.joinYear],
+    ['연봉', _fmtKboBonus(bio.salary)],
   ].filter(([,v]) => v);
   const kboBioHtml = bioItems.length
     ? `<div class="bio-g">${bioItems.map(([l,v]) =>
@@ -9723,7 +9725,7 @@ function escH(s){
 </script>
 <script src="assets/cpbl-directory.js?build=20261116-gh2"></script>
 <script src="assets/cpbl-recent.js?build=20261116-gh2"></script>
-<script src="assets/search.js?build=20261116-gh2"></script>
+<script src="assets/search.js?build=20261123-gh3"></script>
 <script src="assets/transactions.js?build=20261116-gh2"></script>
 <script src="assets/ui.js?build=20261116-gh2"></script>
 </body>
