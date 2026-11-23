@@ -112,3 +112,21 @@ assert(!intentionalTrades.includes('not-cpbl.invalid'));
 assert.equal([...intentionalTrades.matchAll(/class="td-yr">2026</g)].length,1);
 assert(intentionalTrades.includes('<td>8</td>'));
 console.log('PASS: CPBL official photo and bio, 13 years (2014–2026), live/source fallback, scope and aggregate dedupe');
+const oneVerified=helpers.liveCpblCard({acnt:'0000002679',name:'Chiang',pos:'Pitcher',isBatter:false,statsUpdated:'2026-10-01 11:13 KST',careerStats:officialHistory,live:{profile:jiangProfile,status:'ok',year:2026,metrics:{Pa:465},seasonRecords:[{Year:'2026',KindCode:'A',TotalGames:9999,PlateAppearances:123}]},standard:{readAt:'2026-11-23T20:30:00+09:00',categories:{pit:{'0000002679':[{Acnt:'0000002679',Year:'2026',KindCode:'A',TeamAbbrName:'台鋼雄鷹',TotalGames:'20',PitchStarting:'20',InningPitched:'109.0',PlateAppearances:'466',Era:'3.30'}]}}}});
+const firstTable=oneVerified.split('<details>')[0];
+assert.equal([...firstTable.matchAll(/class="td-yr">2026</g)].length,1);
+assert(firstTable.includes('2026-11-23 20:30 KST 공식 전수표'));
+assert(firstTable.includes('<td>466</td>')&&!firstTable.includes('<td>465</td>')&&!firstTable.includes('9999')&&!firstTable.includes('<td>123</td>'));
+assert(firstTable.includes('2026-10-01 11:13 KST 저장본'));
+const currentDataPath='data/cpbl_standard_2026.json';
+if(fs.existsSync(currentDataPath)) {
+ const ss=JSON.parse(fs.readFileSync(currentDataPath,'utf8'));
+ for (const type of ['bat','pit']) {
+  const rows=Object.values(ss.categories[type]).flat(); assert.equal(rows.length,ss.counts[type]);
+  assert(rows.every(r=>r.Year==='2026'&&r.KindCode==='A'&&/^\d{10}$/.test(r.Acnt)));
+ }
+ const match=ss.categories.pit['0000002679'][0];
+ assert.equal(Number(match.TotalGames),20);assert.equal(Number(match.InningPitched),109);
+ assert.equal(Number(match.Era),3.30);assert.equal(Number(match.PlateAppearances),466);
+}
+console.log('PASS: complete official current-season rows keep separate date, source and old seasons');
